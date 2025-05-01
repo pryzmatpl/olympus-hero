@@ -1,0 +1,14 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# The rest of the application will be mounted as a volume
+# in development mode
+
+EXPOSE 9001
+
+CMD ["npm", "run", "dev"] 

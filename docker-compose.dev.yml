@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui.dev
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:9002
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    command: npm run dev
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server.dev
+    environment:
+      - NODE_ENV=development
+      - PORT=9002
+      - JWT_SECRET=dev_jwt_secret
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    command: npm run server:dev 
