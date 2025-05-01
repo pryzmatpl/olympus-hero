@@ -1,0 +1,76 @@
+import dotenv from 'dotenv';
+import { v4 as uuidv4 } from 'uuid';
+
+// Load environment variables
+dotenv.config();
+
+// Mock NFT storage (in a production app, this would connect to a blockchain)
+const nfts = new Map();
+
+/**
+ * Process a payment and create an NFT
+ * @param {string} heroId - The ID of the hero
+ * @param {object} paymentDetails - Payment details from Stripe
+ * @returns {object} The created NFT
+ */
+export const processPaymentAndCreateNFT = (heroId, paymentDetails) => {
+  // In a real app, this would connect to the Stripe API
+  // For demo purposes, we'll just create a mock NFT
+  
+  // Generate a unique NFT token ID
+  const tokenId = uuidv4();
+  
+  // Create the NFT object
+  const nft = {
+    id: tokenId,
+    heroId,
+    createdAt: new Date(),
+    metadata: {
+      paymentId: paymentDetails.id || 'mock-payment-id',
+      amount: paymentDetails.amount || 9900,
+      currency: paymentDetails.currency || 'usd',
+      status: 'confirmed'
+    },
+    tokenURI: `https://api.olympus-hero.com/nft/${tokenId}`,
+    ownerAddress: paymentDetails.walletAddress || '0x0000000000000000000000000000000000000000'
+  };
+  
+  // Store the NFT
+  nfts.set(tokenId, nft);
+  
+  return nft;
+};
+
+/**
+ * Get an NFT by ID
+ * @param {string} nftId - The NFT ID
+ * @returns {object|null} The NFT or null if not found
+ */
+export const getNFTById = (nftId) => {
+  if (!nfts.has(nftId)) {
+    return null;
+  }
+  
+  return nfts.get(nftId);
+};
+
+/**
+ * Get NFTs by hero ID
+ * @param {string} heroId - The hero ID
+ * @returns {Array} Array of NFTs associated with the hero
+ */
+export const getNFTsByHeroId = (heroId) => {
+  return [...nfts.values()].filter(nft => nft.heroId === heroId);
+};
+
+/**
+ * Get NFTs by owner address
+ * @param {string} ownerAddress - The owner's wallet address
+ * @returns {Array} Array of NFTs owned by the address
+ */
+export const getNFTsByOwner = (ownerAddress) => {
+  return [...nfts.values()].filter(nft => nft.ownerAddress === ownerAddress);
+};
+
+// Export the NFTs Map for use in other modules
+export const getNFTsMap = () => nfts; 

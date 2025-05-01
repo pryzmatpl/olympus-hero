@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    ports:
+      - "9001:80"
+    depends_on:
+      - server
+    environment:
+      - VITE_API_URL=http://server:9002
+    networks:
+      - olympus-network
+    volumes:
+      - ./public:/app/public
+      - ./src:/app/src
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "9002:9002"
+    environment:
+      - PORT=9002
+      - NODE_ENV=production
+      - JWT_SECRET=your_jwt_secret_key_here
+    networks:
+      - olympus-network
+    volumes:
+      - ./server:/app/server
+      - hero-data:/app/data
+
+networks:
+  olympus-network:
+    driver: bridge
+
+volumes:
+  hero-data: 
