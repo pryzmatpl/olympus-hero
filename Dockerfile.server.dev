@@ -2,9 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package.json package-lock.json ./
-RUN npm ci
+
+# Install all dependencies
+RUN npm ci 
+
+# Install mongodb package explicitly
+RUN npm install mongodb
 
 # Install nodemon for development
 RUN npm install -g nodemon

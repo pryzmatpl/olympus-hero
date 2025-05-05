@@ -26,6 +26,8 @@ services:
     volumes:
       - ./:/app
       - /app/node_modules
+    ports:
+      - "9002:9002"
     command: npm run server:dev
     depends_on:
       - mongodb
