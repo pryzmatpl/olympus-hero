@@ -12,6 +12,16 @@ import { initializeDB, heroDb } from './db.js';
 // Load environment variables
 dotenv.config();
 
+// Verify critical environment variables
+const requiredEnvVars = ['OPENAI_API_KEY', 'JWT_SECRET'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error(`Error: Missing required environment variables: ${missingEnvVars.join(', ')}`);
+  console.error('Make sure these variables are set in your .env file or environment.');
+  process.exit(1);
+}
+
 // Initialize the database connection
 initializeDB().catch(console.error);
 

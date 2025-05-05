@@ -1,6 +1,6 @@
 import { OpenAI } from 'openai';
 
-const openai = new OpenAI({api_key: process.env.OPENAI_API_KEY});
+const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
 
 // Helper function to get random items from an array
 const getRandomItems = (array, count) => {
@@ -17,7 +17,7 @@ export async function generateExpandedBackstory(backstory) {
 
   if (!openaiKey) {
     throw new Error('OpenAI API key is not configured');
-  }s
+  }
 
   // Prepare the request payload
   const payload = {
@@ -76,14 +76,14 @@ export async function generateOpenAIImages(heroName, westernZodiac, chineseZodia
   const prompt = generateImagePrompt(heroName, westernZodiac, chineseZodiac, viewAngle);
 
   try {
-    const response = await openai.createImage({
-      model: "gpt-image-1",
+    const response = await openai.images.generate({
+      model: "dall-e-3",
       prompt: prompt,
       size: "1024x1024",
       n: 1,
     });
 
-    const imageUrl = response.data.data[0].url;
+    const imageUrl = response.data[0].url;
 
     return {
       angle: viewAngle,
