@@ -22,7 +22,23 @@ services:
       - NODE_ENV=development
       - PORT=9002
       - JWT_SECRET=dev_jwt_secret
+      - MONGO_URI=mongodb://mongodb:27017/olympus-hero
     volumes:
       - ./:/app
       - /app/node_modules
-    command: npm run server:dev 
+    command: npm run server:dev
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data-dev:/data/db
+    restart: always
+    environment:
+      - MONGO_INITDB_DATABASE=olympus-hero
+
+volumes:
+  mongodb-data-dev: 

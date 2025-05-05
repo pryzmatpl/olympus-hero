@@ -7,9 +7,13 @@ import { generateOpenAIImages, generateBackstory } from './openai.js';
 import { registerUser, loginUser, authMiddleware, getUserById, addHeroToUser } from './auth.js';
 import { processPaymentAndCreateNFT, getNFTById, getNFTsByHeroId } from './stripe.js';
 import { createSharedLink, accessSharedHero, getSharedLinksByUser, deactivateSharedLink } from './share.js';
+import { initializeDB, heroDb } from './db.js';
 
 // Load environment variables
 dotenv.config();
+
+// Initialize the database connection
+initializeDB().catch(console.error);
 
 const app = express();
 const PORT = process.env.PORT || 9002;
@@ -18,12 +22,8 @@ const PORT = process.env.PORT || 9002;
 app.use(cors());
 app.use(express.json());
 
-// In-memory storage for demo purposes
-// In a production app, this would be a database
-const heroes = new Map();
-
 // Authentication Routes
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, name } = req.body;
     
@@ -31,7 +31,7 @@ app.post('/api/auth/register', (req, res) => {
       return res.status(400).json({ error: 'Email, password, and name are required' });
     }
     
-    const user = registerUser(email, password, name);
+    const user = await registerUser(email, password, name);
     return res.status(201).json({ user });
   } catch (error) {
     console.error('Error registering user:', error);
@@ -39,7 +39,7 @@ app.post('/api/auth/register', (req, res) => {
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
@@ -47,7 +47,7 @@ app.post('/api/auth/login', (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
     
-    const { token, user } = loginUser(email, password);
+    const { token, user } = await loginUser(email, password);
     return res.json({ token, user });
   } catch (error) {
     console.error('Error logging in:', error);
@@ -56,8 +56,8 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // Protected route to get user profile
-app.get('/api/user', authMiddleware, (req, res) => {
-  const user = getUserById(req.user.userId);
+app.get('/api/user', authMiddleware, async (req, res) => {
+  const user = await getUserById(req.user.userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -101,11 +101,11 @@ app.post('/api/heroes', authMiddleware, async (req, res) => {
       nftId: null
     };
     
-    // Store the hero
-    heroes.set(heroId, hero);
+    // Store the hero in database
+    await heroDb.createHero(hero);
     
     // Associate hero with user
-    addHeroToUser(userId, heroId);
+    await addHeroToUser(userId, heroId);
     
     // Return the hero ID
     return res.status(201).json({ 
@@ -119,15 +119,14 @@ app.post('/api/heroes', authMiddleware, async (req, res) => {
 });
 
 // Get hero by ID (allowed for authenticated users who own the hero)
-app.get('/api/heroes/:id', authMiddleware, (req, res) => {
+app.get('/api/heroes/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   
-  if (!heroes.has(id)) {
+  const hero = await heroDb.findHeroById(id);
+  if (!hero) {
     return res.status(404).json({ error: 'Hero not found' });
   }
-  
-  const hero = heroes.get(id);
   
   // Check if the user owns this hero
   if (hero.userId !== userId) {
@@ -142,11 +141,10 @@ app.post('/api/heroes/:id/generate', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   
-  if (!heroes.has(id)) {
+  const hero = await heroDb.findHeroById(id);
+  if (!hero) {
     return res.status(404).json({ error: 'Hero not found' });
   }
-  
-  const hero = heroes.get(id);
   
   // Check if the user owns this hero
   if (hero.userId !== userId) {
@@ -156,7 +154,7 @@ app.post('/api/heroes/:id/generate', authMiddleware, async (req, res) => {
   try {
     // Update status
     hero.status = 'processing';
-    heroes.set(id, hero);
+    await heroDb.updateHero(id, { status: 'processing' });
     
     // Generate images
     const viewAngles = ['front', 'profile', 'action'];
@@ -166,39 +164,41 @@ app.post('/api/heroes/:id/generate', authMiddleware, async (req, res) => {
     
     // Wait for all images to be generated
     const images = await Promise.all(imagePromises);
-    hero.images = images;
     
     // Generate backstory
     const backstory = await generateBackstory(hero.name, hero.westernZodiac, hero.chineseZodiac);
-    hero.backstory = backstory;
     
-    // Update status
-    hero.status = 'completed';
-    heroes.set(id, hero);
+    // Update hero with images and backstory
+    await heroDb.updateHero(id, {
+      images,
+      backstory,
+      status: 'completed'
+    });
+    
+    // Get the updated hero
+    const updatedHero = await heroDb.findHeroById(id);
     
     return res.json({ 
       message: 'Hero generation completed',
-      hero
+      hero: updatedHero
     });
   } catch (error) {
     console.error('Error generating hero content:', error);
-    hero.status = 'error';
-    heroes.set(id, hero);
+    await heroDb.updateHero(id, { status: 'error' });
     return res.status(500).json({ error: 'Failed to generate hero content' });
   }
 });
 
 // Process payment with Stripe and create NFT
-app.post('/api/heroes/:id/payment', authMiddleware, (req, res) => {
+app.post('/api/heroes/:id/payment', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { paymentDetails } = req.body;
   const userId = req.user.userId;
   
-  if (!heroes.has(id)) {
+  const hero = await heroDb.findHeroById(id);
+  if (!hero) {
     return res.status(404).json({ error: 'Hero not found' });
   }
-  
-  const hero = heroes.get(id);
   
   // Check if the user owns this hero
   if (hero.userId !== userId) {
@@ -207,16 +207,20 @@ app.post('/api/heroes/:id/payment', authMiddleware, (req, res) => {
   
   try {
     // Process payment and create NFT
-    const nft = processPaymentAndCreateNFT(id, paymentDetails);
+    const nft = await processPaymentAndCreateNFT(id, paymentDetails);
     
     // Update hero with NFT ID and payment status
-    hero.nftId = nft.id;
-    hero.paymentStatus = 'paid';
-    heroes.set(id, hero);
+    await heroDb.updateHero(id, {
+      nftId: nft.id,
+      paymentStatus: 'paid'
+    });
+    
+    // Get updated hero
+    const updatedHero = await heroDb.findHeroById(id);
     
     return res.json({ 
       message: 'Payment processed successfully and NFT created',
-      hero,
+      hero: updatedHero,
       nft
     });
   } catch (error) {
@@ -226,15 +230,14 @@ app.post('/api/heroes/:id/payment', authMiddleware, (req, res) => {
 });
 
 // Get NFT details for a hero
-app.get('/api/heroes/:id/nft', authMiddleware, (req, res) => {
+app.get('/api/heroes/:id/nft', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   
-  if (!heroes.has(id)) {
+  const hero = await heroDb.findHeroById(id);
+  if (!hero) {
     return res.status(404).json({ error: 'Hero not found' });
   }
-  
-  const hero = heroes.get(id);
   
   // Check if the user owns this hero
   if (hero.userId !== userId) {
@@ -245,7 +248,7 @@ app.get('/api/heroes/:id/nft', authMiddleware, (req, res) => {
     return res.status(404).json({ error: 'No NFT found for this hero' });
   }
   
-  const nft = getNFTById(hero.nftId);
+  const nft = await getNFTById(hero.nftId);
   if (!nft) {
     return res.status(404).json({ error: 'NFT not found' });
   }
@@ -255,16 +258,15 @@ app.get('/api/heroes/:id/nft', authMiddleware, (req, res) => {
 
 // Sharing Routes
 // Create a shared link for a hero
-app.post('/api/heroes/:id/share', authMiddleware, (req, res) => {
+app.post('/api/heroes/:id/share', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   const { expiresAt, maxAccesses } = req.body;
   
-  if (!heroes.has(id)) {
+  const hero = await heroDb.findHeroById(id);
+  if (!hero) {
     return res.status(404).json({ error: 'Hero not found' });
   }
-  
-  const hero = heroes.get(id);
   
   // Check if the user owns this hero
   if (hero.userId !== userId) {
@@ -272,7 +274,7 @@ app.post('/api/heroes/:id/share', authMiddleware, (req, res) => {
   }
   
   // Create the shared link
-  const sharedLink = createSharedLink(id, userId, { expiresAt, maxAccesses });
+  const sharedLink = await createSharedLink(id, userId, { expiresAt, maxAccesses });
   
   return res.status(201).json({ 
     message: 'Shared link created successfully',
@@ -281,20 +283,20 @@ app.post('/api/heroes/:id/share', authMiddleware, (req, res) => {
 });
 
 // Get all shared links for a user
-app.get('/api/user/shares', authMiddleware, (req, res) => {
+app.get('/api/user/shares', authMiddleware, async (req, res) => {
   const userId = req.user.userId;
   
-  const sharedLinks = getSharedLinksByUser(userId);
+  const sharedLinks = await getSharedLinksByUser(userId);
   
   return res.json({ sharedLinks });
 });
 
 // Deactivate a shared link
-app.delete('/api/shares/:id', authMiddleware, (req, res) => {
+app.delete('/api/shares/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
   
-  const success = deactivateSharedLink(id, userId);
+  const success = await deactivateSharedLink(id, userId);
   
   if (!success) {
     return res.status(404).json({ error: 'Shared link not found or you do not have permission to deactivate it' });
@@ -304,17 +306,17 @@ app.delete('/api/shares/:id', authMiddleware, (req, res) => {
 });
 
 // Public access to shared hero
-app.get('/api/share/:shareId', (req, res) => {
+app.get('/api/share/:shareId', async (req, res) => {
   const { shareId } = req.params;
   
-  const result = accessSharedHero(shareId);
+  const result = await accessSharedHero(shareId);
   
   if (!result.success) {
     return res.status(404).json({ error: result.error });
   }
   
   // Get the hero data
-  const hero = heroes.get(result.heroId);
+  const hero = await heroDb.findHeroById(result.heroId);
   if (!hero) {
     return res.status(404).json({ error: 'Hero not found' });
   }

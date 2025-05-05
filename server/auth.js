@@ -1,15 +1,13 @@
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-
-// In-memory storage for users (would be a database in production)
-const users = new Map();
+import { userDb } from './db.js';
 
 /**
  * Register a new user
  */
-export const registerUser = (email, password, name) => {
+export const registerUser = async (email, password, name) => {
   // Check if user already exists
-  const existingUser = [...users.values()].find(user => user.email === email);
+  const existingUser = await userDb.findUserByEmail(email);
   if (existingUser) {
     throw new Error('User with this email already exists');
   }
@@ -26,16 +24,16 @@ export const registerUser = (email, password, name) => {
   };
 
   // Store the user
-  users.set(userId, user);
+  await userDb.createUser(user);
   return { userId, email, name };
 };
 
 /**
  * Log in a user
  */
-export const loginUser = (email, password) => {
+export const loginUser = async (email, password) => {
   // Find the user
-  const user = [...users.values()].find(user => user.email === email);
+  const user = await userDb.findUserByEmail(email);
   if (!user || user.password !== password) {
     throw new Error('Invalid credentials');
   }
@@ -78,12 +76,12 @@ export const authMiddleware = (req, res, next) => {
 /**
  * Get a user by ID
  */
-export const getUserById = (userId) => {
-  if (!users.has(userId)) {
+export const getUserById = async (userId) => {
+  const user = await userDb.findUserById(userId);
+  if (!user) {
     return null;
   }
   
-  const user = users.get(userId);
   // Don't return the password
   const { password, ...userWithoutPassword } = user;
   return userWithoutPassword;
@@ -92,17 +90,10 @@ export const getUserById = (userId) => {
 /**
  * Associate a hero with a user
  */
-export const addHeroToUser = (userId, heroId) => {
-  if (!users.has(userId)) {
+export const addHeroToUser = async (userId, heroId) => {
+  try {
+    return await userDb.addHeroToUser(userId, heroId);
+  } catch (error) {
     throw new Error('User not found');
   }
-  
-  const user = users.get(userId);
-  user.heroes.push(heroId);
-  users.set(userId, user);
-  
-  return user.heroes;
-};
-
-// Export the users Map for use in other modules
-export const getUsersMap = () => users; 
+}; 

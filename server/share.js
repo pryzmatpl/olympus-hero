@@ -1,7 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-
-// In-memory storage for shared links (would be a database in production)
-const sharedLinks = new Map();
+import { shareDb } from './db.js';
 
 /**
  * Create a shared link for a hero
@@ -10,7 +8,7 @@ const sharedLinks = new Map();
  * @param {object} options - Optional configuration for the shared link
  * @returns {object} The shared link details
  */
-export const createSharedLink = (heroId, userId, options = {}) => {
+export const createSharedLink = async (heroId, userId, options = {}) => {
   // Generate a unique share ID
   const shareId = uuidv4();
   
@@ -27,8 +25,8 @@ export const createSharedLink = (heroId, userId, options = {}) => {
     isActive: true
   };
   
-  // Store the shared link
-  sharedLinks.set(shareId, sharedLink);
+  // Store the shared link in the database
+  await shareDb.createSharedLink(sharedLink);
   
   return {
     shareId,
@@ -42,12 +40,8 @@ export const createSharedLink = (heroId, userId, options = {}) => {
  * @param {string} shareId - The ID of the shared link
  * @returns {object|null} The shared link or null if not found
  */
-export const getSharedLink = (shareId) => {
-  if (!sharedLinks.has(shareId)) {
-    return null;
-  }
-  
-  return sharedLinks.get(shareId);
+export const getSharedLink = async (shareId) => {
+  return await shareDb.findSharedLinkById(shareId);
 };
 
 /**
@@ -55,9 +49,9 @@ export const getSharedLink = (shareId) => {
  * @param {string} shareId - The ID of the shared link
  * @returns {object} The result of the access attempt
  */
-export const accessSharedHero = (shareId) => {
+export const accessSharedHero = async (shareId) => {
   // Get the shared link
-  const sharedLink = getSharedLink(shareId);
+  const sharedLink = await getSharedLink(shareId);
   
   // Check if the link exists
   if (!sharedLink) {
@@ -71,8 +65,8 @@ export const accessSharedHero = (shareId) => {
   
   // Check if the link has expired
   if (sharedLink.expiresAt && new Date() > new Date(sharedLink.expiresAt)) {
-    sharedLink.isActive = false;
-    sharedLinks.set(shareId, sharedLink);
+    // Update the link to inactive
+    await shareDb.updateSharedLink(shareId, { isActive: false });
     return { success: false, error: 'Shared link has expired' };
   }
   
@@ -82,15 +76,16 @@ export const accessSharedHero = (shareId) => {
   }
   
   // Update access information
-  sharedLink.accessCount += 1;
-  sharedLink.lastAccessedAt = new Date();
-  sharedLinks.set(shareId, sharedLink);
+  await shareDb.updateSharedLink(shareId, {
+    accessCount: sharedLink.accessCount + 1,
+    lastAccessedAt: new Date()
+  });
   
   return { 
     success: true, 
     heroId: sharedLink.heroId,
     userId: sharedLink.userId,
-    accessCount: sharedLink.accessCount
+    accessCount: sharedLink.accessCount + 1
   };
 };
 
@@ -99,8 +94,8 @@ export const accessSharedHero = (shareId) => {
  * @param {string} userId - The user ID
  * @returns {Array} Array of shared links
  */
-export const getSharedLinksByUser = (userId) => {
-  return [...sharedLinks.values()].filter(link => link.userId === userId);
+export const getSharedLinksByUser = async (userId) => {
+  return await shareDb.getSharedLinksByUserId(userId);
 };
 
 /**
@@ -109,24 +104,6 @@ export const getSharedLinksByUser = (userId) => {
  * @param {string} userId - The user ID (for authorization)
  * @returns {boolean} Success status
  */
-export const deactivateSharedLink = (shareId, userId) => {
-  const sharedLink = getSharedLink(shareId);
-  
-  if (!sharedLink) {
-    return false;
-  }
-  
-  // Authorization check - only the creator can deactivate
-  if (sharedLink.userId !== userId) {
-    return false;
-  }
-  
-  // Deactivate the link
-  sharedLink.isActive = false;
-  sharedLinks.set(shareId, sharedLink);
-  
-  return true;
-};
-
-// Export the shared links Map for use in other modules
-export const getSharedLinksMap = () => sharedLinks; 
+export const deactivateSharedLink = async (shareId, userId) => {
+  return await shareDb.deactivateSharedLink(shareId, userId);
+}; 

@@ -21,6 +21,7 @@
     "framer-motion": "^10.16.16",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.344.0",
+    "mongodb": "^6.5.0",
     "openai": "^4.24.1",
     "react": "^18.3.1",
     "react-datepicker": "^4.25.0",

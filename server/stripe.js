@@ -1,11 +1,9 @@
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
+import { connectDB } from './db.js';
 
 // Load environment variables
 dotenv.config();
-
-// Mock NFT storage (in a production app, this would connect to a blockchain)
-const nfts = new Map();
 
 /**
  * Process a payment and create an NFT
@@ -13,7 +11,7 @@ const nfts = new Map();
  * @param {object} paymentDetails - Payment details from Stripe
  * @returns {object} The created NFT
  */
-export const processPaymentAndCreateNFT = (heroId, paymentDetails) => {
+export const processPaymentAndCreateNFT = async (heroId, paymentDetails) => {
   // In a real app, this would connect to the Stripe API
   // For demo purposes, we'll just create a mock NFT
   
@@ -35,8 +33,9 @@ export const processPaymentAndCreateNFT = (heroId, paymentDetails) => {
     ownerAddress: paymentDetails.walletAddress || '0x0000000000000000000000000000000000000000'
   };
   
-  // Store the NFT
-  nfts.set(tokenId, nft);
+  // Store the NFT in the database
+  const db = await connectDB();
+  await db.collection('nfts').insertOne(nft);
   
   return nft;
 };
@@ -46,12 +45,9 @@ export const processPaymentAndCreateNFT = (heroId, paymentDetails) => {
  * @param {string} nftId - The NFT ID
  * @returns {object|null} The NFT or null if not found
  */
-export const getNFTById = (nftId) => {
-  if (!nfts.has(nftId)) {
-    return null;
-  }
-  
-  return nfts.get(nftId);
+export const getNFTById = async (nftId) => {
+  const db = await connectDB();
+  return db.collection('nfts').findOne({ id: nftId });
 };
 
 /**
@@ -59,8 +55,9 @@ export const getNFTById = (nftId) => {
  * @param {string} heroId - The hero ID
  * @returns {Array} Array of NFTs associated with the hero
  */
-export const getNFTsByHeroId = (heroId) => {
-  return [...nfts.values()].filter(nft => nft.heroId === heroId);
+export const getNFTsByHeroId = async (heroId) => {
+  const db = await connectDB();
+  return db.collection('nfts').find({ heroId }).toArray();
 };
 
 /**
@@ -68,8 +65,9 @@ export const getNFTsByHeroId = (heroId) => {
  * @param {string} ownerAddress - The owner's wallet address
  * @returns {Array} Array of NFTs owned by the address
  */
-export const getNFTsByOwner = (ownerAddress) => {
-  return [...nfts.values()].filter(nft => nft.ownerAddress === ownerAddress);
+export const getNFTsByOwner = async (ownerAddress) => {
+  const db = await connectDB();
+  return db.collection('nfts').find({ ownerAddress }).toArray();
 };
 
 // Export the NFTs Map for use in other modules
