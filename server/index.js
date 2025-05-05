@@ -150,47 +150,47 @@ app.get('/api/heroes/:id', authMiddleware, async (req, res) => {
 app.post('/api/heroes/:id/generate', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
-  
+
   const hero = await heroDb.findHeroById(id);
   if (!hero) {
     return res.status(404).json({ error: 'Hero not found' });
   }
-  
+
   // Check if the user owns this hero
   if (hero.userId !== userId) {
     return res.status(403).json({ error: 'You do not have permission to modify this hero' });
   }
-  
+
   try {
     // Update status
     hero.status = 'processing';
     await heroDb.updateHero(id, { status: 'processing' });
-    
+
     // Generate images
     const viewAngles = ['front', 'profile', 'action'];
-    const imagePromises = viewAngles.map(angle => 
-      generateOpenAIImages(hero.name, hero.westernZodiac, hero.chineseZodiac, angle)
+    const imagePromises = viewAngles.map(angle =>
+        generateOpenAIImages(hero.name, hero.westernZodiac, hero.chineseZodiac, angle)
     );
-    
+
     // Wait for all images to be generated
     const images = await Promise.all(imagePromises);
-    
+
     // Generate backstory
     const backstory = await generateBackstory(hero.name, hero.westernZodiac, hero.chineseZodiac);
-    
+
     // Update hero with images and backstory
     await heroDb.updateHero(id, {
       images,
       backstory,
-      status: 'completed'
+      status: 'completed',
     });
-    
+
     // Get the updated hero
     const updatedHero = await heroDb.findHeroById(id);
-    
-    return res.json({ 
+
+    return res.json({
       message: 'Hero generation completed',
-      hero: updatedHero
+      hero: updatedHero,
     });
   } catch (error) {
     console.error('Error generating hero content:', error);
@@ -198,6 +198,7 @@ app.post('/api/heroes/:id/generate', authMiddleware, async (req, res) => {
     return res.status(500).json({ error: 'Failed to generate hero content' });
   }
 });
+
 
 // Process payment with Stripe and create NFT
 app.post('/api/heroes/:id/payment', authMiddleware, async (req, res) => {

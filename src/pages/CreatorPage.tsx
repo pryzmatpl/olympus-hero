@@ -7,6 +7,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { useZodiac } from '../hooks/useZodiac';
 import { useHeroStore } from '../store/heroStore';
+import { Guid } from 'guid-typescript';
 import { generateHeroBackstory } from '../utils/generateHeroPrompt';
 
 const CreatorPage: React.FC = () => {
@@ -74,48 +75,44 @@ const CreatorPage: React.FC = () => {
   };
   
   // Function to create the hero
-  const handleCreateHero = () => {
+  const handleCreateHero = async () => {
     setLoading(true);
     setStatus('generating');
-    
-    // Simulate API call with data processing
-    setTimeout(() => {
-      if (zodiacInfo) {
-        // Generate hero backstory based on zodiac information
-        const heroBackstory = generateHeroBackstory(heroName, zodiacInfo);
-        setBackstory(heroBackstory);
-        
-        // Generate placeholder images based on zodiac
-        const placeholderImages = [
-          {
-            angle: 'front',
-            url: 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg',
-            prompt: `${heroName} front view, ${zodiacInfo.western.sign} and ${zodiacInfo.chinese.sign} influenced`
-          },
-          {
-            angle: 'profile',
-            url: 'https://images.pexels.com/photos/3493777/pexels-photo-3493777.jpeg',
-            prompt: `${heroName} profile view, ${zodiacInfo.western.sign} and ${zodiacInfo.chinese.sign} influenced`
-          },
-          {
-            angle: 'action',
-            url: 'https://images.pexels.com/photos/4900927/pexels-photo-4900927.jpeg',
-            prompt: `${heroName} action view, ${zodiacInfo.western.sign} and ${zodiacInfo.chinese.sign} influenced`
-          }
-        ];
-        
-        setImages(placeholderImages);
+    const heroId = Guid.create().toString();
+
+    try {
+      const response = await fetch(`/api/heroes/${heroId}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          heroName: heroName,
+          zodiacInfo: zodiacInfo,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.hero) {
+        // Set the generated images and backstory
+        setImages(data.hero.images);
+        setBackstory(data.hero.backstory);
         setStatus('complete');
+
+        // Navigate to the hero page with a preview ID
+        navigate(`/hero/${heroId}`);
+      } else {
+        throw new Error('Failed to generate hero content');
       }
-      
+    } catch (error) {
+      console.error('Error creating hero:', error);
+      setStatus('error');
+    } finally {
       setLoading(false);
-      
-      // Navigate to the hero page with a preview ID
-      const heroId = 'preview-' + Date.now();
-      navigate(`/hero/${heroId}`);
-    }, 2000);
+    }
   };
-  
+
   // Progress indicator
   const progress = useMemo(() => {
     return (step / 3) * 100;
