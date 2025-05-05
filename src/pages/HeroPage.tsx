@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard } from 'lucide-react';
 import Button from '../components/ui/Button';
+import { useHeroStore } from '../store/heroStore';
+import HeroPortrait from '../components/hero/HeroPortrait';
+import HeroBackstory from '../components/hero/HeroBackstory';
+import ZodiacInfo from '../components/hero/ZodiacInfo';
+import ReactMarkdown from 'react-markdown';
 
-// Import placeholder images for demo
+// Import placeholder images for demo (fallback)
 const PLACEHOLDER_IMAGES = [
   'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg',
   'https://images.pexels.com/photos/3493777/pexels-photo-3493777.jpeg',
   'https://images.pexels.com/photos/4900927/pexels-photo-4900927.jpeg'
 ];
 
+// Fallback placeholder hero
 const PLACEHOLDER_HERO = {
   name: 'Celestia Drakonos',
   zodiacWestern: 'Leo',
@@ -41,7 +47,53 @@ const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [activeImage, setActiveImage] = useState<number>(0);
   
+  // Get hero data from the store
+  const { 
+    heroName, 
+    zodiacInfo, 
+    images, 
+    backstory, 
+    status 
+  } = useHeroStore();
+  
   const isPreview = id?.startsWith('preview-');
+  const isLoading = status === 'generating';
+  
+  // Derive hero traits from zodiac info
+  const heroTraits = zodiacInfo ? [
+    ...zodiacInfo.western.traits.slice(0, 2),
+    ...zodiacInfo.chinese.traits.slice(0, 2)
+  ] : PLACEHOLDER_HERO.traits;
+  
+  // Use hero data from store or fallback to placeholder
+  const displayName = heroName || PLACEHOLDER_HERO.name;
+  const displayWesternSign = zodiacInfo?.western.sign || PLACEHOLDER_HERO.zodiacWestern;
+  const displayChineseSign = zodiacInfo?.chinese.sign || PLACEHOLDER_HERO.zodiacChinese;
+  const displayWesternElement = zodiacInfo?.western.element || PLACEHOLDER_HERO.elementWestern;
+  const displayChineseElement = zodiacInfo?.chinese.element || PLACEHOLDER_HERO.elementChinese;
+  const displayBackstory = backstory || PLACEHOLDER_HERO.backstory;
+  
+  // Prepare images for display
+  const displayImages = images.length > 0 
+    ? images.map(img => ({ url: img.url })) 
+    : PLACEHOLDER_IMAGES.map(url => ({ url }));
+  
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
+      >
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cosmic-500 mx-auto mb-4"></div>
+          <h2 className="text-2xl font-semibold">Generating your cosmic hero...</h2>
+          <p className="text-gray-400 mt-2">This may take a moment as we align the stars.</p>
+        </div>
+      </motion.div>
+    );
+  }
   
   return (
     <motion.div
@@ -55,14 +107,14 @@ const HeroPage: React.FC = () => {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">
-              {PLACEHOLDER_HERO.name}
+              {displayName}
             </h1>
             <p className="text-gray-300 flex flex-wrap items-center gap-2">
               <span className="bg-mystic-700 px-2 py-1 rounded text-xs">
-                {PLACEHOLDER_HERO.zodiacWestern} ({PLACEHOLDER_HERO.elementWestern})
+                {displayWesternSign} ({displayWesternElement})
               </span>
               <span className="bg-mystic-700 px-2 py-1 rounded text-xs">
-                {PLACEHOLDER_HERO.zodiacChinese} ({PLACEHOLDER_HERO.elementChinese})
+                {displayChineseSign} ({displayChineseElement})
               </span>
             </p>
           </div>
@@ -105,8 +157,8 @@ const HeroPage: React.FC = () => {
               {/* Main Image */}
               <div className="aspect-square md:aspect-[4/3] relative">
                 <img 
-                  src={PLACEHOLDER_IMAGES[activeImage]} 
-                  alt={`${PLACEHOLDER_HERO.name} illustration`}
+                  src={displayImages[activeImage].url} 
+                  alt={`${displayName} illustration`}
                   className="w-full h-full object-cover"
                 />
                 
@@ -122,13 +174,13 @@ const HeroPage: React.FC = () => {
               
               {/* Image number indicator */}
               <div className="absolute top-4 right-4 bg-mystic-900/80 px-3 py-1 rounded-full text-xs">
-                {activeImage + 1} / {PLACEHOLDER_IMAGES.length}
+                {activeImage + 1} / {displayImages.length}
               </div>
             </div>
             
             {/* Thumbnails */}
             <div className="grid grid-cols-3 gap-4">
-              {PLACEHOLDER_IMAGES.map((image, index) => (
+              {displayImages.map((image, index) => (
                 <button
                   key={index}
                   onClick={() => setActiveImage(index)}
@@ -140,7 +192,7 @@ const HeroPage: React.FC = () => {
                   `}
                 >
                   <img 
-                    src={image} 
+                    src={image.url} 
                     alt={`Thumbnail ${index + 1}`}
                     className="w-full h-full object-cover"
                   />
@@ -154,7 +206,7 @@ const HeroPage: React.FC = () => {
             <div className="bg-mystic-800 rounded-xl p-6 mb-6 shadow-mystic">
               <h2 className="text-xl font-display font-semibold mb-4">Hero Traits</h2>
               <ul className="space-y-3">
-                {PLACEHOLDER_HERO.traits.map((trait, index) => (
+                {heroTraits.map((trait, index) => (
                   <li key={index} className="flex items-center gap-2">
                     <BadgeCheck size={18} className="text-cosmic-500" />
                     <span className="capitalize">{trait}</span>
@@ -187,7 +239,7 @@ const HeroPage: React.FC = () => {
             <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
               <h2 className="text-xl font-display font-semibold mb-4">Backstory</h2>
               <div className="prose prose-invert prose-sm max-w-none">
-                <div dangerouslySetInnerHTML={{ __html: PLACEHOLDER_HERO.backstory }} />
+                <ReactMarkdown>{displayBackstory}</ReactMarkdown>
               </div>
             </div>
           </div>
