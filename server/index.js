@@ -147,7 +147,7 @@ app.get('/api/heroes/:id', authMiddleware, async (req, res) => {
 });
 
 // Generate hero images and backstory
-app.post('/api/heroes/:id/generate', authMiddleware, async (req, res) => {
+app.post('/api/heroes/generate/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
 

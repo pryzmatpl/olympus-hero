@@ -79,10 +79,13 @@ const CreatorPage: React.FC = () => {
   const handleCreateHero = async () => {
     setLoading(true);
     setStatus('generating');
-    const heroId = Guid.create().toString().replace('-','');
+    let heroId = Guid.create().toString();
+    heroId = heroId.replace(/-/gi, '');
+
+    console.log(heroId);
 
     try {
-      const response = await api.post(`/api/heroes/${heroId}/generate`, {
+      const response = await api.post(`/api/heroes/generate/${heroId}`, {
         headers: {
           'Content-Type': 'application/json',
         },
