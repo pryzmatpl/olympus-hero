@@ -7,6 +7,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { useZodiac } from '../hooks/useZodiac';
 import { useHeroStore } from '../store/heroStore';
+import api from '../utils/api.ts';
 import { Guid } from 'guid-typescript';
 import { generateHeroBackstory } from '../utils/generateHeroPrompt';
 
@@ -78,11 +79,10 @@ const CreatorPage: React.FC = () => {
   const handleCreateHero = async () => {
     setLoading(true);
     setStatus('generating');
-    const heroId = Guid.create().toString();
+    const heroId = Guid.create().toString().replace('-','');
 
     try {
-      const response = await fetch(`/api/heroes/${heroId}/generate`, {
-        method: 'POST',
+      const response = await api.post(`/api/heroes/${heroId}/generate`, {
         headers: {
           'Content-Type': 'application/json',
         },
