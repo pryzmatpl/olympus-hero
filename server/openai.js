@@ -7,6 +7,67 @@ const getRandomItems = (array, count) => {
   return shuffled.slice(0, count);
 };
 
+export async function generateExpandedBackstory(backstory) {
+  // OpenAI API endpoint for chat completions
+  const apiUrl = 'https://api.openai.com/v1/chat/completions';
+
+  // Get API key from environment variable or configuration
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (!openaiKey) {
+    throw new Error('OpenAI API key is not configured');
+  }
+
+  // Prepare the request payload
+  const payload = {
+    model: "gpt-4",
+    messages: [
+      {
+        role: "system",
+        content: "You are a creative writing assistant that specializes in fantasy character backstories. Expand on the provided backstory with more details, including childhood, notable achievements, relationships, and personal struggles. Keep the tone consistent with the original backstory."
+      },
+      {
+        role: "user",
+        content: `Please expand this character backstory with more details: ${backstory}`
+      }
+    ],
+    temperature: 0.8,
+    max_tokens: 1000
+  };
+
+  try {
+    // Make the API request
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // Handle unsuccessful responses
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`OpenAI API request failed with status ${response.status}: ${JSON.stringify(errorData)}`);
+    }
+
+    // Parse the successful response
+    const result = await response.json();
+
+    // Verify that we have a valid response with choices
+    if (!result || !result.choices || !result.choices[0] || !result.choices[0].message) {
+      throw new Error('Invalid response structure from OpenAI API');
+    }
+
+    // Extract the expanded backstory from the response
+    return result.choices[0].message.content;
+  } catch (error) {
+    console.error('Error calling OpenAI API:', error);
+    throw error;
+  }
+}
+
 // Generate image prompts based on hero details and view angle
 export async function generateOpenAIImages(heroName, westernZodiac, chineseZodiac, viewAngle) {
   // In a real implementation, this would call the OpenAI API
@@ -196,7 +257,7 @@ ${statsDisplay}
 These abilities shape ${heroName}'s approach to challenges, with their ${westernZodiac.element}-influenced powers manifesting most strongly through their ${characterStats.highestStat.name}.
   `;
   
-  return backstory;
+  return await generateExpandedBackstory(backstory);
 }
 
 // Helper function to generate a detailed image prompt

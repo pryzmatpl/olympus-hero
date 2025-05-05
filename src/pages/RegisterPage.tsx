@@ -1,7 +1,8 @@
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+// @ts-ignore
+import api from '../utils/api.ts';
 import { AuthContext } from '../App';
 
 const pageVariants = {
@@ -39,14 +40,16 @@ const RegisterPage = () => {
       setError(null);
       
       // Register the user
-      const registerResponse = await axios.post('/api/auth/register', {
+      const registerResponse = await api.post('/api/auth/register', {
         name,
         email,
         password
       });
-      
+
+      if(!registerResponse.ok) setError("Email already exists");
+
       // Now login the user
-      const loginResponse = await axios.post('/api/auth/login', {
+      const loginResponse = await api.post('/api/auth/login', {
         email,
         password
       });
