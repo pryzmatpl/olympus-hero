@@ -29,21 +29,19 @@ const HeroPage: React.FC = () => {
   const heroTraits = zodiacInfo ? [
     ...zodiacInfo.western.traits.slice(0, 2),
     ...zodiacInfo.chinese.traits.slice(0, 2)
-  ] : PLACEHOLDER_HERO.traits;
+  ] : [];
   
   // Use hero data from store or fallback to placeholder
-  const displayName = heroName || PLACEHOLDER_HERO.name;
-  const displayWesternSign = zodiacInfo?.western.sign || PLACEHOLDER_HERO.zodiacWestern;
-  const displayChineseSign = zodiacInfo?.chinese.sign || PLACEHOLDER_HERO.zodiacChinese;
-  const displayWesternElement = zodiacInfo?.western.element || PLACEHOLDER_HERO.elementWestern;
-  const displayChineseElement = zodiacInfo?.chinese.element || PLACEHOLDER_HERO.elementChinese;
-  const displayBackstory = backstory || PLACEHOLDER_HERO.backstory;
+  const displayName = heroName;
+  const displayWesternSign = zodiacInfo?.western.sign;
+  const displayChineseSign = zodiacInfo?.chinese.sign;
+  const displayWesternElement = zodiacInfo?.western.element;
+  const displayChineseElement = zodiacInfo?.chinese.element;
+  const displayBackstory = backstory;
   
   // Prepare images for display
-  const displayImages = images.length > 0 
-    ? images.map(img => ({ url: img.url })) 
-    : PLACEHOLDER_IMAGES.map(url => ({ url }));
-  
+  const displayImages = images.map(img => ({ url: img.url }));
+
   if (isLoading) {
     return (
       <motion.div

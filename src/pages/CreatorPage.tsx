@@ -6,11 +6,24 @@ import DatePickerInput from '../components/form/DatePickerInput';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { useZodiac } from '../hooks/useZodiac';
+import { useHeroStore } from '../store/heroStore';
+import { generateHeroBackstory } from '../utils/generateHeroPrompt';
 
 const CreatorPage: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
+  
+  // Get heroStore actions
+  const { 
+    setHeroName: setStoreHeroName, 
+    setBirthdate: setStoreBirthdate, 
+    setZodiacInfo, 
+    setBackstory,
+    setImages,
+    setStatus,
+    resetHero
+  } = useHeroStore();
   
   // Form state
   const [birthdate, setBirthdate] = useState<Date | null>(null);
@@ -32,6 +45,12 @@ const CreatorPage: React.FC = () => {
       }
       setBirthdateError('');
       setStep(2);
+      
+      // Save birthdate and zodiac info to store
+      setStoreBirthdate(birthdate);
+      if (zodiacInfo) {
+        setZodiacInfo(zodiacInfo);
+      }
     } else if (step === 2) {
       if (!heroName.trim()) {
         setHeroNameError('Please enter a name for your hero');
@@ -39,6 +58,9 @@ const CreatorPage: React.FC = () => {
       }
       setHeroNameError('');
       setStep(3);
+      
+      // Save hero name to store
+      setStoreHeroName(heroName);
     } else if (step === 3) {
       handleCreateHero();
     }
@@ -54,13 +76,41 @@ const CreatorPage: React.FC = () => {
   // Function to create the hero
   const handleCreateHero = () => {
     setLoading(true);
+    setStatus('generating');
     
-    // Simulate API call
+    // Simulate API call with data processing
     setTimeout(() => {
+      if (zodiacInfo) {
+        // Generate hero backstory based on zodiac information
+        const heroBackstory = generateHeroBackstory(heroName, zodiacInfo);
+        setBackstory(heroBackstory);
+        
+        // Generate placeholder images based on zodiac
+        const placeholderImages = [
+          {
+            angle: 'front',
+            url: 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg',
+            prompt: `${heroName} front view, ${zodiacInfo.western.sign} and ${zodiacInfo.chinese.sign} influenced`
+          },
+          {
+            angle: 'profile',
+            url: 'https://images.pexels.com/photos/3493777/pexels-photo-3493777.jpeg',
+            prompt: `${heroName} profile view, ${zodiacInfo.western.sign} and ${zodiacInfo.chinese.sign} influenced`
+          },
+          {
+            angle: 'action',
+            url: 'https://images.pexels.com/photos/4900927/pexels-photo-4900927.jpeg',
+            prompt: `${heroName} action view, ${zodiacInfo.western.sign} and ${zodiacInfo.chinese.sign} influenced`
+          }
+        ];
+        
+        setImages(placeholderImages);
+        setStatus('complete');
+      }
+      
       setLoading(false);
       
-      // Navigate to the hero page
-      // In a real app, this would be the ID returned from the backend
+      // Navigate to the hero page with a preview ID
       const heroId = 'preview-' + Date.now();
       navigate(`/hero/${heroId}`);
     }, 2000);
@@ -70,6 +120,15 @@ const CreatorPage: React.FC = () => {
   const progress = useMemo(() => {
     return (step / 3) * 100;
   }, [step]);
+
+  // Reset store when unmounting if not completed
+  React.useEffect(() => {
+    return () => {
+      if (step < 3) {
+        resetHero();
+      }
+    };
+  }, [resetHero, step]);
 
   return (
     <motion.div
