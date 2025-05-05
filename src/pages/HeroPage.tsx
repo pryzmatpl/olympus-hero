@@ -9,40 +9,6 @@ import HeroBackstory from '../components/hero/HeroBackstory';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
 import ReactMarkdown from 'react-markdown';
 
-// Import placeholder images for demo (fallback)
-const PLACEHOLDER_IMAGES = [
-  'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg',
-  'https://images.pexels.com/photos/3493777/pexels-photo-3493777.jpeg',
-  'https://images.pexels.com/photos/4900927/pexels-photo-4900927.jpeg'
-];
-
-// Fallback placeholder hero
-const PLACEHOLDER_HERO = {
-  name: 'Celestia Drakonos',
-  zodiacWestern: 'Leo',
-  zodiacChinese: 'Dragon',
-  elementWestern: 'Fire',
-  elementChinese: 'Yang Earth',
-  traits: ['courageous', 'creative', 'confident', 'ambitious'],
-  backstory: `
-## The Legend of Celestia Drakonos
-
-Born under the mystical convergence of the Leo and Dragon zodiac signs, Celestia Drakonos emerged 
-as a guardian between realms. Their powers are deeply influenced by the element of Fire from their 
-Western zodiac, granting them leadership, courage, and passion.
-
-From their Chinese zodiac heritage as a Dragon, they inherited the qualities of being confident, intelligent, and ambitious,
-which shaped their approach to using their cosmic abilities.
-
-Celestia Drakonos's greatest strengths lie in their leadership and confidence, though they sometimes 
-struggle with arrogance. Their cosmic mission is to maintain balance between the twelve zodiac realms, 
-serving as both protector and mediator.
-
-The constellation of Leo shines brightly whenever Celestia Drakonos uses their full power, creating a spectacular 
-display of cosmic energy that few adversaries can withstand.
-  `
-};
-
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [activeImage, setActiveImage] = useState<number>(0);
