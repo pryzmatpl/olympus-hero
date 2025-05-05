@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import api from '../utils/api';
 import { AuthContext } from '../App';
 import PageTitle from '../components/ui/PageTitle';
 
@@ -32,7 +32,7 @@ const LoginPage = () => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.post('/api/auth/login', {
+      const response = await api.post('/api/auth/login', {
         email,
         password
       });

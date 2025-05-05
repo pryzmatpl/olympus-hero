@@ -1,5 +1,6 @@
-// Mock implementation of OpenAI API calls
-// In a production environment, this would use the actual OpenAI API
+import { OpenAI } from 'openai';
+
+const openai = new OpenAI({api_key: process.env.OPENAI_API_KEY});
 
 // Helper function to get random items from an array
 const getRandomItems = (array, count) => {
@@ -16,7 +17,7 @@ export async function generateExpandedBackstory(backstory) {
 
   if (!openaiKey) {
     throw new Error('OpenAI API key is not configured');
-  }
+  }s
 
   // Prepare the request payload
   const payload = {
@@ -70,27 +71,29 @@ export async function generateExpandedBackstory(backstory) {
 
 // Generate image prompts based on hero details and view angle
 export async function generateOpenAIImages(heroName, westernZodiac, chineseZodiac, viewAngle) {
-  // In a real implementation, this would call the OpenAI API
   console.log(`Generating ${viewAngle} view image for ${heroName}...`);
-  
-  // Generate a mock image URL
-  // In a real application, this would be the URL returned by OpenAI
-  
-  // These are placeholder image URLs from Pexels
-  const placeholderImageUrls = {
-    front: 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg',
-    profile: 'https://images.pexels.com/photos/3493777/pexels-photo-3493777.jpeg',
-    action: 'https://images.pexels.com/photos/4900927/pexels-photo-4900927.jpeg'
-  };
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  return {
-    angle: viewAngle,
-    url: placeholderImageUrls[viewAngle],
-    prompt: generateImagePrompt(heroName, westernZodiac, chineseZodiac, viewAngle)
-  };
+
+  const prompt = generateImagePrompt(heroName, westernZodiac, chineseZodiac, viewAngle);
+
+  try {
+    const response = await openai.createImage({
+      model: "gpt-image-1",
+      prompt: prompt,
+      size: "1024x1024",
+      n: 1,
+    });
+
+    const imageUrl = response.data.data[0].url;
+
+    return {
+      angle: viewAngle,
+      url: imageUrl,
+      prompt: prompt,
+    };
+  } catch (error) {
+    console.error(`Error generating image for ${heroName}:`, error);
+    throw new Error(`Failed to generate image: ${error.message}`);
+  }
 }
 
 // Generate character stats based on zodiac traits

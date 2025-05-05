@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import api from '../utils/api';
 import PageTitle from '../components/ui/PageTitle';
 import HeroPortrait from '../components/hero/HeroPortrait';
 import HeroBackstory from '../components/hero/HeroBackstory';
@@ -25,7 +25,7 @@ const SharedHeroPage = () => {
     const fetchSharedHero = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`/api/share/${shareId}`);
+        const response = await api.get(`/api/share/${shareId}`);
         setHero(response.data.hero);
         setError(null);
       } catch (err: any) {

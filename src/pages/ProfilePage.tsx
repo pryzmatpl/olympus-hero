@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import api from '../utils/api';
 import { AuthContext } from '../App';
 
 const pageVariants = {
@@ -55,17 +55,17 @@ const ProfilePage = () => {
         setLoading(true);
         
         // Get heroes from API
-        const heroesResponse = await axios.get('/api/user/heroes', {
+        const heroesResponse = await api.get('/api/user/heroes', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         // Get NFTs from API
-        const nftsResponse = await axios.get('/api/user/nfts', {
+        const nftsResponse = await api.get('/api/user/nfts', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         // Get shared links from API
-        const sharesResponse = await axios.get('/api/user/shares', {
+        const sharesResponse = await api.get('/api/user/shares', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
