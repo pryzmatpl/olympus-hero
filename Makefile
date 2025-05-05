@@ -4,10 +4,15 @@
 help:
 	@echo "Available targets:"
 	@echo "  dev    - Start the application in development mode with live reloading"
-	@echo "  prod   - Start the application in production mode"
+	@echloo "  prod   - Start the application in production mode"
 	@echo "  clean  - Stop and remove containers, networks, and volumes"
 	@echo "  build  - Build Docker images for the application"
 	@echo "  help   - Show this help message"
+
+
+server-dev:
+	@echo "Starting development environment..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up server
 
 # Development environment - with volume mounts for live code updates
 dev:

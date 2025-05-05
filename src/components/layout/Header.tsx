@@ -46,6 +46,7 @@ const Header: React.FC = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={()=>{window.location.assign("/login")}}
             className="bg-gradient-to-r from-mystic-700 to-mystic-600 hover:from-mystic-600 hover:to-mystic-500 px-6 py-2 rounded-full text-white font-medium transition-all shadow-mystic"
           >
             Sign In

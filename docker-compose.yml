@@ -11,8 +11,6 @@ services:
       - server
     environment:
       - VITE_API_URL=http://server:9002
-    networks:
-      - olympus-network
     volumes:
       - ./public:/app/public
       - ./src:/app/src
@@ -27,15 +25,9 @@ services:
       - PORT=9002
       - NODE_ENV=production
       - JWT_SECRET=your_jwt_secret_key_here
-    networks:
-      - olympus-network
     volumes:
       - ./server:/app/server
       - hero-data:/app/data
-
-networks:
-  olympus-network:
-    driver: bridge
 
 volumes:
   hero-data: 
