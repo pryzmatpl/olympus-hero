@@ -109,12 +109,22 @@ app.get('/ping', (req, res) => {
 app.post('/process-payment', async (req, res) => {
   const { heroId, stripeToken, amount, currency, walletAddress, email } = req.body;
 
+  console.log('Payment processing started for hero:', heroId);
+  
   try {
+    // Validate inputs
+    if (!heroId || !stripeToken) {
+      console.error('Missing required payment fields:', { heroId, hasToken: !!stripeToken });
+      return res.status(400).json({ error: 'Missing required payment fields' });
+    }
+    
     // Create a Stripe customer
     const customer = await stripeInstance.customers.create({
       email,
       source: stripeToken, // Token from Stripe.js
     });
+
+    console.log('Stripe customer created:', customer.id);
 
     // Create a charge
     const charge = await stripeInstance.charges.create({
@@ -123,6 +133,8 @@ app.post('/process-payment', async (req, res) => {
       customer: customer.id,
       description: `NFT for hero ${heroId}`,
     });
+
+    console.log('Stripe charge created:', charge.id);
 
     // Create NFT
     const tokenId = uuidv4();
@@ -140,13 +152,22 @@ app.post('/process-payment', async (req, res) => {
       ownerAddress: walletAddress || '0x0000000000000000000000000000000000000000',
     };
 
-    // Save NFT to database (example)
-    await connectDB();
-    // await NFTModel.create(nft); // Uncomment and implement with your database
+    // Save NFT to database and update hero
+    const db = await initializeDB();
+    await db.collection('nfts').insertOne(nft);
+    
+    // Update hero with NFT ID and payment status
+    await heroDb.updateHero(heroId, {
+      nftId: tokenId,
+      paymentStatus: 'paid'
+    });
 
+    console.log('Payment processed successfully for hero:', heroId);
+    
     res.status(200).json(nft);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Payment processing error:', error);
+    res.status(500).json({ error: error.message || 'Failed to process payment' });
   }
 });
 

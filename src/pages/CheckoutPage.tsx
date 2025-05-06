@@ -50,8 +50,8 @@ const CheckoutForm = () => {
         setIsLoading(false);
       }
     };
-    
-    loadHero();
+    console.log("STUCK?");
+    //loadHero();
   }, [heroId, loadHeroFromAPI]);
   
   // Handle form input changes
@@ -86,6 +86,14 @@ const CheckoutForm = () => {
       // For this example, we're simulating the token creation
       const mockStripeToken = `tok_${Date.now()}`;
       
+      // Set up a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        if (isProcessing) {
+          setError('Payment request timed out. Please try again.');
+          setIsProcessing(false);
+        }
+      }, 30000); // 30 second timeout
+      
       // Send the payment data to your server
       const response = await api.post('/process-payment', {
         heroId,
@@ -96,8 +104,12 @@ const CheckoutForm = () => {
         email: formData.email || 'user@example.com',
       });
       
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
+      
       // Handle the response
       if (response.data) {
+        console.log('Payment successful:', response.data);
         // Payment was successful
         setSuccess(true);
         
@@ -113,7 +125,9 @@ const CheckoutForm = () => {
       }
     } catch (error: any) {
       console.error('Payment error:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to process payment';
+      // Provide more detailed error message to the user
+      const errorMessage = error.response?.data?.error || 
+                          'Failed to process payment. Please check your card details and try again.';
       setError(errorMessage);
     } finally {
       setIsProcessing(false);
@@ -125,6 +139,24 @@ const CheckoutForm = () => {
     return (
       <div className="mt-8 flex justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cosmic-500"></div>
+      </div>
+    );
+  }
+  
+  // Render processing state
+  if (isProcessing) {
+    return (
+      <div className="mt-8 bg-mystic-900/60 border border-mystic-700 rounded-xl p-6 text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cosmic-500 mb-4 mx-auto"></div>
+        <h2 className="text-2xl font-bold text-cosmic-400 mb-2">
+          Processing Payment
+        </h2>
+        <p className="text-gray-400 mb-6">
+          Please wait while we process your payment. This may take a few moments.
+        </p>
+        <div className="w-full max-w-md mx-auto bg-mystic-800/50 rounded-lg overflow-hidden h-2">
+          <div className="bg-cosmic-500 h-full animate-pulse"></div>
+        </div>
       </div>
     );
   }

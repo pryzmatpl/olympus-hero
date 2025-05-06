@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
-import { connectDB } from './db.js';
+import { initializeDB, heroDb } from './db.js';
 
 // Load environment variables
 dotenv.config();
@@ -12,6 +12,13 @@ dotenv.config();
  * @returns {object} The created NFT
  */
 export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
+  if (!heroId) {
+    console.error('Missing hero ID for NFT creation');
+    throw new Error('Hero ID is required');
+  }
+
+  console.log(`Creating NFT for hero ${heroId}`);
+  
   const tokenId = uuidv4();
   
   // Create the NFT object
@@ -29,11 +36,23 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
     ownerAddress: paymentIntent.walletAddress || '0x0000000000000000000000000000000000000000'
   };
   
-  // Store the NFT in the database
-  const db = await connectDB();
-  await db.collection('nfts').insertOne(nft);
-  
-  return nft;
+  try {
+    // Store the NFT in the database
+    const db = await initializeDB();
+    await db.collection('nfts').insertOne(nft);
+    
+    // Update hero with NFT ID and payment status
+    await heroDb.updateHero(heroId, {
+      nftId: tokenId,
+      paymentStatus: 'paid'
+    });
+    
+    console.log(`NFT created successfully: ${tokenId}`);
+    return nft;
+  } catch (error) {
+    console.error('Error creating NFT:', error);
+    throw error;
+  }
 };
 
 /**
