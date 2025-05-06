@@ -1,8 +1,8 @@
 import axios from 'axios';
-
+const baseApiUrl = process.env.VITE_APP_SERVER_URL ?? 'http://localhost:9002';
 // Create a custom axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:9002',
+  baseURL: baseApiUrl,
   headers: {
     'Content-Type': 'application/json',
   },
