@@ -15,6 +15,14 @@ import ProfilePage from './pages/ProfilePage';
 import HeroesListPage from './pages/HeroesListPage';
 import SharedStoryPage from './pages/SharedStoryPage';
 import StarBackground from './components/ui/StarBackground';
+// Import new pages
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import CookiePolicyPage from './pages/CookiePolicyPage';
+import ZodiacGuidePage from './pages/ZodiacGuidePage';
+import NFTBasicsPage from './pages/NFTBasicsPage';
+import FAQsPage from './pages/FAQsPage';
+import SupportPage from './pages/SupportPage';
 
 // Create auth context
 interface AuthContextType {
@@ -155,6 +163,16 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+
+                {/* New pages */}
+                <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/cookie-policy" element={<CookiePolicyPage />} />
+                <Route path="/zodiac-guide" element={<ZodiacGuidePage />} />
+                <Route path="/nft-basics" element={<NFTBasicsPage />} />
+                <Route path="/faqs" element={<FAQsPage />} />
+                <Route path="/support" element={<SupportPage />} />
+
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </AnimatePresence>

@@ -19,10 +19,15 @@ const Footer: React.FC = () => {
               Discover your mythical destiny through the power of zodiac influences.
             </p>
             <div className="flex space-x-4">
-              <SocialIcon icon={<Twitter size={18} />} />
-              <SocialIcon icon={<Instagram size={18} />} />
-              <SocialIcon icon={<Facebook size={18} />} />
-              <SocialIcon icon={<Github size={18} />} />
+              <ExternalLink href="https://x.com/pryzmat_tech">
+                <SocialIcon icon={<Twitter size={18} />} />
+              </ExternalLink>
+              <ExternalLink href="https://facebook.com/pryzmatpl">
+                <SocialIcon icon={<Facebook size={18} />} />
+              </ExternalLink>
+              <ExternalLink href="https://github.com/pryzmatpl">
+                <SocialIcon icon={<Github size={18} />} />
+              </ExternalLink>
             </div>
           </div>
 
@@ -32,28 +37,28 @@ const Footer: React.FC = () => {
             <ul className="space-y-2">
               <FooterLink href="/">Home</FooterLink>
               <FooterLink href="/create">Create Hero</FooterLink>
-              <FooterLink href="#">Gallery</FooterLink>
-              <FooterLink href="#">About Us</FooterLink>
+              <FooterLink href="/heroes">Gallery</FooterLink>
+              <FooterLink href="/shared-story">Shared Stories</FooterLink>
             </ul>
           </div>
 
           <div className="col-span-1">
             <h3 className="text-white font-semibold mb-4">Resources</h3>
             <ul className="space-y-2">
-              <FooterLink href="#">Zodiac Guide</FooterLink>
-              <FooterLink href="#">NFT Basics</FooterLink>
-              <FooterLink href="#">FAQs</FooterLink>
-              <FooterLink href="#">Support</FooterLink>
+              <FooterLink href="/zodiac-guide">Zodiac Guide</FooterLink>
+              <FooterLink href="/nft-basics">NFT Basics</FooterLink>
+              <FooterLink href="/faqs">FAQs</FooterLink>
+              <FooterLink href="/support">Support</FooterLink>
             </ul>
           </div>
 
           <div className="col-span-1">
             <h3 className="text-white font-semibold mb-4">Legal</h3>
             <ul className="space-y-2">
-              <FooterLink href="#">Terms of Service</FooterLink>
-              <FooterLink href="#">Privacy Policy</FooterLink>
-              <FooterLink href="#">Cookie Policy</FooterLink>
-              <FooterLink href="#">Contact Us</FooterLink>
+              <FooterLink href="/terms-of-service">Terms of Service</FooterLink>
+              <FooterLink href="/privacy-policy">Privacy Policy</FooterLink>
+              <FooterLink href="/cookie-policy">Cookie Policy</FooterLink>
+              <FooterLink href="/support">Contact Us</FooterLink>
             </ul>
           </div>
         </div>
@@ -66,12 +71,13 @@ const Footer: React.FC = () => {
   );
 };
 
-interface FooterLinkProps {
+interface LinkProps {
   href: string;
   children: React.ReactNode;
 }
 
-const FooterLink: React.FC<FooterLinkProps> = ({ href, children }) => {
+// For internal links using React Router
+const FooterLink: React.FC<LinkProps> = ({ href, children }) => {
   return (
     <li>
       <Link
@@ -84,18 +90,29 @@ const FooterLink: React.FC<FooterLinkProps> = ({ href, children }) => {
   );
 };
 
+// For external links
+const ExternalLink: React.FC<LinkProps> = ({ href, children }) => {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-gray-400 hover:text-cosmic-500 transition-colors"
+    >
+      {children}
+    </a>
+  );
+};
+
 interface SocialIconProps {
   icon: React.ReactNode;
 }
 
 const SocialIcon: React.FC<SocialIconProps> = ({ icon }) => {
   return (
-    <a
-      href="#"
-      className="text-gray-400 hover:text-cosmic-500 transition-colors p-2 rounded-full hover:bg-mystic-800"
-    >
+    <span className="p-2 rounded-full hover:bg-mystic-800 flex items-center justify-center">
       {icon}
-    </a>
+    </span>
   );
 };
 
