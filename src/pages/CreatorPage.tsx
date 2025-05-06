@@ -113,8 +113,8 @@ const CreatorPage: React.FC = () => {
             body: data
           });
 
-          setImages(response.hero.images);
-          setBackstory(response.hero.backstory);
+          setImages(response.data.hero.images);
+          setBackstory(response.data.hero.backstory);
           setStatus('complete');
 
         } catch (error) {
