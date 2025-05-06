@@ -55,7 +55,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:9001', 'http://127.0.0.1:9001'],
+    origin: ['http://localhost:9001', 'http://127.0.0.1:9001', 'http://mythicalhero.me', 'https://mythicalhero.me'],
     methods: ['GET', 'POST'],
     credentials: true
   }
