@@ -41,7 +41,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongodb-data-dev:/data/db
+      - mongodb-data:/data/db
     restart: always
     environment:
       - MONGO_INITDB_DATABASE=olympus-hero
