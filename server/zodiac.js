@@ -124,7 +124,8 @@ function generateChineseNewYearTable(startYear, endYear) {
   for (let year = startYear; year <= endYear; year++) {
     const cal = new CalendarChinese();
     const newYearJDE = cal.newYear(year); // Get Julian Day Ephemeris for Chinese New Year
-    cal.fromJDE(newYearJDE); // Set calendar to Chinese New Year date
+    cal.from // Set calendar to Chinese New Year date
+    cal.fromJDE(newYearJDE);
     const gregorianDate = cal.toGregorian(); // Convert to Gregorian date
     table[year] = new Date(gregorianDate.year, gregorianDate.month - 1, gregorianDate.day); // Store as Date object
   }
@@ -137,18 +138,25 @@ const chineseNewYearTable = generateChineseNewYearTable(1950, 2150);
 // Calculate Chinese zodiac sign based on birth date
 export function calculate_chinese_zodiac(date) {
   const birthYear = date.getFullYear();
+  const birthMonth = date.getMonth(); // 0-based (0 = January)
+  const birthDay = date.getDate();
 
   // Get the Chinese New Year date for the birth year
   let cny = chineseNewYearTable[birthYear];
 
-  // If no Chinese New Year date is found, default to February 1 (approximation)
+  // If no Chinese New Year date is found, default to February 1
   if (!cny) {
     cny = new Date(birthYear, 1, 1);
   }
 
+  // Extract year, month, and day for comparison
+  const cnyYear = cny.getFullYear();
+  const cnyMonth = cny.getMonth(); // 0-based
+  const cnyDay = cny.getDate();
+
   // Adjust the zodiac year if the birth date is before the Chinese New Year
   let zodiacYear = birthYear;
-  if (date < cny) {
+  if (birthMonth < cnyMonth || (birthMonth === cnyMonth && birthDay < cnyDay)) {
     zodiacYear -= 1;
   }
 
