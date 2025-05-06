@@ -347,6 +347,23 @@ app.get('/api/share/:shareId', async (req, res) => {
   });
 });
 
+// Get all heroes for the current logged-in user
+app.get('/api/user/heroes', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Get all heroes for this user
+    const heroes = await heroDb.getHeroesByUserId(userId);
+    
+    return res.json({ 
+      heroes
+    });
+  } catch (error) {
+    console.error('Error fetching user heroes:', error);
+    return res.status(500).json({ error: 'Failed to fetch heroes' });
+  }
+});
+
 // Start the server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);

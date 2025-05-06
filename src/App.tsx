@@ -12,6 +12,7 @@ import SharedHeroPage from './pages/SharedHeroPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
+import HeroesListPage from './pages/HeroesListPage';
 import StarBackground from './components/ui/StarBackground';
 
 // Create auth context
@@ -125,6 +126,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ProfilePage />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/heroes" 
+                  element={
+                    <ProtectedRoute>
+                      <HeroesListPage />
                     </ProtectedRoute>
                   } 
                 />

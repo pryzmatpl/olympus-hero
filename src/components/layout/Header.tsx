@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Menu, X, Sparkles } from 'lucide-react';
+import { Menu, X, Sparkles, LogOut, User } from 'lucide-react';
+import { AuthContext } from '../../App';
 
 const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useContext(AuthContext);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -20,6 +23,11 @@ const Header: React.FC = () => {
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location]);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <header
@@ -40,17 +48,43 @@ const Header: React.FC = () => {
           <NavLink to="/" isActive={location.pathname === '/'}>
             Home
           </NavLink>
-          <NavLink to="/create" isActive={location.pathname === '/create'}>
-            Create Hero
-          </NavLink>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={()=>{window.location.assign("/login")}}
-            className="bg-gradient-to-r from-mystic-700 to-mystic-600 hover:from-mystic-600 hover:to-mystic-500 px-6 py-2 rounded-full text-white font-medium transition-all shadow-mystic"
-          >
-            Sign In
-          </motion.button>
+          
+          {isAuthenticated && (
+            <>
+              <NavLink to="/heroes" isActive={location.pathname === '/heroes'}>
+                My Heroes
+              </NavLink>
+              <NavLink to="/create" isActive={location.pathname === '/create'}>
+                Create Hero
+              </NavLink>
+            </>
+          )}
+          
+          {isAuthenticated ? (
+            <div className="flex items-center gap-3">
+              <Link to="/profile" className="flex items-center gap-2 text-sm text-gray-300 hover:text-white">
+                <User size={16} className="text-cosmic-500" />
+                {user?.name || 'Profile'}
+              </Link>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleLogout}
+                className="bg-gradient-to-r from-mystic-700 to-mystic-600 hover:from-mystic-600 hover:to-mystic-500 px-6 py-2 rounded-full text-white font-medium transition-all shadow-mystic"
+              >
+                Sign Out
+              </motion.button>
+            </div>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/login')}
+              className="bg-gradient-to-r from-mystic-700 to-mystic-600 hover:from-mystic-600 hover:to-mystic-500 px-6 py-2 rounded-full text-white font-medium transition-all shadow-mystic"
+            >
+              Sign In
+            </motion.button>
+          )}
         </nav>
 
         {/* Mobile Menu Button */}
@@ -78,16 +112,49 @@ const Header: React.FC = () => {
             >
               Home
             </NavLink>
-            <NavLink
-              to="/create"
-              isActive={location.pathname === '/create'}
-              isMobile={true}
-            >
-              Create Hero
-            </NavLink>
-            <button className="bg-gradient-to-r from-mystic-700 to-mystic-600 hover:from-mystic-600 hover:to-mystic-500 px-6 py-3 rounded-full text-white font-medium w-full text-center transition-all shadow-mystic">
-              Sign In
-            </button>
+            
+            {isAuthenticated && (
+              <>
+                <NavLink
+                  to="/heroes"
+                  isActive={location.pathname === '/heroes'}
+                  isMobile={true}
+                >
+                  My Heroes
+                </NavLink>
+                <NavLink
+                  to="/create"
+                  isActive={location.pathname === '/create'}
+                  isMobile={true}
+                >
+                  Create Hero
+                </NavLink>
+                <NavLink
+                  to="/profile"
+                  isActive={location.pathname === '/profile'}
+                  isMobile={true}
+                >
+                  Profile
+                </NavLink>
+              </>
+            )}
+            
+            {isAuthenticated ? (
+              <button 
+                className="bg-gradient-to-r from-mystic-700 to-mystic-600 hover:from-mystic-600 hover:to-mystic-500 px-6 py-3 rounded-full text-white font-medium w-full text-center transition-all shadow-mystic flex items-center justify-center gap-2"
+                onClick={handleLogout}
+              >
+                <LogOut size={16} />
+                Sign Out
+              </button>
+            ) : (
+              <button 
+                className="bg-gradient-to-r from-mystic-700 to-mystic-600 hover:from-mystic-600 hover:to-mystic-500 px-6 py-3 rounded-full text-white font-medium w-full text-center transition-all shadow-mystic"
+                onClick={() => navigate('/login')}
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </motion.div>
       )}

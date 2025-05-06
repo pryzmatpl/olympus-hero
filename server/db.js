@@ -125,7 +125,7 @@ export const heroDb = {
   // Get all heroes for a user
   async getHeroesByUserId(userId) {
     const db = await connectDB();
-    return db.collection('heroes').find({ userId }).toArray();
+    return db.collection('heroes').find({ userid: userId }).toArray();
   }
 };
 
