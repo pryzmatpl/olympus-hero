@@ -363,7 +363,7 @@ const HeroPage: React.FC = () => {
               {zodiacInfo?.chinese?.compatibility && (
                 <div className="mt-6">
                   <h3 className="text-sm font-medium text-gray-300 mb-2">Compatible With:</h3>
-                  <p className="text-cosmic-300">{zodiacInfo.chinese.compatibility}</p>
+                  <p className="text-cosmic-300">{zodiacInfo.chinese.compatibility.join(", ")}</p>
                 </div>
               )}
               
