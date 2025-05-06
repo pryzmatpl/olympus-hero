@@ -8,6 +8,9 @@ import { registerUser, loginUser, authMiddleware, getUserById, addHeroToUser } f
 import { processPaymentAndCreateNFT, getNFTById, getNFTsByHeroId } from './stripe.js';
 import { createSharedLink, accessSharedHero, getSharedLinksByUser, deactivateSharedLink } from './share.js';
 import { initializeDB, heroDb } from './db.js';
+import { ensureStorageDirectories, createHeroZip } from './utils.js';
+import path from 'path';
+import fs from 'fs';
 
 // Load environment variables
 dotenv.config();
@@ -25,12 +28,58 @@ if (missingEnvVars.length > 0) {
 // Initialize the database connection
 initializeDB().catch(console.error);
 
+// Initialize storage directories
+console.log('Initializing storage directories...');
+ensureStorageDirectories().then(() => {
+  console.log('Storage directories initialized successfully');
+}).catch(err => {
+  console.error('Failed to create storage directories:', err);
+});
+
 const app = express();
 const PORT = process.env.PORT || 9002;
 
-// Middleware
-app.use(cors());
+// Enable CORS debugging
+console.log('Setting up CORS middleware...');
+
+// CORS middleware 
+app.use((req, res, next) => {
+  console.log(`${req.method} request for ${req.url}`);
+  // For preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS preflight request');
+    res.header('Access-Control-Allow-Origin', 'http://localhost:9001');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.status(204).send();
+  }
+  next();
+});
+
+// Main CORS middleware
+app.use(cors({
+  origin: ['http://localhost:9001', 'http://127.0.0.1:9001'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+// Add explicit handling for OPTIONS requests
+app.options('*', cors());
+
 app.use(express.json());
+
+// Serve static files from the storage directory
+app.use('/storage', express.static(path.join(process.cwd(), 'storage')));
+console.log('Static file serving enabled from:', path.join(process.cwd(), 'storage'));
+
+// Debugging endpoint to check if server is alive
+app.get('/ping', (req, res) => {
+  res.json({ message: 'pong', timestamp: new Date().toISOString() });
+});
 
 // Authentication Routes
 app.post('/api/auth/register', async (req, res) => {
@@ -168,10 +217,10 @@ app.post('/api/heroes/generate/:id', authMiddleware, async (req, res) => {
     hero.status = 'processing';
     await heroDb.updateHero(id, { status: 'processing' });
 
-    // Generate images
+    // Generate images - passing heroId to the function
     const viewAngles = ['front', 'profile', 'action'];
     const imagePromises = viewAngles.map(angle =>
-        generateOpenAIImages(hero.name, hero.westernZodiac, hero.chineseZodiac, angle)
+        generateOpenAIImages(hero.name, hero.westernZodiac, hero.chineseZodiac, angle, id)
     );
 
     // Wait for all images to be generated
@@ -365,6 +414,52 @@ app.get('/api/user/heroes', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error fetching user heroes:', error);
     return res.status(500).json({ error: 'Failed to fetch heroes' });
+  }
+});
+
+// Create and download a zip of all hero assets
+app.get('/api/heroes/:id/download', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.userId;
+
+  try {
+    // Get the hero
+    const hero = await heroDb.findHeroById(id);
+    
+    if (!hero) {
+      return res.status(404).json({ error: 'Hero not found' });
+    }
+
+    // Check if user owns the hero
+    if (hero.userid !== userId) {
+      return res.status(403).json({ error: 'You do not have permission to download this hero' });
+    }
+
+    // Check if hero is paid
+    if (hero.paymentStatus !== 'paid') {
+      return res.status(403).json({ error: 'You need to purchase this hero to download its assets' });
+    }
+
+    // Create the zip file
+    const { filePath, fileName } = await createHeroZip(hero);
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+
+    // Stream the file to the response
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    // Delete the temp file after download completes
+    fileStream.on('close', () => {
+      fs.unlink(filePath, (err) => {
+        if (err) console.error(`Error deleting temp file: ${err.message}`);
+      });
+    });
+  } catch (error) {
+    console.error('Error creating download:', error);
+    res.status(500).json({ error: 'Failed to create download' });
   }
 });
 

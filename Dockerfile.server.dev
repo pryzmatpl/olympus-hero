@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Install dependencies needed for image and archiving functionality
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
 # Copy package files
@@ -16,6 +19,9 @@ RUN npm install -g nodemon
 
 # The rest of the application will be mounted as a volume
 # in development mode
+
+# Ensure storage directories exist
+RUN mkdir -p /app/storage/images /app/storage/temp
 
 EXPOSE 9002
 

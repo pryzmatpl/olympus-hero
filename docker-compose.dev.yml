@@ -29,6 +29,7 @@ services:
     volumes:
       - ./:/app
       - /app/node_modules
+      - storage-data:/app/storage
     ports:
       - "9002:9002"
     command: npm run server:dev
@@ -46,4 +47,5 @@ services:
       - MONGO_INITDB_DATABASE=olympus-hero
 
 volumes:
-  mongodb-data-dev: 
+  mongodb-data-dev:
+  storage-data: 

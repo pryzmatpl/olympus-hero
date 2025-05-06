@@ -1,4 +1,5 @@
 import { OpenAI } from 'openai';
+import { downloadImage } from './utils.js';
 
 const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
 
@@ -70,12 +71,14 @@ export async function generateExpandedBackstory(backstory) {
 }
 
 // Generate image prompts based on hero details and view angle
-export async function generateOpenAIImages(heroName, westernZodiac, chineseZodiac, viewAngle) {
-  console.log(`Generating ${viewAngle} view image for ${heroName}...`);
+export async function generateOpenAIImages(heroName, westernZodiac, chineseZodiac, viewAngle, heroId) {
+  console.log(`Generating ${viewAngle} view image for ${heroName} (heroId: ${heroId})...`);
 
   const prompt = generateImagePrompt(heroName, westernZodiac, chineseZodiac, viewAngle);
+  console.log(`Generated prompt for ${viewAngle}: ${prompt.substring(0, 100)}...`);
 
   try {
+    console.log(`Requesting image from OpenAI for ${heroName}, ${viewAngle}`);
     const response = await openai.images.generate({
       model: "dall-e-3",
       prompt: prompt,
@@ -83,16 +86,50 @@ export async function generateOpenAIImages(heroName, westernZodiac, chineseZodia
       n: 1,
     });
 
+    console.log(`Received response from OpenAI for ${heroName}, ${viewAngle}`);
     const imageUrl = response.data[0].url;
+    console.log(`Image URL for ${heroName} (${viewAngle}): ${imageUrl.substring(0, 50)}...`);
+    
+    // Download and store the image locally
+    let localImagePath;
+    try {
+      console.log(`Downloading image for ${heroName} (${viewAngle}) to local storage...`);
+      localImagePath = await downloadImage(imageUrl, heroId, viewAngle);
+      console.log(`Image for ${heroName} (${viewAngle}) saved locally at: ${localImagePath}`);
+    } catch (downloadError) {
+      console.error(`Error downloading image for ${heroName} (${viewAngle}): ${downloadError.message}`);
+      // If download fails, we'll use the original OpenAI URL
+      localImagePath = null;
+    }
 
     return {
       angle: viewAngle,
-      url: imageUrl,
+      url: localImagePath || imageUrl, // Use local path if available, otherwise use OpenAI URL
+      originalUrl: imageUrl, // Store the original URL as a backup
       prompt: prompt,
     };
   } catch (error) {
-    console.error(`Error generating image for ${heroName}:`, error);
-    throw new Error(`Failed to generate image: ${error.message}`);
+    console.error(`Error generating image for ${heroName} (${viewAngle}):`, error);
+    console.error(`Failed prompt: ${prompt.substring(0, 100)}...`);
+    
+    // Create a placeholder path that will be handled by the client
+    const placeholderPath = `/storage/images/${heroId}/${viewAngle}.png`;
+    
+    // Try to create a placeholder file
+    try {
+      await downloadImage('placeholder', heroId, viewAngle);
+      console.log(`Created placeholder image for failed generation: ${placeholderPath}`);
+    } catch (placeholderError) {
+      console.error(`Error creating placeholder: ${placeholderError.message}`);
+    }
+    
+    // Return an object with the placeholder and error information
+    return {
+      angle: viewAngle,
+      url: placeholderPath,
+      error: error.message,
+      prompt: prompt,
+    };
   }
 }
 

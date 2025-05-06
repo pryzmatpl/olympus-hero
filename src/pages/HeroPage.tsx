@@ -83,8 +83,8 @@ const HeroPage: React.FC = () => {
   
   const handleDownloadClick = () => {
     if (isPaid) {
-      // TODO: Implement actual download functionality
-      alert('Download functionality would start here');
+      // Start download of hero assets
+      window.location.href = `${api.defaults.baseURL}/api/heroes/${id}/download`;
     } else {
       navigate(`/checkout/${id}`);
     }

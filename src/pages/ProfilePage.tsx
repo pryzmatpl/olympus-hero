@@ -69,13 +69,13 @@ const ProfilePage = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        setHeroes(heroesResponse.data.heroes || []);
+        setHeroes(heroesResponse || []);
         setNfts(nftsResponse.data.nfts || []);
         setSharedLinks(sharesResponse.data.sharedLinks || []);
         setError(null);
       } catch (err: any) {
         console.error('Error fetching user data:', err);
-        setError('Failed to load your profile data. Please try again.');
+        setError('Failed to load your NFT tokens. We are working on it.');
       } finally {
         setLoading(false);
       }
