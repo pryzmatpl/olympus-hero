@@ -49,7 +49,7 @@ export const createSharedStoryRoom = async (hero) => {
     sender: {
       id: 'system',
       name: 'Cosmic Narrator',
-      avatar: null
+      avatar: "/public/aries2.webp"
     },
     content: initialResponse,
     timestamp: new Date()
@@ -93,7 +93,7 @@ export const joinSharedStoryRoom = async (roomId, heroData) => {
       sender: {
         id: 'system',
         name: 'Cosmic Narrator',
-        avatar: null
+        avatar: "/public/aries2.webp"
       },
       content: `${heroData.name} has joined the cosmic adventure! Their backstory unfolds: ${heroData.backstory.substring(0, 200)}...`,
       timestamp: new Date()
@@ -142,7 +142,7 @@ export const leaveSharedStoryRoom = async (roomId, heroId) => {
     sender: {
       id: 'system',
       name: 'Cosmic Narrator',
-      avatar: null
+      avatar: "/public/aries2.webp"
     },
     content: `A hero has departed from this cosmic journey.`,
     timestamp: new Date()

@@ -707,11 +707,28 @@ io.on('connection', (socket) => {
       
       // Generate AI response if needed
       if (room.messages.filter(m => m.sender.id !== 'system').length % 3 === 0) {
+        // Notify clients that the narrator is generating a response
+        io.to(socket.roomId).emit('narrator_typing');
+        
         // Create the prompt based on room messages and participants
         const prompt = await generateSharedStoryPrompt(room);
         
+        // Start timing the response generation
+        const startTime = Date.now();
+        
         // Get AI response
         const responseContent = await generateSharedStoryResponse(prompt);
+        
+        // Calculate how long the AI response took
+        const responseTime = Date.now() - startTime;
+        
+        // Ensure the narrator typing animation is shown for at least 3.5 seconds
+        // for a more dramatic effect
+        const MIN_TYPING_TIME = 3500; // milliseconds
+        
+        if (responseTime < MIN_TYPING_TIME) {
+          await new Promise(resolve => setTimeout(resolve, MIN_TYPING_TIME - responseTime));
+        }
         
         // Add the AI response to the room
         const aiMessage = {

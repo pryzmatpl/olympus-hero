@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthContext } from '../App';
@@ -9,7 +9,7 @@ import Button from '../components/ui/Button';
 import PageTitle from '../components/ui/PageTitle';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
-import { Plus, Send, Share2, User, Users, ArrowLeft, Copy } from 'lucide-react';
+import { Plus, Send, Share2, User, Users, ArrowLeft, Copy, Sparkles } from 'lucide-react';
 
 // Animation variants
 const pageVariants = {
@@ -24,6 +24,138 @@ const messageVariants = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.3 } },
   exit: { opacity: 0, y: -20, transition: { duration: 0.2 } }
 };
+
+// Cosmic animation variants
+const cosmicPulseVariants = {
+  initial: { scale: 0.8, opacity: 0 },
+  animate: { 
+    scale: [0.8, 1.2, 0.9, 1.1, 1],
+    opacity: [0, 0.8, 0.6, 0.9, 1],
+    transition: { duration: 2, repeat: Infinity, repeatType: "reverse" }
+  }
+};
+
+const orbVariants = {
+  initial: { opacity: 0, scale: 0 },
+  animate: (custom: number) => ({
+    opacity: [0, 0.7, 0.9, 0.7, 0],
+    scale: [0, 1, 1.5, 1, 0],
+    transition: { 
+      duration: 3,
+      delay: custom * 0.5,
+      repeat: Infinity,
+    }
+  })
+};
+
+const starVariants = {
+  initial: { opacity: 0, scale: 0 },
+  animate: (custom: number) => ({
+    opacity: [0, 0.9, 0],
+    scale: [0, 1, 0],
+    transition: { 
+      duration: 1,
+      delay: custom * 0.3,
+      repeat: Infinity,
+      repeatType: "reverse" 
+    }
+  })
+};
+
+const rayVariants = {
+  initial: { opacity: 0, scale: 0 },
+  animate: { 
+    opacity: [0, 0.6, 0],
+    scale: [0.2, 1, 0.2],
+    rotate: [0, 180],
+    transition: { duration: 4, repeat: Infinity }
+  }
+};
+
+const glowVariants = {
+  initial: { opacity: 0 },
+  animate: { 
+    opacity: [0.1, 0.8, 0.1],
+    transition: { duration: 3, repeat: Infinity }
+  }
+};
+
+const CosmicNarratorLoading = () => (
+  <div className="relative p-10 flex items-center justify-center my-6">
+    {/* Outer glow */}
+    <motion.div 
+      className="absolute w-60 h-60 rounded-full bg-cosmic-500/10 blur-xl"
+      variants={glowVariants}
+      initial="initial"
+      animate="animate"
+    />
+    
+    {/* Main cosmic orb */}
+    <motion.div 
+      className="absolute w-40 h-40 rounded-full bg-gradient-to-tr from-cosmic-900 via-cosmic-700 to-cosmic-500 blur-md"
+      variants={cosmicPulseVariants}
+      initial="initial"
+      animate="animate"
+    />
+    
+    {/* Divine rays */}
+    <motion.div 
+      className="absolute w-56 h-56 bg-gradient-to-tr from-cosmic-500/0 via-cosmic-400/10 to-cosmic-300/30"
+      style={{ 
+        clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
+        transform: 'scale(1.5)'
+      }}
+      variants={rayVariants}
+      initial="initial"
+      animate="animate"
+    />
+    
+    {/* Orbiting elements */}
+    {[...Array(6)].map((_, i) => (
+      <motion.div 
+        key={`orb-${i}`}
+        className={`absolute w-3 h-3 rounded-full ${
+          i % 2 === 0 ? 'bg-purple-400' : 'bg-cosmic-300'
+        }`}
+        custom={i}
+        variants={orbVariants}
+        initial="initial"
+        animate="animate"
+        style={{
+          top: `${50 + 35 * Math.sin(i * Math.PI * 2 / 6)}%`,
+          left: `${50 + 35 * Math.cos(i * Math.PI * 2 / 6)}%`,
+          boxShadow: '0 0 10px 2px rgba(176, 132, 255, 0.3)'
+        }}
+      />
+    ))}
+    
+    {/* Random stars */}
+    {[...Array(20)].map((_, i) => (
+      <motion.div 
+        key={`star-${i}`}
+        className="absolute w-1 h-1 bg-white rounded-full shadow-lg shadow-cosmic-300"
+        custom={i}
+        variants={starVariants}
+        initial="initial"
+        animate="animate"
+        style={{
+          top: `${Math.random() * 100}%`,
+          left: `${Math.random() * 100}%`,
+        }}
+      />
+    ))}
+    
+    {/* Center content */}
+    <div className="z-10 text-center backdrop-blur-sm bg-mystic-900/30 rounded-lg p-3 border border-cosmic-800/50">
+      <div className="flex items-center justify-center mb-2">
+        <Sparkles className="text-cosmic-300 w-6 h-6 mr-2" />
+        <span className="text-cosmic-300 font-display font-semibold">Cosmic Narrator</span>
+        <Sparkles className="text-cosmic-300 w-6 h-6 ml-2" />
+      </div>
+      <p className="text-cosmic-400 text-sm">Channeling cosmic wisdom...</p>
+    </div>
+  </div>
+);
 
 // Types
 interface Message {
@@ -80,6 +212,7 @@ const SharedStoryPage: React.FC = () => {
   const [showShareDialog, setShowShareDialog] = useState<boolean>(false);
   const [copiedToClipboard, setCopiedToClipboard] = useState<boolean>(false);
   const [activeRooms, setActiveRooms] = useState<RoomListItem[]>([]);
+  const [isNarratorTyping, setIsNarratorTyping] = useState<boolean>(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -164,6 +297,7 @@ const SharedStoryPage: React.FC = () => {
     
     socketIo.on('message', (newMessage) => {
       console.log('New message:', newMessage);
+      setIsNarratorTyping(false);
       setMessages(prevMessages => [
         ...prevMessages, 
         {
@@ -171,6 +305,10 @@ const SharedStoryPage: React.FC = () => {
           timestamp: new Date(newMessage.timestamp)
         }
       ]);
+    });
+    
+    socketIo.on('narrator_typing', () => {
+      setIsNarratorTyping(true);
     });
     
     socketIo.on('error', (error) => {
@@ -279,6 +417,19 @@ const SharedStoryPage: React.FC = () => {
   const handleSendMessage = () => {
     if (!socket || !message.trim() || !isConnected) return;
     
+    // Show the narrator typing animation after every third user message
+    const userMessages = messages.filter(m => m.sender.id !== 'system').length;
+    if ((userMessages + 1) % 3 === 0) {
+      setIsNarratorTyping(true);
+      
+      // Add a slight artificial delay for better UX if the server response is too quick
+      setTimeout(() => {
+        if (isNarratorTyping && messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 500);
+    }
+    
     // Emit the message
     socket.emit('send_message', { message: message.trim() });
     
@@ -308,6 +459,13 @@ const SharedStoryPage: React.FC = () => {
         console.error('Failed to copy:', err);
       });
   };
+  
+  // Listen for narrator typing and automatically scroll
+  useEffect(() => {
+    if (isNarratorTyping && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isNarratorTyping]);
   
   // Loading state
   if (isLoading) {
@@ -523,6 +681,19 @@ const SharedStoryPage: React.FC = () => {
       exit="exit"
     >
       <div className="max-w-6xl mx-auto">
+        {/* Dynamic background element that appears when narrator is typing */}
+        <AnimatePresence>
+          {isNarratorTyping && (
+            <motion.div 
+              className="fixed inset-0 bg-gradient-radial from-transparent via-transparent to-cosmic-900/40 pointer-events-none z-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.5 }}
+            />
+          )}
+        </AnimatePresence>
+        
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4">
           <div>
             <Link to="/shared-story" className="inline-flex items-center gap-2 text-cosmic-400 hover:text-cosmic-300 transition-colors">
@@ -610,16 +781,29 @@ const SharedStoryPage: React.FC = () => {
                   {messages.map((msg) => (
                     <motion.div
                       key={msg.id}
-                      className={`flex gap-3 ${msg.sender.id === 'system' ? 'bg-cosmic-900/20 border border-cosmic-800/50 p-3 rounded-lg' : ''}`}
+                      className={`flex gap-3 ${
+                        msg.sender.id === 'system' 
+                          ? 'bg-cosmic-900/30 border border-cosmic-800/60 p-4 rounded-lg relative overflow-hidden' 
+                          : ''
+                      }`}
                       variants={messageVariants}
                       initial="initial"
                       animate="animate"
                     >
+                      {/* Cosmic background for narrator messages */}
+                      {msg.sender.id === 'system' && (
+                        <div className="absolute inset-0 opacity-20 pointer-events-none">
+                          <div className="absolute inset-0 bg-gradient-to-r from-cosmic-900/0 via-cosmic-600/30 to-cosmic-900/0"></div>
+                          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-cosmic-900/0 via-cosmic-500/50 to-cosmic-900/0"></div>
+                          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-cosmic-900/0 via-cosmic-500/30 to-cosmic-900/0"></div>
+                        </div>
+                      )}
+                      
                       {/* Avatar */}
                       <div className="flex-shrink-0">
                         <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center ${
                           msg.sender.id === 'system' 
-                            ? 'bg-cosmic-900 border border-cosmic-700' 
+                            ? 'bg-cosmic-900 border border-cosmic-600 relative' 
                             : 'bg-mystic-800'
                         }`}>
                           {msg.sender.avatar ? (
@@ -629,7 +813,16 @@ const SharedStoryPage: React.FC = () => {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <User size={18} className="text-gray-400" />
+                            <>
+                              {msg.sender.id === 'system' ? (
+                                <>
+                                  <div className="absolute inset-0 bg-cosmic-800 opacity-50"></div>
+                                  <Sparkles size={18} className="text-cosmic-300 z-10" />
+                                </>
+                              ) : (
+                                <User size={18} className="text-gray-400" />
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -638,7 +831,7 @@ const SharedStoryPage: React.FC = () => {
                       <div className="flex-grow">
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`font-medium ${
-                            msg.sender.id === 'system' ? 'text-cosmic-400' : 'text-white'
+                            msg.sender.id === 'system' ? 'text-cosmic-300' : 'text-white'
                           }`}>
                             {msg.sender.name}
                           </span>
@@ -656,6 +849,22 @@ const SharedStoryPage: React.FC = () => {
                       </div>
                     </motion.div>
                   ))}
+                  
+                  {/* Narrator typing animation */}
+                  <AnimatePresence>
+                    {isNarratorTyping && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.5 }}
+                        className="py-2 relative z-10 bg-cosmic-900/10 rounded-xl overflow-hidden"
+                      >
+                        <CosmicNarratorLoading />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
                   <div ref={messagesEndRef} />
                 </div>
               )}
