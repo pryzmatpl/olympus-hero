@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Lock, CreditCard, Image, Download, CheckCircle } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { useHeroStore } from '../store/heroStore';
+import axios from 'axios';
 
 // Placeholder image for demo
 const PLACEHOLDER_IMAGE = 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg';
@@ -13,22 +15,82 @@ const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hero, setHero] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    cardNumber: '',
+    expiryDate: '',
+    cvc: '',
+    cardholderName: ''
+  });
   
-  const handlePaymentSubmit = (e: React.FormEvent) => {
+  const { setPaymentStatus } = useHeroStore();
+  
+  // Load hero data
+  useEffect(() => {
+    const fetchHero = async () => {
+      if (!id) return;
+      
+      try {
+        const response = await axios.get(`/api/heroes/${id?.replace('preview-', '')}`);
+        setHero(response.data.hero);
+      } catch (error) {
+        console.error('Error fetching hero:', error);
+        setError('Could not load hero information. Please try again.');
+      }
+    };
+    
+    fetchHero();
+  }, [id]);
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+  };
+  
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
+    setError(null);
     
-    // Simulate payment processing
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      // Prepare payment details
+      const paymentDetails = {
+        id: `payment_${Date.now()}`, // In a real app, this would come from Stripe
+        cardNumber: formData.cardNumber.replace(/\s/g, '').slice(-4), // Only store last 4 digits
+        amount: 999, // $9.99
+        currency: 'usd',
+        status: 'succeeded'
+      };
+      
+      // Send payment to server
+      const response = await axios.post(`/api/heroes/${id?.replace('preview-', '')}/payment`, {
+        paymentDetails
+      });
+      
+      // Update local state on success
+      setPaymentStatus('paid');
       setStep(2);
-    }, 2000);
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      setError(error.response?.data?.error || 'Payment processing failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
   
   const handleComplete = () => {
     // Navigate to the final hero page
     navigate(`/hero/${id?.replace('preview-', '')}`);
   };
+  
+  const heroName = hero?.name || 'Cosmic Hero';
+  const heroImage = hero?.images && hero.images.length > 0 
+    ? hero.images[0].url 
+    : 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg';
   
   return (
     <motion.div
@@ -58,6 +120,12 @@ const CheckoutPage: React.FC = () => {
                     <Lock size={18} className="mr-2 text-cosmic-500" /> Secure Payment
                   </h2>
                   
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-lg text-red-200 text-sm">
+                      {error}
+                    </div>
+                  )}
+                  
                   <form onSubmit={handlePaymentSubmit}>
                     <div className="space-y-4">
                       <Input
@@ -66,6 +134,9 @@ const CheckoutPage: React.FC = () => {
                         fullWidth
                         leftIcon={<CreditCard size={18} />}
                         required
+                        name="cardNumber"
+                        value={formData.cardNumber}
+                        onChange={handleInputChange}
                       />
                       
                       <div className="grid grid-cols-2 gap-4">
@@ -73,11 +144,17 @@ const CheckoutPage: React.FC = () => {
                           label="Expiration Date"
                           placeholder="MM / YY"
                           required
+                          name="expiryDate"
+                          value={formData.expiryDate}
+                          onChange={handleInputChange}
                         />
                         <Input
                           label="Security Code"
                           placeholder="CVC"
                           required
+                          name="cvc"
+                          value={formData.cvc}
+                          onChange={handleInputChange}
                         />
                       </div>
                       
@@ -86,6 +163,9 @@ const CheckoutPage: React.FC = () => {
                         placeholder="Name as it appears on card"
                         fullWidth
                         required
+                        name="cardholderName"
+                        value={formData.cardholderName}
+                        onChange={handleInputChange}
                       />
                       
                       <div className="pt-4">
@@ -111,13 +191,13 @@ const CheckoutPage: React.FC = () => {
                   <div className="bg-mystic-900 rounded-lg p-4 mb-4">
                     <div className="aspect-square rounded overflow-hidden mb-4">
                       <img 
-                        src={PLACEHOLDER_IMAGE} 
-                        alt="Hero preview" 
+                        src={heroImage} 
+                        alt={`${heroName} preview`} 
                         className="w-full h-full object-cover"
                       />
                     </div>
                     
-                    <h3 className="font-medium">Cosmic Hero Package</h3>
+                    <h3 className="font-medium">{heroName} Package</h3>
                     <p className="text-sm text-gray-400 mb-4">Full access to your unique mythical hero</p>
                     
                     <div className="space-y-2 text-sm">
@@ -137,7 +217,7 @@ const CheckoutPage: React.FC = () => {
                     <ul className="space-y-2">
                       <li className="flex items-start">
                         <Image size={16} className="mr-2 mt-1 text-cosmic-500" />
-                        <span>3 high-resolution hero images (front, profile, action)</span>
+                        <span>High-resolution hero images</span>
                       </li>
                       <li className="flex items-start">
                         <Download size={16} className="mr-2 mt-1 text-cosmic-500" />
@@ -145,7 +225,7 @@ const CheckoutPage: React.FC = () => {
                       </li>
                       <li className="flex items-start">
                         <CheckCircle size={16} className="mr-2 mt-1 text-cosmic-500" />
-                        <span>Personal and commercial usage rights</span>
+                        <span>Complete hero backstory and traits</span>
                       </li>
                     </ul>
                   </div>
@@ -159,7 +239,7 @@ const CheckoutPage: React.FC = () => {
                 
                 <h2 className="text-2xl font-display font-semibold mb-2">Payment Successful!</h2>
                 <p className="text-gray-300 mb-8 max-w-md mx-auto">
-                  Thank you for your purchase. Your cosmic hero has been successfully generated and is now ready to download.
+                  Thank you for your purchase. Your cosmic hero has been successfully unlocked and is now ready for you to enjoy.
                 </p>
                 
                 <Button 
