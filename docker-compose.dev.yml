@@ -3,9 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ui.dev
+    ports:
+      - "9001:9001"
     environment:
       - NODE_ENV=development
-      - VITE_API_URL=http://localhost:9001
+      - VITE_API_URL=http://localhost:9002
       - PORT=9001
     volumes:
       - ./:/app

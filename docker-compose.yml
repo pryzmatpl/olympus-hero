@@ -22,7 +22,6 @@ services:
     environment:
       - PORT=9002
       - NODE_ENV=production
-      - JWT_SECRET=your_jwt_secret_key_here
       - MONGO_URI=mongodb://mongodb:27017/olympus-hero
     volumes:
       - ./server:/app/server

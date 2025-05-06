@@ -12,17 +12,17 @@ help:
 
 server-dev:
 	@echo "Starting development environment..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up server
+	docker-compose -f docker-compose.dev.yml up server
 
 # Development environment - with volume mounts for live code updates
 dev:
 	@echo "Starting development environment..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+	docker-compose -f docker-compose.dev.yml up
 
 # Production environment
 prod:
 	@echo "Starting production environment..."
-	docker-compose up -d
+	docker-compose -f docker-compose.yml up -d
 
 # Clean up containers, networks, and volumes
 clean:
