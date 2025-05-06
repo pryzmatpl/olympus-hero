@@ -90,7 +90,7 @@ const CheckoutPage: React.FC = () => {
   const heroName = hero?.name || 'Cosmic Hero';
   const heroImage = hero?.images && hero.images.length > 0 
     ? hero.images[0].url 
-    : 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg';
+    : 'https://images.pexels.com/photos/606513/pexels-photo-606513.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
   
   return (
     <motion.div
