@@ -1,31 +1,34 @@
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+
 /**
- * Simple utility to apply basic formatting to markdown text
- * Converts markdown headers, paragraphs, and line breaks to HTML elements
- * This is a simplified version that handles the most common markdown elements
- * without requiring a full markdown parser
+ * Format markdown string to safe HTML
+ * @param text Markdown text to format
+ * @returns Sanitized HTML string
  */
 export const formatMarkdown = (text: string): string => {
   if (!text) return '';
   
-  // Replace headers (##, ###)
-  let formatted = text
-    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-    .replace(/^#### (.*$)/gm, '<h4>$1</h4>');
-  
-  // Replace paragraphs (double line breaks)
-  formatted = formatted.replace(/\n\s*\n/g, '</p><p>');
-  
-  // Wrap in paragraph tags if not already
-  if (!formatted.startsWith('<h') && !formatted.startsWith('<p>')) {
-    formatted = '<p>' + formatted;
+  try {
+    // Convert markdown to HTML
+    const rawHtml = marked.parse(text);
+    
+    // Sanitize the HTML to prevent XSS attacks
+    const cleanHtml = DOMPurify.sanitize(rawHtml, {
+      USE_PROFILES: { html: true },
+      ALLOWED_TAGS: [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'ul', 'ol', 'li', 
+        'blockquote', 'code', 'pre', 'strong', 'em', 'del', 'br', 'hr',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img'
+      ],
+      ALLOWED_ATTR: [
+        'href', 'target', 'rel', 'src', 'alt', 'class'
+      ]
+    });
+    
+    return cleanHtml;
+  } catch (error) {
+    console.error('Error formatting markdown:', error);
+    return `<p>${text}</p>`;
   }
-  if (!formatted.endsWith('</p>') && !formatted.endsWith('</h2>') && !formatted.endsWith('</h3>') && !formatted.endsWith('</h4>')) {
-    formatted = formatted + '</p>';
-  }
-  
-  // Replace single line breaks with <br> tags
-  formatted = formatted.replace(/\n/g, '<br>');
-  
-  return formatted;
 }; 

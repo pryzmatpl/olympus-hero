@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock } from 'lucide-react';
+import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useHeroStore } from '../store/heroStore';
 import HeroPortrait from '../components/hero/HeroPortrait';
@@ -198,14 +198,26 @@ const HeroPage: React.FC = () => {
                 </Button>
               </Link>
             ) : (
-              <Button 
-                variant="secondary" 
-                size="sm"
-                icon={<Download size={16} />}
-                onClick={handleDownloadClick}
-              >
-                {!isPaid && "Unlock to "} Download Assets
-              </Button>
+              <>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  icon={<Download size={16} />}
+                  onClick={handleDownloadClick}
+                >
+                  {!isPaid && "Unlock to "} Download Assets
+                </Button>
+                
+                <Link to="/shared-story">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    icon={<Users size={16} />}
+                  >
+                    Join Shared Story
+                  </Button>
+                </Link>
+              </>
             )}
           </div>
         </div>

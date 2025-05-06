@@ -9,6 +9,37 @@ const getRandomItems = (array, count) => {
   return shuffled.slice(0, count);
 };
 
+/**
+ * Generate a chat completion with OpenAI
+ * @param {Array} messages - Array of message objects with role and content
+ * @returns {Promise<string>} - The generated response text
+ */
+export async function generateChatCompletionWithOpenAI(messages) {
+  try {
+    console.log('Generating chat completion with OpenAI...');
+    
+    // Get API key from environment variable
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      throw new Error('OpenAI API key is not configured');
+    }
+    
+    // Call OpenAI API
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: messages,
+      temperature: 0.8,
+      max_tokens: 1000
+    });
+    
+    // Extract and return the response text
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error('Error generating chat completion:', error);
+    throw error;
+  }
+}
+
 export async function generateExpandedBackstory(backstory) {
   // OpenAI API endpoint for chat completions
   const apiUrl = 'https://api.openai.com/v1/chat/completions';

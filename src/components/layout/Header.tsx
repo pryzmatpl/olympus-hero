@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Menu, X, Sparkles, LogOut, User } from 'lucide-react';
+import { Menu, X, Sparkles, LogOut, User, Users } from 'lucide-react';
 import { AuthContext } from '../../App';
 
 const Header: React.FC = () => {
@@ -56,6 +56,12 @@ const Header: React.FC = () => {
               </NavLink>
               <NavLink to="/create" isActive={location.pathname === '/create'}>
                 Create Hero
+              </NavLink>
+              <NavLink 
+                to="/shared-story" 
+                isActive={location.pathname.startsWith('/shared-story')}
+              >
+                Shared Story
               </NavLink>
             </>
           )}
@@ -128,6 +134,13 @@ const Header: React.FC = () => {
                   isMobile={true}
                 >
                   Create Hero
+                </NavLink>
+                <NavLink
+                  to="/shared-story"
+                  isActive={location.pathname.startsWith('/shared-story')}
+                  isMobile={true}
+                >
+                  Shared Story
                 </NavLink>
                 <NavLink
                   to="/profile"

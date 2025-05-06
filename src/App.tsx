@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import HeroesListPage from './pages/HeroesListPage';
+import SharedStoryPage from './pages/SharedStoryPage';
 import StarBackground from './components/ui/StarBackground';
 
 // Create auth context
@@ -138,6 +139,22 @@ function App() {
                   } 
                 />
                 <Route path="/share/:shareId" element={<SharedHeroPage />} />
+                <Route 
+                  path="/shared-story" 
+                  element={
+                    <ProtectedRoute>
+                      <SharedStoryPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route 
+                  path="/shared-story/:roomId" 
+                  element={
+                    <ProtectedRoute>
+                      <SharedStoryPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </AnimatePresence>
