@@ -5,7 +5,7 @@ import { ArrowLeft, Lock, CreditCard, Image, Download, CheckCircle } from 'lucid
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { useHeroStore } from '../store/heroStore';
-import axios from 'axios';
+import api from '../utils/api'
 
 // Placeholder image for demo
 const PLACEHOLDER_IMAGE = 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg';
@@ -32,7 +32,7 @@ const CheckoutPage: React.FC = () => {
       if (!id) return;
       
       try {
-        const response = await axios.get(`/api/heroes/${id?.replace('preview-', '')}`);
+        const response = await api.get(`/api/heroes/${id?.replace('preview-', '')}`);
         setHero(response.data.hero);
       } catch (error) {
         console.error('Error fetching hero:', error);
@@ -67,7 +67,7 @@ const CheckoutPage: React.FC = () => {
       };
       
       // Send payment to server
-      const response = await axios.post(`/api/heroes/${id?.replace('preview-', '')}/payment`, {
+      const response = await api.post(`/api/heroes/${id?.replace('preview-', '')}/payment`, {
         paymentDetails
       });
       

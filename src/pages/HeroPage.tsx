@@ -8,7 +8,6 @@ import HeroPortrait from '../components/hero/HeroPortrait';
 import HeroBackstory from '../components/hero/HeroBackstory';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
 import ReactMarkdown from 'react-markdown';
-import axios from 'axios';
 
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,7 +38,7 @@ const HeroPage: React.FC = () => {
         setError(null);
         
         // Fetch hero data from API
-        const response = await axios.get(`/api/heroes/${id?.replace('preview-', '')}`);
+        const response = await api.get(`/api/heroes/${id?.replace('preview-', '')}`);
         const heroData = response.data.hero;
         
         // Update store with all hero data at once

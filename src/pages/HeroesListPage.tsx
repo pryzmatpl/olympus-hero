@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Search, AlertCircle, Sparkles } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api';
 import { AuthContext } from '../App';
 import Button from '../components/ui/Button';
 
@@ -36,7 +36,7 @@ const HeroesListPage: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        const response = await axios.get('/api/user/heroes', {
+        const response = await api.get('/api/user/heroes', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
