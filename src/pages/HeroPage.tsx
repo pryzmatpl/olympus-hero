@@ -41,8 +41,8 @@ const HeroPage: React.FC = () => {
         // Fetch hero data from API
         const response = await api.get(`/api/heroes/${id?.replace('preview-', '')}`);
         
-        // Update store with all hero data at once
-        loadHeroFromAPI(response);
+        // Update store with all hero data at once - passing the hero data directly
+        loadHeroFromAPI(response.data);
         
       } catch (error) {
         console.error('Error fetching hero:', error);
@@ -67,7 +67,7 @@ const HeroPage: React.FC = () => {
   ] : [];
   
   // Prepare images for display
-  const displayImages = images.length > 0 
+  const displayImages = images && images.length > 0 
     ? images.map(img => ({ url: img.url }))
     : [];
 
@@ -89,6 +89,9 @@ const HeroPage: React.FC = () => {
       navigate(`/checkout/${id}`);
     }
   };
+
+  // Ensure backstory is a string
+  const safeBackstory = typeof backstory === 'string' ? backstory : '';
 
   if (isLoading) {
     return (
@@ -123,6 +126,23 @@ const HeroPage: React.FC = () => {
           <Button onClick={() => window.location.reload()}>
             Try Again
           </Button>
+        </div>
+      </motion.div>
+    );
+  }
+  
+  // Display data if we have a hero name (minimal validation that data is loaded)
+  if (!heroName) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
+      >
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cosmic-500 mx-auto mb-4"></div>
+          <h2 className="text-2xl font-semibold">Loading hero data...</h2>
         </div>
       </motion.div>
     );
@@ -192,12 +212,16 @@ const HeroPage: React.FC = () => {
             <div className="relative rounded-xl overflow-hidden bg-mystic-900/60 mb-4">
               {/* Main Image */}
               <div className="aspect-square md:aspect-[4/3] relative">
-                {displayImages.length > 0 && (
+                {displayImages.length > 0 ? (
                   <img 
                     src={displayImages[activeImage]?.url} 
                     alt={`${heroName} illustration`}
                     className="w-full h-full object-cover"
                   />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-mystic-900">
+                    <p className="text-gray-400">Image is being generated...</p>
+                  </div>
                 )}
                 
                 {/* Watermark for Preview or Unpaid */}
@@ -206,13 +230,6 @@ const HeroPage: React.FC = () => {
                     <div className="bg-mystic-900/70 text-white px-4 py-2 rounded-full transform -rotate-45 text-xl font-semibold">
                       {isPreview ? 'PREVIEW' : 'UNLOCK FULL QUALITY'}
                     </div>
-                  </div>
-                )}
-                
-                {/* Placeholder if no images */}
-                {displayImages.length === 0 && (
-                  <div className="w-full h-full flex items-center justify-center bg-mystic-900">
-                    <p className="text-gray-400">Image is being generated...</p>
                   </div>
                 )}
               </div>
@@ -253,6 +270,26 @@ const HeroPage: React.FC = () => {
                     )}
                   </button>
                 ))}
+              </div>
+            )}
+            
+            {/* CTA for unpaid users */}
+            {!isPaid && (
+              <div className="mt-6 bg-mystic-800/80 border border-cosmic-600/30 p-4 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <div className="bg-cosmic-600/20 p-3 rounded-full">
+                    <CreditCard className="h-6 w-6 text-cosmic-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Unlock Full Quality Images</h3>
+                    <p className="text-gray-400 text-sm">Get high-resolution images and access to all views</p>
+                  </div>
+                  <div className="ml-auto">
+                    <Link to={`/checkout/${id}`}>
+                      <Button size="sm">Unlock Now</Button>
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -299,46 +336,37 @@ const HeroPage: React.FC = () => {
               
               {/* Chinese Zodiac Compatibility */}
               {zodiacInfo?.chinese?.compatibility && (
-                <div className="mt-4">
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Compatible with:</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {zodiacInfo.chinese.compatibility.map((sign, idx) => (
-                      <span key={idx} className="bg-cosmic-500/20 text-cosmic-200 px-2 py-1 rounded-full text-xs">
-                        {sign}
-                      </span>
-                    ))}
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-300 mb-2">Compatible With:</h3>
+                  <p className="text-cosmic-300">{zodiacInfo.chinese.compatibility}</p>
+                </div>
+              )}
+              
+              {/* Purchase CTA if not paid */}
+              {!isPaid && (
+                <div className="mt-6 pt-6 border-t border-mystic-700">
+                  <div className="flex items-center justify-between">
+                    <span className="text-cosmic-300 font-medium">Premium Access</span>
+                    <Link to={`/checkout/${id}`}>
+                      <Button size="xs" icon={<ShoppingCart className="h-3 w-3" />}>
+                        Unlock
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               )}
             </div>
             
-            {!isPaid && (
-              <div className="bg-mystic-gradient rounded-xl p-6 mb-6 shadow-mystic">
-                <h2 className="text-xl font-display font-semibold mb-4 flex items-center gap-2">
-                  <CreditCard size={20} className="text-cosmic-500" />
-                  Unlock Full Access
-                </h2>
-                <p className="text-gray-300 mb-4">
-                  Get access to high-resolution images without watermarks, plus the ability to download and share your unique hero.
-                </p>
-                <Link to={`/checkout/${id}`}>
-                  <Button 
-                    variant="secondary" 
-                    fullWidth 
-                    icon={<ShoppingCart size={18} />}
-                  >
-                    Purchase for $9.99
-                  </Button>
-                </Link>
-              </div>
-            )}
-            
             <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
               <h2 className="text-xl font-display font-semibold mb-4">Backstory</h2>
               <div className="prose prose-invert prose-sm max-w-none">
-                {!isPaid && backstory && backstory.length > 300 ? (
+                {!safeBackstory ? (
+                  <p className="text-cosmic-400">Backstory is being generated...</p>
+                ) : !isPaid && safeBackstory.length > 300 ? (
                   <>
-                    <ReactMarkdown>{backstory.substring(0, 300)}...</ReactMarkdown>
+                    <div className="markdown-content">
+                      {safeBackstory.substring(0, 300)}...
+                    </div>
                     <div className="relative pt-10 mt-4">
                       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-mystic-800 flex items-end justify-center pb-4">
                         <Link to={`/checkout/${id}`}>
@@ -354,7 +382,9 @@ const HeroPage: React.FC = () => {
                     </div>
                   </>
                 ) : (
-                  <ReactMarkdown>{backstory || 'Backstory is being generated...'}</ReactMarkdown>
+                  <div className="markdown-content">
+                    {safeBackstory}
+                  </div>
                 )}
               </div>
             </div>
