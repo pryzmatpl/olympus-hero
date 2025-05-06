@@ -99,7 +99,7 @@ const SupportPage: React.FC = () => {
                 <Mail className="w-5 h-5 text-cosmic-500 mt-1 flex-shrink-0" />
                 <div>
                   <h3 className="font-medium text-white">Email Support</h3>
-                  <p className="text-gray-300">support@cosmicheroes.com</p>
+                  <p className="text-gray-300">support@mythicalhero.me</p>
                   <p className="text-sm text-gray-400">Responses within 24 hours</p>
                 </div>
               </div>
@@ -113,14 +113,14 @@ const SupportPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="flex items-start gap-3">
+              {/*<div className="flex items-start gap-3">
                 <Phone className="w-5 h-5 text-cosmic-500 mt-1 flex-shrink-0" />
                 <div>
                   <h3 className="font-medium text-white">Phone Support</h3>
                   <p className="text-gray-300">+1 (888) 555-HERO</p>
                   <p className="text-sm text-gray-400">Premium users only</p>
                 </div>
-              </div>
+              </div>*/}
             </div>
           </div>
           
