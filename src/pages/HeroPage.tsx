@@ -93,7 +93,7 @@ const HeroPage: React.FC = () => {
   const handleJoinClick = () => {
     if (isPaid) {
       // Start download of hero assets
-      window.location.href = `${api.defaults.baseURL}/shared-story`;
+      window.location.href = `/shared-story`;
     } else {
       navigate(`/checkout/${id}`);
     }
