@@ -78,28 +78,26 @@ app.get('/api/user', authMiddleware, async (req, res) => {
 // Hero Routes (now protected by authentication)
 app.post('/api/heroes', authMiddleware, async (req, res) => {
   try {
-    const { birthdate, heroName } = req.body;
-    const userId = req.user.userId;
+    const reqBody = req.body;
+    const user = req.user;
+    const data = JSON.parse(reqBody.body);
     
-    if (!birthdate || !heroName) {
+    if (!data.birthdate || !data.heroName) {
       return res.status(400).json({ error: 'Birth date and hero name are required' });
     }
     
     // Parse the birthdate
-    const dob = new Date(birthdate);
-    
+    const dob = new Date(data.birthdate);
+
     // Calculate zodiac signs
     const westernZodiac = calculate_western_zodiac(dob);
     const chineseZodiac = calculate_chinese_zodiac(dob);
     
-    // Generate a unique ID
-    const heroId = uuidv4();
-    
     // Create hero object
     const hero = {
-      id: heroId,
-      userId,
-      name: heroName,
+      id: data.heroId,
+      userid: user.userId,
+      name: data.heroName,
       birthdate: dob,
       westernZodiac,
       chineseZodiac,
@@ -115,11 +113,11 @@ app.post('/api/heroes', authMiddleware, async (req, res) => {
     await heroDb.createHero(hero);
     
     // Associate hero with user
-    await addHeroToUser(userId, heroId);
+    await addHeroToUser(user.userId, data.heroId);
     
     // Return the hero ID
     return res.status(201).json({ 
-      heroId,
+      hero,
       message: 'Hero creation initiated. Images and backstory will be generated shortly.'
     });
   } catch (error) {

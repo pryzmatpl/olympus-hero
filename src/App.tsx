@@ -33,8 +33,8 @@ export const AuthContext = createContext<AuthContextType>({
 
 // Protected route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = React.useContext(AuthContext);
-  
+  const { isAuthenticated, user } = React.useContext(AuthContext);
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }

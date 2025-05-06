@@ -82,26 +82,44 @@ const CreatorPage: React.FC = () => {
     let heroId = Guid.create().toString();
     heroId = heroId.replace(/-/gi, '');
 
-    console.log(heroId);
+    const user = localStorage.getItem('user');
+    const userId = user["id"];
+    console.log(user);
 
     try {
-      const response = await api.post(`/api/heroes/generate/${heroId}`, {
+      const response = await api.post(`/api/heroes`, {
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           heroName: heroName,
+          birthdate: birthdate,
           zodiacInfo: zodiacInfo,
+          heroId: heroId,
+          userId: userId,
         }),
       });
 
-      const data = await response.json();
+      console.log(response);
+
+      const data = response.data;
 
       if (data.hero) {
-        // Set the generated images and backstory
-        setImages(data.hero.images);
-        setBackstory(data.hero.backstory);
-        setStatus('complete');
+        try {
+          const response = await api.post(`/api/heroes/generate/${heroId}`, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: data
+          });
+
+          setImages(response.hero.images);
+          setBackstory(response.hero.backstory);
+          setStatus('complete');
+
+        } catch (error) {
+          console.error('Error generating hero content:', error);
+        }
 
         // Navigate to the hero page with a preview ID
         navigate(`/hero/${heroId}`);
