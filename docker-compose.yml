@@ -13,18 +13,26 @@ services:
       - ./public:/app/public
       - ./src:/app/src
 
+
   server:
     build:
       context: .
       dockerfile: Dockerfile.server
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=9002
+      - JWT_SECRET=dev_jwt_secret
+      - MONGO_URI=mongodb://mongodb:27017/olympus-hero
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - ./storage/:/app/storage
     ports:
       - "9002:9002"
-    environment:
-      - PORT=9002
-      - NODE_ENV=production
-      - MONGO_URI=mongodb://mongodb:27017/olympus-hero
-    volumes:
-      - ./server:/app/server
+    command: npm run server:dev
     depends_on:
       - mongodb
 
@@ -33,7 +41,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongodb-data:/data/db
+      - mongodb-data-dev:/data/db
     restart: always
     environment:
       - MONGO_INITDB_DATABASE=olympus-hero
