@@ -115,8 +115,44 @@ export function calculate_western_zodiac(date) {
 }
 
 // Calculate Chinese zodiac sign based on birth year
+// Define a map of Chinese New Year dates for relevant years
+const CalendarChinese = require('date-chinese');
+
+// Generate Chinese New Year lookup table for 1950–2150
+function generateChineseNewYearTable(startYear, endYear) {
+  const table = {};
+  for (let year = startYear; year <= endYear; year++) {
+    const cal = new CalendarChinese();
+    const newYearJDE = cal.newYear(year); // Get Julian Day Ephemeris for Chinese New Year
+    cal.fromJDE(newYearJDE); // Set calendar to Chinese New Year date
+    const gregorianDate = cal.toGregorian(); // Convert to Gregorian date
+    table[year] = new Date(gregorianDate.year, gregorianDate.month - 1, gregorianDate.day); // Store as Date object
+  }
+  return table;
+}
+
+// Lookup table for 1950–2150
+const chineseNewYearTable = generateChineseNewYearTable(1950, 2150);
+
+// Calculate Chinese zodiac sign based on birth date
 export function calculate_chinese_zodiac(date) {
-  const year = date.getFullYear();
+  const birthYear = date.getFullYear();
+
+  // Get the Chinese New Year date for the birth year
+  let cny = chineseNewYearTable[birthYear];
+
+  // If no Chinese New Year date is found, default to February 1 (approximation)
+  if (!cny) {
+    cny = new Date(birthYear, 1, 1);
+  }
+
+  // Adjust the zodiac year if the birth date is before the Chinese New Year
+  let zodiacYear = birthYear;
+  if (date < cny) {
+    zodiacYear -= 1;
+  }
+
+  // Define the animals array (unchanged from original)
   const animals = [
     {
       sign: 'Rat',
@@ -203,8 +239,13 @@ export function calculate_chinese_zodiac(date) {
       compatibility: ['Sheep', 'Rabbit', 'Tiger']
     }
   ];
-  
-  // Calculate Chinese zodiac animal
-  const animalIndex = (year - 1924) % 12;
-  return animals[animalIndex];
+
+  // Calculate the zodiac index based on the adjusted year
+  const startYear = 1924;
+  let index = (zodiacYear - startYear) % 12;
+
+  // Handle negative indices for years before 1924
+  if (index < 0) index += 12;
+
+  return animals[index];
 }

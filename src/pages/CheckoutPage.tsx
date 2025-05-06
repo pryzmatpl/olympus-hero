@@ -1,48 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Lock, CreditCard, Image, Download, CheckCircle } from 'lucide-react';
-import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import { AuthContext } from '../App';
 import { useHeroStore } from '../store/heroStore';
-import api from '../utils/api'
+import Button from '../components/ui/Button';
+import PageTitle from '../components/ui/PageTitle';
+import { CreditCard, Lock, Shield, X, Check, AlertTriangle } from 'lucide-react';
+import api from '../utils/api';
 
-// Placeholder image for demo
-const PLACEHOLDER_IMAGE = 'https://images.pexels.com/photos/1554646/pexels-photo-1554646.jpeg';
+// Animation variants
+const pageVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.5 } },
+  exit: { opacity: 0, transition: { duration: 0.3 } }
+};
 
-const CheckoutPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+const CheckoutForm = () => {
+  const { heroId } = useParams<{ heroId: string }>();
+  const { heroName, images, status, loadHeroFromAPI } = useHeroStore();
+  const { token } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [step, setStep] = useState<number>(1);
+  
+  // State
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [hero, setHero] = useState<any>(null);
+  const [success, setSuccess] = useState<boolean>(false);
   const [formData, setFormData] = useState({
+    email: '',
+    walletAddress: '',
     cardNumber: '',
     expiryDate: '',
     cvc: '',
     cardholderName: ''
   });
   
-  const { setPaymentStatus } = useHeroStore();
-  
-  // Load hero data
+  // Load hero details
   useEffect(() => {
-    const fetchHero = async () => {
-      if (!id) return;
+    const loadHero = async () => {
+      if (!heroId) return;
       
       try {
-        const response = await api.get(`/api/heroes/${id?.replace('preview-', '')}`);
-        setHero(response.data.hero);
+        setIsLoading(true);
+        await loadHeroFromAPI(heroId);
       } catch (error) {
-        console.error('Error fetching hero:', error);
-        setError('Could not load hero information. Please try again.');
+        console.error('Error loading hero:', error);
+        setError('Failed to load hero details');
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    fetchHero();
-  }, [id]);
+    loadHero();
+  }, [heroId, loadHeroFromAPI]);
   
+  // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({
@@ -51,208 +63,286 @@ const CheckoutPage: React.FC = () => {
     });
   };
   
+  // Handle payment submission
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsProcessing(true);
-    setError(null);
+    
+    if (!heroId) {
+      setError('Hero ID is missing');
+      return;
+    }
+    
+    // Validate card details
+    if (!formData.cardNumber || !formData.expiryDate || !formData.cvc || !formData.cardholderName) {
+      setError('Please fill in all card details');
+      return;
+    }
     
     try {
-      // Prepare payment details
-      const paymentDetails = {
-        id: `payment_${Date.now()}`, // In a real app, this would come from Stripe
-        cardNumber: formData.cardNumber.replace(/\s/g, '').slice(-4), // Only store last 4 digits
-        amount: 999, // $9.99
-        currency: 'usd',
-        status: 'succeeded'
-      };
+      setError(null);
+      setIsProcessing(true);
       
-      // Send payment to server
-      const response = await api.post(`/api/heroes/${id?.replace('preview-', '')}/payment`, {
-        paymentDetails
+      // In a real implementation, you would securely create a token on the client side
+      // For this example, we're simulating the token creation
+      const mockStripeToken = `tok_${Date.now()}`;
+      
+      // Send the payment data to your server
+      const response = await api.post('/process-payment', {
+        heroId,
+        stripeToken: mockStripeToken,
+        amount: 9.99, // Price in dollars
+        currency: 'usd',
+        walletAddress: formData.walletAddress || '0x0000000000000000000000000000000000000000',
+        email: formData.email || 'user@example.com',
       });
       
-      // Update local state on success
-      setPaymentStatus('paid');
-      setStep(2);
+      // Handle the response
+      if (response.data) {
+        // Payment was successful
+        setSuccess(true);
+        
+        // Update hero in store to reflect paid status
+        await loadHeroFromAPI(heroId);
+        
+        // Redirect after a short delay
+        setTimeout(() => {
+          navigate(`/heroes/${heroId}`);
+        }, 2000);
+      } else {
+        setError('Payment processing failed. Please try again.');
+      }
     } catch (error: any) {
       console.error('Payment error:', error);
-      setError(error.response?.data?.error || 'Payment processing failed. Please try again.');
+      const errorMessage = error.response?.data?.error || 'Failed to process payment';
+      setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
   };
   
-  const handleComplete = () => {
-    // Navigate to the final hero page
-    navigate(`/hero/${id?.replace('preview-', '')}`);
-  };
+  // Render loading state
+  if (isLoading) {
+    return (
+      <div className="mt-8 flex justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cosmic-500"></div>
+      </div>
+    );
+  }
   
-  const heroName = hero?.name || 'Cosmic Hero';
-  const heroImage = hero?.images && hero.images.length > 0 
-    ? hero.images[0].url 
-    : 'https://images.pexels.com/photos/606513/pexels-photo-606513.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2';
+  // Render success state
+  if (success) {
+    return (
+      <div className="mt-8 bg-green-900/20 border border-green-800 rounded-xl p-6 text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-900/30 rounded-full mb-4">
+          <Check size={32} className="text-green-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-green-400 mb-2">
+          Payment Successful!
+        </h2>
+        <p className="text-green-300 mb-4">
+          Your hero has been upgraded to premium status!
+        </p>
+        <Button onClick={() => navigate(`/heroes/${heroId}`)}>
+          Return to Hero
+        </Button>
+      </div>
+    );
+  }
   
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="container mx-auto px-4 pt-32 pb-20"
-    >
-      <div className="max-w-4xl mx-auto">
-        {/* Back to Hero */}
-        <Link to={`/hero/${id}`} className="inline-flex items-center text-gray-400 hover:text-white mb-8">
-          <ArrowLeft size={16} className="mr-2" /> Back to Hero Preview
-        </Link>
-        
-        <div className="bg-mystic-800 rounded-xl overflow-hidden">
-          {/* Header */}
-          <div className="bg-mystic-gradient p-6">
-            <h1 className="text-2xl font-display font-semibold">Complete Your Purchase</h1>
-          </div>
-          
-          <div className="p-6">
-            {step === 1 ? (
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
-                {/* Payment Form */}
-                <div className="md:col-span-3">
-                  <h2 className="text-lg font-medium mb-4 flex items-center">
-                    <Lock size={18} className="mr-2 text-cosmic-500" /> Secure Payment
-                  </h2>
-                  
-                  {error && (
-                    <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-lg text-red-200 text-sm">
-                      {error}
-                    </div>
-                  )}
-                  
-                  <form onSubmit={handlePaymentSubmit}>
-                    <div className="space-y-4">
-                      <Input
-                        label="Card Number"
-                        placeholder="1234 5678 9012 3456"
-                        fullWidth
-                        leftIcon={<CreditCard size={18} />}
-                        required
-                        name="cardNumber"
-                        value={formData.cardNumber}
-                        onChange={handleInputChange}
-                      />
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <Input
-                          label="Expiration Date"
-                          placeholder="MM / YY"
-                          required
-                          name="expiryDate"
-                          value={formData.expiryDate}
-                          onChange={handleInputChange}
-                        />
-                        <Input
-                          label="Security Code"
-                          placeholder="CVC"
-                          required
-                          name="cvc"
-                          value={formData.cvc}
-                          onChange={handleInputChange}
-                        />
-                      </div>
-                      
-                      <Input
-                        label="Cardholder Name"
-                        placeholder="Name as it appears on card"
-                        fullWidth
-                        required
-                        name="cardholderName"
-                        value={formData.cardholderName}
-                        onChange={handleInputChange}
-                      />
-                      
-                      <div className="pt-4">
-                        <Button 
-                          type="submit" 
-                          fullWidth
-                          isLoading={isProcessing}
-                        >
-                          Pay $9.99
-                        </Button>
-                        <p className="text-xs text-gray-400 mt-2 text-center">
-                          Your payment is secured with end-to-end encryption
-                        </p>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-                
-                {/* Order Summary */}
-                <div className="md:col-span-2">
-                  <h2 className="text-lg font-medium mb-4">Order Summary</h2>
-                  
-                  <div className="bg-mystic-900 rounded-lg p-4 mb-4">
-                    <div className="aspect-square rounded overflow-hidden mb-4">
-                      <img 
-                        src={heroImage} 
-                        alt={`${heroName} preview`} 
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    
-                    <h3 className="font-medium">{heroName} Package</h3>
-                    <p className="text-sm text-gray-400 mb-4">Full access to your unique mythical hero</p>
-                    
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Base price</span>
-                        <span>$9.99</span>
-                      </div>
-                      <div className="flex justify-between font-medium">
-                        <span>Total</span>
-                        <span>$9.99</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="text-sm text-gray-400">
-                    <h3 className="font-medium text-white mb-2">What's included:</h3>
-                    <ul className="space-y-2">
-                      <li className="flex items-start">
-                        <Image size={16} className="mr-2 mt-1 text-cosmic-500" />
-                        <span>High-resolution hero images</span>
-                      </li>
-                      <li className="flex items-start">
-                        <Download size={16} className="mr-2 mt-1 text-cosmic-500" />
-                        <span>Downloadable files in multiple formats (JPG, PNG)</span>
-                      </li>
-                      <li className="flex items-start">
-                        <CheckCircle size={16} className="mr-2 mt-1 text-cosmic-500" />
-                        <span>Complete hero backstory and traits</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
+    <div className="mt-8 bg-mystic-900/60 border border-mystic-700 rounded-xl p-6">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold mb-2">Upgrade to Premium</h2>
+        <p className="text-gray-400">
+          Upgrade your hero to unlock all features including shared story creation.
+        </p>
+      </div>
+      
+      {heroName && (
+        <div className="mb-6 flex items-center gap-4 p-4 bg-mystic-800/50 rounded-lg">
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-mystic-700">
+            {images && images.length > 0 ? (
+              <img 
+                src={images[0]?.url} 
+                alt={heroName} 
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <div className="text-center py-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-cosmic-500/20 mb-4">
-                  <CheckCircle size={32} className="text-cosmic-500" />
-                </div>
-                
-                <h2 className="text-2xl font-display font-semibold mb-2">Payment Successful!</h2>
-                <p className="text-gray-300 mb-8 max-w-md mx-auto">
-                  Thank you for your purchase. Your cosmic hero has been successfully unlocked and is now ready for you to enjoy.
-                </p>
-                
-                <Button 
-                  variant="secondary" 
-                  size="lg"
-                  onClick={handleComplete}
-                >
-                  View My Hero
-                </Button>
+              <div className="w-full h-full flex items-center justify-center text-gray-500">
+                <span>No Image</span>
               </div>
             )}
           </div>
+          <div>
+            <h3 className="text-lg font-semibold">{heroName}</h3>
+            <p className="text-cosmic-400">Upgrading to Premium Hero</p>
+          </div>
         </div>
+      )}
+      
+      {error && (
+        <div className="mb-6 p-4 bg-red-900/20 border border-red-800/50 rounded-lg flex items-start gap-3">
+          <AlertTriangle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-semibold text-red-400">Payment Error</h4>
+            <p className="text-red-300 text-sm">{error}</p>
+          </div>
+        </div>
+      )}
+      
+      <form onSubmit={handlePaymentSubmit}>
+        <div className="mb-4">
+          <label htmlFor="email" className="block text-sm font-medium mb-1">
+            Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleInputChange}
+            placeholder="your@email.com"
+            className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+            required
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label htmlFor="walletAddress" className="block text-sm font-medium mb-1">
+            Wallet Address (optional)
+          </label>
+          <input
+            id="walletAddress"
+            name="walletAddress"
+            type="text"
+            value={formData.walletAddress}
+            onChange={handleInputChange}
+            placeholder="0x..."
+            className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label htmlFor="cardholderName" className="block text-sm font-medium mb-1">
+            Cardholder Name
+          </label>
+          <input
+            id="cardholderName"
+            name="cardholderName"
+            type="text"
+            value={formData.cardholderName}
+            onChange={handleInputChange}
+            placeholder="John Doe"
+            className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+            required
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label htmlFor="cardNumber" className="block text-sm font-medium mb-1">
+            Card Number
+          </label>
+          <div className="relative">
+            <input
+              id="cardNumber"
+              name="cardNumber"
+              type="text"
+              value={formData.cardNumber}
+              onChange={handleInputChange}
+              placeholder="1234 5678 9012 3456"
+              className="w-full pl-10 pr-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+              required
+            />
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+              <CreditCard size={16} className="text-gray-400" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <label htmlFor="expiryDate" className="block text-sm font-medium mb-1">
+              Expiry Date
+            </label>
+            <input
+              id="expiryDate"
+              name="expiryDate"
+              type="text"
+              value={formData.expiryDate}
+              onChange={handleInputChange}
+              placeholder="MM/YY"
+              className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="cvc" className="block text-sm font-medium mb-1">
+              CVC
+            </label>
+            <input
+              id="cvc"
+              name="cvc"
+              type="text"
+              value={formData.cvc}
+              onChange={handleInputChange}
+              placeholder="123"
+              className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+              required
+            />
+          </div>
+        </div>
+        
+        <div className="mb-6 p-3 bg-cosmic-900/20 border border-cosmic-800/30 rounded-lg">
+          <div className="flex items-center gap-2 text-cosmic-400 text-sm mb-2">
+            <Shield size={16} />
+            <span className="font-medium">Secure Payment</span>
+          </div>
+          <p className="text-cosmic-500 text-xs">
+            Your payment information is securely processed by Stripe.
+            We do not store your card details on our servers.
+          </p>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div className="text-xl font-bold">
+            <span className="text-cosmic-400">$9.99</span>
+            <span className="text-xs text-gray-500 ml-1">USD</span>
+          </div>
+          
+          <Button
+            type="submit"
+            icon={<CreditCard size={16} />}
+            disabled={isProcessing}
+            className={isProcessing ? 'opacity-75' : ''}
+          >
+            {isProcessing ? 'Processing...' : 'Upgrade to Premium'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const CheckoutPage: React.FC = () => {
+  const navigate = useNavigate();
+
+  return (
+    <motion.div
+      className="container mx-auto px-4 pt-20 pb-10"
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <PageTitle>Checkout</PageTitle>
+          <Button variant="ghost" icon={<X size={16} />} onClick={() => navigate(-1)}>
+            Cancel
+          </Button>
+        </div>
+        
+        <CheckoutForm />
       </div>
     </motion.div>
   );
