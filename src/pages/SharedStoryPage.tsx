@@ -9,7 +9,7 @@ import Button from '../components/ui/Button';
 import PageTitle from '../components/ui/PageTitle';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
-import { Plus, Send, Share2, User, Users, ArrowLeft, Copy, Sparkles } from 'lucide-react';
+import { Plus, Send, Share2, User, Users, ArrowLeft, Copy, Sparkles, Sun, Moon, Star, Loader2 } from 'lucide-react';
 
 // Animation variants
 const pageVariants = {
@@ -193,11 +193,27 @@ interface RoomListItem {
   updated: Date;
 }
 
+// Zodiac icons and colors mapping
+const westernZodiacIcons: Record<string, { color: string }> = {
+  'Aries': { color: 'text-red-400' },
+  'Taurus': { color: 'text-green-400' },
+  'Gemini': { color: 'text-yellow-400' },
+  'Cancer': { color: 'text-blue-400' },
+  'Leo': { color: 'text-orange-400' },
+  'Virgo': { color: 'text-green-300' },
+  'Libra': { color: 'text-purple-300' },
+  'Scorpio': { color: 'text-red-500' },
+  'Sagittarius': { color: 'text-orange-300' },
+  'Capricorn': { color: 'text-gray-400' },
+  'Aquarius': { color: 'text-blue-300' },
+  'Pisces': { color: 'text-purple-400' }
+};
+
 const SharedStoryPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const { token, user, isAuthenticated } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { heroId, heroName, images, status, loadHeroFromAPI } = useHeroStore();
+  const { heroId, heroName, images, status, westernZodiac, chineseZodiac, loadHeroFromAPI } = useHeroStore();
   
   // State
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -213,6 +229,8 @@ const SharedStoryPage: React.FC = () => {
   const [copiedToClipboard, setCopiedToClipboard] = useState<boolean>(false);
   const [activeRooms, setActiveRooms] = useState<RoomListItem[]>([]);
   const [isNarratorTyping, setIsNarratorTyping] = useState<boolean>(false);
+  const [heroDetails, setHeroDetails] = useState<{westernZodiac?: string, chineseZodiac?: string}>({});
+  const [fetchingZodiac, setFetchingZodiac] = useState<boolean>(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -222,10 +240,26 @@ const SharedStoryPage: React.FC = () => {
     if (heroId) {
       const fetchHeroStatus = async () => {
         try {
+          setFetchingZodiac(true);
           const response = await api.get(`/api/heroes/${heroId}`);
           setIsPremium(response.data.paymentStatus === 'paid');
+          
+          // Also load the complete hero data to ensure we have zodiac signs
+          if (!westernZodiac || !chineseZodiac) {
+            setHeroDetails({
+              westernZodiac: response.data.westernZodiac,
+              chineseZodiac: response.data.chineseZodiac
+            });
+            
+            // Load into store for future reference
+            if (response.data.westernZodiac && response.data.chineseZodiac) {
+              loadHeroFromAPI(heroId);
+            }
+          }
         } catch (error) {
           console.error('Error fetching hero payment status:', error);
+        } finally {
+          setFetchingZodiac(false);
         }
       };
       
@@ -233,7 +267,7 @@ const SharedStoryPage: React.FC = () => {
     } else {
       setIsPremium(false);
     }
-  }, [heroId]);
+  }, [heroId, westernZodiac, chineseZodiac, loadHeroFromAPI]);
   
   // Connect to socket.io server
   useEffect(() => {
@@ -466,6 +500,13 @@ const SharedStoryPage: React.FC = () => {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [isNarratorTyping]);
+  
+  // Helper function to get the color for a zodiac sign
+  const getZodiacColor = (sign: string | undefined): string => {
+    if (!sign) return 'text-cosmic-300';
+    const zodiacInfo = westernZodiacIcons[sign];
+    return zodiacInfo?.color || 'text-cosmic-300';
+  };
   
   // Loading state
   if (isLoading) {
@@ -907,44 +948,177 @@ const SharedStoryPage: React.FC = () => {
             </div>
           </div>
           
-          {/* Participants list */}
-          <div className="bg-mystic-900/30 rounded-xl border border-mystic-800 p-4">
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <Users size={18} />
-              <span>Heroes</span>
-            </h2>
-            
-            <div className="space-y-4">
-              {room?.participants.map((participant) => (
-                <div key={participant.id} className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-mystic-800 rounded-full overflow-hidden">
-                    {participant.avatar ? (
+          {/* Right sidebar */}
+          <div className="space-y-6">
+            {/* Hero Trait Card */}
+            <div className="bg-mystic-900/30 rounded-xl border border-mystic-800 overflow-hidden">
+              {/* Hero image background with gradient overlay */}
+              <div className="relative h-48">
+                {images && images.length >= 3 ? (
+                  <>
+                    <div className="absolute inset-0">
                       <img 
-                        src={participant.avatar} 
-                        alt={participant.name} 
+                        src={images[2]?.url} 
+                        alt={`${heroName} - Action Shot`} 
                         className="w-full h-full object-cover"
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <User size={18} className="text-gray-400" />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-mystic-900 via-mystic-900/70 to-transparent"></div>
+                  </>
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-mystic-800 to-cosmic-900/50"></div>
+                )}
+                
+                {/* Hero name */}
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="w-14 h-14 rounded-full border-2 border-cosmic-500 overflow-hidden bg-mystic-800">
+                      {images && images.length > 0 ? (
+                        <img 
+                          src={images[0]?.url} 
+                          alt={heroName} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <User size={24} className="text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-white">{heroName}</h3>
+                      <div className="flex items-center gap-1">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${
+                          isPremium 
+                            ? 'bg-cosmic-900/60 text-cosmic-400 border border-cosmic-800' 
+                            : 'bg-mystic-800/60 text-gray-400 border border-mystic-700'
+                        }`}>
+                          {isPremium ? 'Premium' : 'Spectator'}
+                        </span>
                       </div>
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+              
+              {/* Traits section */}
+              <div className="p-4">
+                <h4 className="text-sm uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+                  <Sparkles size={14} />
+                  <span>Cosmic Traits</span>
+                </h4>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <motion.div 
+                    className="p-3 rounded-lg bg-mystic-800/50 border border-cosmic-800/30"
+                    whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(24, 24, 43, 0.3)' }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sun size={16} className="text-amber-400" />
+                      <span className="text-xs uppercase tracking-wider text-gray-400">Western Sign</span>
+                    </div>
+                    {fetchingZodiac ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={14} className="animate-spin text-cosmic-400" />
+                        <span className="text-gray-400 text-sm">Loading...</span>
+                      </div>
+                    ) : (
+                      <p className={`font-medium ${getZodiacColor(westernZodiac || heroDetails.westernZodiac)} text-lg`}>
+                        {westernZodiac || heroDetails.westernZodiac || 'Unknown'}
+                      </p>
                     )}
-                  </div>
+                  </motion.div>
                   
-                  <div>
-                    <div className="font-medium">{participant.name}</div>
-                    <div className="text-cosmic-400 text-xs">
-                      {participant.isPremium ? 'Participating' : 'Spectating'}
+                  <motion.div 
+                    className="p-3 rounded-lg bg-mystic-800/50 border border-cosmic-800/30"
+                    whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(24, 24, 43, 0.3)' }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Moon size={16} className="text-cosmic-400" />
+                      <span className="text-xs uppercase tracking-wider text-gray-400">Chinese Sign</span>
+                    </div>
+                    {fetchingZodiac ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={14} className="animate-spin text-cosmic-400" />
+                        <span className="text-gray-400 text-sm">Loading...</span>
+                      </div>
+                    ) : (
+                      <p className="font-medium text-cosmic-400 text-lg">
+                        {chineseZodiac || heroDetails.chineseZodiac || 'Unknown'}
+                      </p>
+                    )}
+                  </motion.div>
+                </div>
+                
+                {userRole === 'participant' && (
+                  <div className="mt-3 p-2 rounded-lg bg-cosmic-900/20 border border-cosmic-800/30">
+                    <div className="flex items-center gap-2">
+                      <Star size={16} className="text-yellow-400" />
+                      <p className="text-sm text-cosmic-300">Your hero can actively shape this cosmic journey.</p>
                     </div>
                   </div>
-                </div>
-              ))}
+                )}
+                
+                {userRole === 'spectator' && (
+                  <div className="mt-3 p-2 rounded-lg bg-mystic-800/50 border border-mystic-700/30">
+                    <div className="flex items-center gap-2">
+                      <div className="text-gray-500">
+                        <User size={16} />
+                      </div>
+                      <p className="text-sm text-gray-400">Your hero is watching the adventure unfold.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Participants list */}
+            <div className="bg-mystic-900/30 rounded-xl border border-mystic-800 p-4">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Users size={18} />
+                <span>Heroes</span>
+              </h2>
               
-              {(!room?.participants || room.participants.length === 0) && (
-                <p className="text-gray-500 text-sm">No heroes have joined yet</p>
-              )}
+              <div className="space-y-4">
+                {room?.participants.map((participant) => (
+                  <div key={participant.id} className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-mystic-800 rounded-full overflow-hidden">
+                      {participant.avatar ? (
+                        <img 
+                          src={participant.avatar} 
+                          alt={participant.name} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <User size={18} className="text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <div className="font-medium">{participant.name}</div>
+                      <div className="text-cosmic-400 text-xs">
+                        {participant.isPremium ? 'Participating' : 'Spectating'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {(!room?.participants || room.participants.length === 0) && (
+                  <p className="text-gray-500 text-sm">No heroes have joined yet</p>
+                )}
+              </div>
             </div>
           </div>
+          
         </div>
       </div>
     </motion.div>

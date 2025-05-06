@@ -51,6 +51,7 @@ export const userDb = {
   // Create a new user
   async createUser(user) {
     const db = await connectDB();
+
     await db.collection('users').insertOne(user);
     return user;
   },

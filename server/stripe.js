@@ -8,14 +8,10 @@ dotenv.config();
 /**
  * Process a payment and create an NFT
  * @param {string} heroId - The ID of the hero
- * @param {object} paymentDetails - Payment details from Stripe
+ * @param {object} paymentIntent - Payment details from Stripe
  * @returns {object} The created NFT
  */
-export const processPaymentAndCreateNFT = async (heroId, paymentDetails) => {
-  // In a real app, this would connect to the Stripe API
-  // For demo purposes, we'll just create a mock NFT
-  
-  // Generate a unique NFT token ID
+export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
   const tokenId = uuidv4();
   
   // Create the NFT object
@@ -24,13 +20,13 @@ export const processPaymentAndCreateNFT = async (heroId, paymentDetails) => {
     heroId,
     createdAt: new Date(),
     metadata: {
-      paymentId: paymentDetails.id || 'mock-payment-id',
-      amount: paymentDetails.amount || 9900,
-      currency: paymentDetails.currency || 'usd',
+      paymentId: paymentIntent.id,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
       status: 'confirmed'
     },
-    tokenURI: `https://api.olympus-hero.com/nft/${tokenId}`,
-    ownerAddress: paymentDetails.walletAddress || '0x0000000000000000000000000000000000000000'
+    tokenURI: `/nft/${tokenId}`,
+    ownerAddress: paymentIntent.walletAddress || '0x0000000000000000000000000000000000000000'
   };
   
   // Store the NFT in the database

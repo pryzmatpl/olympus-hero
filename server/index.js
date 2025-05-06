@@ -23,6 +23,7 @@ import {
 import path from 'path';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
+import stripe from 'stripe';
 
 // Load environment variables
 dotenv.config();
@@ -36,6 +37,8 @@ if (missingEnvVars.length > 0) {
   console.error('Make sure these variables are set in your .env file or environment.');
   process.exit(1);
 }
+
+const stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
 
 // Initialize the database connection
 initializeDB().catch(console.error);
@@ -99,6 +102,94 @@ console.log('Static file serving enabled from:', path.join(process.cwd(), 'stora
 // Debugging endpoint to check if server is alive
 app.get('/ping', (req, res) => {
   res.json({ message: 'pong', timestamp: new Date().toISOString() });
+});
+
+
+// Endpoint to process payment and create NFT using Charges API
+app.post('/process-payment', async (req, res) => {
+  const { heroId, stripeToken, amount, currency, walletAddress, email } = req.body;
+
+  try {
+    // Create a Stripe customer
+    const customer = await stripeInstance.customers.create({
+      email,
+      source: stripeToken, // Token from Stripe.js
+    });
+
+    // Create a charge
+    const charge = await stripeInstance.charges.create({
+      amount: amount * 100, // Amount in cents
+      currency,
+      customer: customer.id,
+      description: `NFT for hero ${heroId}`,
+    });
+
+    // Create NFT
+    const tokenId = uuidv4();
+    const nft = {
+      id: tokenId,
+      heroId,
+      createdAt: new Date(),
+      metadata: {
+        paymentId: charge.id,
+        amount: charge.amount,
+        currency: charge.currency,
+        status: 'confirmed',
+      },
+      tokenURI: `https://api.olympus-hero.com/nft/${tokenId}`,
+      ownerAddress: walletAddress || '0x0000000000000000000000000000000000000000',
+    };
+
+    // Save NFT to database (example)
+    await connectDB();
+    // await NFTModel.create(nft); // Uncomment and implement with your database
+
+    res.status(200).json(nft);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Alternative: Endpoint to create Payment Intent
+app.post('/create-payment-intent', async (req, res) => {
+  const { amount, currency, heroId, walletAddress } = req.body;
+
+  try {
+    const paymentIntent = await stripeInstance.paymentIntents.create({
+      amount: amount * 100,
+      currency,
+      metadata: { heroId, walletAddress },
+    });
+
+    res.status(200).json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Webhook to handle Payment Intent success
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripeInstance.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const paymentIntent = event.data.object;
+    const { heroId, walletAddress } = paymentIntent.metadata;
+
+    await processPaymentAndCreateNFT(heroId, paymentIntent)
+  }
+
+  res.json({ received: true });
 });
 
 // Authentication Routes
