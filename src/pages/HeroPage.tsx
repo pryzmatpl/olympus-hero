@@ -8,6 +8,7 @@ import HeroPortrait from '../components/hero/HeroPortrait';
 import HeroBackstory from '../components/hero/HeroBackstory';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
 import ReactMarkdown from 'react-markdown';
+import api from '../utils/api';
 
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,10 +40,9 @@ const HeroPage: React.FC = () => {
         
         // Fetch hero data from API
         const response = await api.get(`/api/heroes/${id?.replace('preview-', '')}`);
-        const heroData = response.data.hero;
         
         // Update store with all hero data at once
-        loadHeroFromAPI(heroData);
+        loadHeroFromAPI(response);
         
       } catch (error) {
         console.error('Error fetching hero:', error);

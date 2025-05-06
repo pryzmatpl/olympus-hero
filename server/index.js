@@ -130,6 +130,10 @@ app.post('/api/heroes', authMiddleware, async (req, res) => {
 app.get('/api/heroes/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const userId = req.user.userId;
+
+  if (typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Share check' });
+  }
   
   const hero = await heroDb.findHeroById(id);
   if (!hero) {
@@ -137,7 +141,7 @@ app.get('/api/heroes/:id', authMiddleware, async (req, res) => {
   }
   
   // Check if the user owns this hero
-  if (hero.userId !== userId) {
+  if (hero.userid !== userId) {
     return res.status(403).json({ error: 'You do not have permission to view this hero' });
   }
   
