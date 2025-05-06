@@ -17,7 +17,8 @@ import {
   leaveSharedStoryRoom, 
   getSharedStoryRoom,
   generateSharedStoryPrompt,
-  generateSharedStoryResponse
+  generateSharedStoryResponse,
+  listSharedStoryRooms
 } from './sharedStory.js';
 import path from 'path';
 import fs from 'fs';
@@ -550,6 +551,20 @@ app.get('/api/shared-story/:roomId', async (req, res) => {
   } catch (error) {
     console.error('Error getting shared story room:', error);
     return res.status(500).json({ error: 'Failed to get shared story room details' });
+  }
+});
+
+// List all active shared story rooms
+app.get('/api/shared-story', async (req, res) => {
+  try {
+    // Get all shared story rooms
+    const rooms = await listSharedStoryRooms();
+    
+    // Return rooms list
+    return res.json(rooms);
+  } catch (error) {
+    console.error('Error listing shared story rooms:', error);
+    return res.status(500).json({ error: 'Failed to list shared story rooms' });
   }
 });
 

@@ -51,6 +51,16 @@ interface SharedRoom {
   created: Date;
 }
 
+// Interface for room list items
+interface RoomListItem {
+  id: string;
+  title: string;
+  participantCount: number;
+  spectatorCount: number;
+  created: Date;
+  updated: Date;
+}
+
 const SharedStoryPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const { token, user, isAuthenticated } = useContext(AuthContext);
@@ -69,9 +79,28 @@ const SharedStoryPage: React.FC = () => {
   const [userRole, setUserRole] = useState<'participant' | 'spectator' | null>(null);
   const [showShareDialog, setShowShareDialog] = useState<boolean>(false);
   const [copiedToClipboard, setCopiedToClipboard] = useState<boolean>(false);
+  const [activeRooms, setActiveRooms] = useState<RoomListItem[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  
+  // Set premium status when hero is loaded
+  useEffect(() => {
+    if (heroId) {
+      const fetchHeroStatus = async () => {
+        try {
+          const response = await api.get(`/api/heroes/${heroId}`);
+          setIsPremium(response.data.paymentStatus === 'paid');
+        } catch (error) {
+          console.error('Error fetching hero payment status:', error);
+        }
+      };
+      
+      fetchHeroStatus();
+    } else {
+      setIsPremium(false);
+    }
+  }, [heroId]);
   
   // Connect to socket.io server
   useEffect(() => {
@@ -182,6 +211,34 @@ const SharedStoryPage: React.FC = () => {
     fetchRoomDetails();
   }, [roomId]);
   
+  // Fetch active rooms when no roomId is provided
+  useEffect(() => {
+    const fetchActiveRooms = async () => {
+      if (roomId) return;
+      
+      try {
+        setIsLoading(true);
+        const response = await api.get('/api/shared-story');
+        
+        // Parse dates from strings to Date objects
+        const roomsWithParsedDates = response.data.map((room: any) => ({
+          ...room,
+          created: new Date(room.created),
+          updated: new Date(room.updated)
+        }));
+        
+        setActiveRooms(roomsWithParsedDates);
+      } catch (error) {
+        console.error('Error fetching active rooms:', error);
+        setError('Failed to load active shared story rooms');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchActiveRooms();
+  }, [roomId]);
+  
   // If we're creating a new room, do that
   const handleCreateRoom = async () => {
     if (!heroId) {
@@ -189,17 +246,33 @@ const SharedStoryPage: React.FC = () => {
       return;
     }
     
+    if (!isPremium) {
+      setError('Only premium heroes can create shared story rooms');
+      return;
+    }
+    
     try {
       setIsLoading(true);
+      setError(null);
+      console.log('Creating room with heroId:', heroId);
+      
       const response = await api.post('/api/shared-story/create', { heroId });
+      console.log('Room created successfully:', response.data);
       
       // Navigate to the new room
       navigate(`/shared-story/${response.data.roomId}`);
     } catch (error: any) {
       console.error('Error creating room:', error);
-      setError(error.response?.data?.error || 'Failed to create room');
+      const errorMessage = error.response?.data?.error || 'Failed to create room';
+      console.error('Error message:', errorMessage);
+      setError(errorMessage);
       setIsLoading(false);
     }
+  };
+  
+  // Handler for joining an existing room
+  const handleJoinRoom = (roomId: string) => {
+    navigate(`/shared-story/${roomId}`);
   };
   
   // Handler for sending messages
@@ -303,7 +376,7 @@ const SharedStoryPage: React.FC = () => {
             Back to Heroes
           </Link>
           
-          <PageTitle>Create Shared Story</PageTitle>
+          <PageTitle>Shared Story Adventures</PageTitle>
           
           <div className="mt-8 bg-mystic-900/60 rounded-xl p-6 border border-mystic-700">
             <h2 className="text-2xl font-semibold mb-4">Selected Hero</h2>
@@ -326,9 +399,20 @@ const SharedStoryPage: React.FC = () => {
                 
                 <div>
                   <h3 className="text-xl font-medium">{heroName}</h3>
-                  <p className="text-cosmic-400 text-sm">
-                    {isPremium ? 'Premium Hero' : 'Non-Premium Hero'}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${
+                      isPremium 
+                        ? 'bg-cosmic-900/60 text-cosmic-400 border border-cosmic-800' 
+                        : 'bg-mystic-800/60 text-gray-400 border border-mystic-700'
+                    }`}>
+                      {isPremium ? 'Premium Hero' : 'Non-Premium Hero'}
+                    </span>
+                    {!isPremium && (
+                      <Link to={`/checkout/${heroId}`} className="text-xs text-amber-400 underline">
+                        Upgrade
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -354,20 +438,75 @@ const SharedStoryPage: React.FC = () => {
                 onClick={handleCreateRoom}
                 disabled={!heroId || !isPremium}
                 icon={<Plus size={16} />}
-                className="w-full md:w-auto"
+                className={`w-full md:w-auto ${!isPremium ? 'opacity-50' : ''}`}
               >
-                Create New Shared Story
+                {isPremium ? 'Create New Shared Story' : 'Premium Required'}
               </Button>
               
               {!isPremium && heroId && (
-                <p className="mt-4 text-amber-400 text-sm">
-                  Only premium heroes can create and participate in shared stories.
-                  <Link to={`/checkout/${heroId}`} className="ml-2 underline">
-                    Upgrade this hero
-                  </Link>
-                </p>
+                <div className="mt-4 p-3 bg-amber-900/20 border border-amber-800/50 rounded-lg">
+                  <p className="text-amber-400 text-sm">
+                    Only premium heroes can create and participate in shared stories.
+                    <Link to={`/checkout/${heroId}`} className="ml-2 underline font-medium">
+                      Upgrade this hero
+                    </Link>
+                  </p>
+                </div>
               )}
             </div>
+          </div>
+          
+          {/* Active Shared Story Rooms */}
+          <div className="mt-8 bg-mystic-900/60 rounded-xl p-6 border border-mystic-700">
+            <h2 className="text-2xl font-semibold mb-4">Join Active Adventures</h2>
+            
+            {activeRooms.length > 0 ? (
+              <div className="space-y-4">
+                {activeRooms.map(room => (
+                  <div key={room.id} className="bg-mystic-800/60 p-4 rounded-lg border border-mystic-700 hover:border-cosmic-500 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-xl font-medium">{room.title}</h3>
+                        <p className="text-cosmic-400 text-sm">
+                          Created {new Date(room.created).toLocaleDateString()} • 
+                          Last activity {new Date(room.updated).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className="flex items-center gap-1 text-green-400">
+                            <Users size={14} />
+                            <span>{room.participantCount} Heroes</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-blue-400">
+                            <User size={14} />
+                            <span>{room.spectatorCount} Spectators</span>
+                          </div>
+                        </div>
+                        
+                        <Button
+                          onClick={() => handleJoinRoom(room.id)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Join
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : isLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cosmic-500 mx-auto mb-4"></div>
+                <p className="text-gray-400">Loading active adventures...</p>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-400">No active shared stories found. Create a new one!</p>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
