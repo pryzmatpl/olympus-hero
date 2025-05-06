@@ -373,7 +373,7 @@ const HeroPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-cosmic-300 font-medium">Premium Access</span>
                     <Link to={`/checkout/${id}`}>
-                      <Button size="xs" icon={<ShoppingCart className="h-3 w-3" />}>
+                      <Button icon={<ShoppingCart className="h-4 w-4" />}>
                         Unlock
                       </Button>
                     </Link>
