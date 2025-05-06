@@ -116,17 +116,15 @@ export function calculate_western_zodiac(date) {
 
 // Calculate Chinese zodiac sign based on birth year
 // Define a map of Chinese New Year dates for relevant years
-import {CalendarChinese} from 'date-chinese';
+import { CalendarChinese } from 'date-chinese';
 
 // Generate Chinese New Year lookup table for 1950–2150
 function generateChineseNewYearTable(startYear, endYear) {
   const table = {};
   for (let year = startYear; year <= endYear; year++) {
     const cal = new CalendarChinese();
-    const newYearJDE = cal.newYear(year); // Get Julian Day Ephemeris for Chinese New Year
-    cal.from // Set calendar to Chinese New Year date
-    cal.fromJDE(newYearJDE);
-    const gregorianDate = cal.toGregorian(); // Convert to Gregorian date
+    const newYearJDE = cal.fromJDE(year); // Get Julian Day Ephemeris for Chinese New Year
+    const gregorianDate = newYearJDE.toGregorian(); // Convert to Gregorian date
     table[year] = new Date(gregorianDate.year, gregorianDate.month - 1, gregorianDate.day); // Store as Date object
   }
   return table;
@@ -143,6 +141,9 @@ export function calculate_chinese_zodiac(date) {
 
   // Get the Chinese New Year date for the birth year
   let cny = chineseNewYearTable[birthYear];
+
+  console.log("CHINESE NEY");
+  console.log(cny)
 
   // If no Chinese New Year date is found, default to February 1
   if (!cny) {
