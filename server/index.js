@@ -214,7 +214,7 @@ app.post('/api/heroes/:id/payment', authMiddleware, async (req, res) => {
   }
   
   // Check if the user owns this hero
-  if (hero.userId !== userId) {
+  if (hero.userid !== userId) {
     return res.status(403).json({ error: 'You do not have permission to modify this hero' });
   }
   

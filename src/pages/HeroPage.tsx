@@ -7,8 +7,8 @@ import { useHeroStore } from '../store/heroStore';
 import HeroPortrait from '../components/hero/HeroPortrait';
 import HeroBackstory from '../components/hero/HeroBackstory';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
-import ReactMarkdown from 'react-markdown';
 import api from '../utils/api';
+import { formatMarkdown } from '../utils/markdownHelper';
 
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -92,6 +92,11 @@ const HeroPage: React.FC = () => {
 
   // Ensure backstory is a string
   const safeBackstory = typeof backstory === 'string' ? backstory : '';
+  
+  // Format backstory preview for unpaid users
+  const backstoryPreview = safeBackstory && safeBackstory.length > 300
+    ? safeBackstory.substring(0, 300) + '...'
+    : safeBackstory;
 
   if (isLoading) {
     return (
@@ -364,9 +369,10 @@ const HeroPage: React.FC = () => {
                   <p className="text-cosmic-400">Backstory is being generated...</p>
                 ) : !isPaid && safeBackstory.length > 300 ? (
                   <>
-                    <div className="markdown-content">
-                      {safeBackstory.substring(0, 300)}...
-                    </div>
+                    <div 
+                      className="markdown-content"
+                      dangerouslySetInnerHTML={{ __html: formatMarkdown(backstoryPreview) }}
+                    />
                     <div className="relative pt-10 mt-4">
                       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-mystic-800 flex items-end justify-center pb-4">
                         <Link to={`/checkout/${id}`}>
@@ -382,9 +388,10 @@ const HeroPage: React.FC = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="markdown-content">
-                    {safeBackstory}
-                  </div>
+                  <div 
+                    className="markdown-content"
+                    dangerouslySetInnerHTML={{ __html: formatMarkdown(safeBackstory) }}
+                  />
                 )}
               </div>
             </div>
