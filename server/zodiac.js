@@ -116,7 +116,7 @@ export function calculate_western_zodiac(date) {
 
 // Calculate Chinese zodiac sign based on birth year
 // Define a map of Chinese New Year dates for relevant years
-const CalendarChinese = require('date-chinese');
+import {CalendarChinese} from 'date-chinese';
 
 // Generate Chinese New Year lookup table for 1950–2150
 function generateChineseNewYearTable(startYear, endYear) {
