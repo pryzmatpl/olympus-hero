@@ -90,6 +90,14 @@ const HeroPage: React.FC = () => {
     }
   };
 
+  const handleJoinClick = () => {
+    if (isPaid) {
+      // Start download of hero assets
+      window.location.href = `${api.defaults.baseURL}/shared-story`;
+    } else {
+      navigate(`/checkout/${id}`);
+    }
+  };
   // Ensure backstory is a string
   const safeBackstory = typeof backstory === 'string' ? backstory : '';
   
@@ -213,8 +221,9 @@ const HeroPage: React.FC = () => {
                     variant="outline" 
                     size="sm"
                     icon={<Users size={16} />}
+                    onClick={handleJoinClick}
                   >
-                    Join Shared Story
+                    {!isPaid && "Unlock to "} Join Shared Story
                   </Button>
                 </Link>
               </>
