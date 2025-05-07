@@ -15,8 +15,11 @@ import {
     useStripe,
     useElements,
 } from '@stripe/react-stripe-js';
-// Initialize Stripe with your publishable key
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+// Initialize Stripe with your publishable key - safely handle potential missing key
+const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+    ? loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+    : Promise.resolve(null);
 
 // Animation variants
 const pageVariants = {
@@ -39,10 +42,6 @@ const CheckoutForm = () => {
     const [formData, setFormData] = useState({
         email: '',
         walletAddress: '',
-        cardNumber: '',
-        expiryDate: '',
-        cvc: '',
-        cardholderName: ''
     });
 
     const stripe = useStripe();
@@ -96,14 +95,14 @@ const CheckoutForm = () => {
     const handlePaymentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!id) {
-            setError('Hero ID is missing');
+        if (!stripe || !elements) {
+            // Stripe.js has not loaded yet. Make sure to disable form submission until Stripe.js has loaded.
+            setError('Payment processing is not available. Please try again later.');
             return;
         }
 
-        // Validate card details
-        if (!formData.cardNumber || !formData.expiryDate || !formData.cvc || !formData.cardholderName) {
-            setError('Please fill in all card details');
+        if (!id) {
+            setError('Hero ID is missing');
             return;
         }
 
@@ -114,76 +113,46 @@ const CheckoutForm = () => {
             // Clean the heroId by removing any 'preview-' prefix
             const cleanHeroId = id.replace('preview-', '');
 
-            // Determine if we're in development or production
-            const isDevelopment = import.meta.env.MODE === 'development';
-            let stripeToken;
-
-            if (isDevelopment) {
-                // For development, use a mock token
-                stripeToken = `tok_${Date.now()}`;
-                console.log('Development mode: Using mock Stripe token');
-            } else {
-                // For production, use a Stripe test token until we implement Elements
-                console.log('Production mode: Using Stripe test token for now');
-
-                try {
-
-                    // NOTE: In a real implementation, you would use Stripe Elements:
-                    // 1. Create card elements in the UI
-                    // 2. Create a token from the card element:
-                    // const { token, error } = await stripe.createToken(cardElement);
-                    stripeToken = 'tok_visa';
-
-                    console.log('Using Stripe test token:', stripeToken);
-
-                    // NOTE: In a real implementation, you would use Stripe Elements:
-                    // 1. Create card elements in the UI
-                    // 2. Create a token from the card element:
-                    // const { token, error } = await stripe.createToken(cardElement);
-                } catch (stripeError: any) {
-                    console.error('Error creating Stripe token:', stripeError);
-                    setError(stripeError.message || 'Failed to process payment method. Please try again.');
-                    setIsProcessing(false);
-                    return;
-                }
+            // Trigger form validation and wallet collection
+            const {error: submitError} = await elements.submit();
+            if (submitError) {
+                setError(submitError.message);
+                setIsProcessing(false);
+                return;
             }
 
-            console.log(`Processing payment for hero: ${cleanHeroId}`);
-            console.log('Payment details prepared', {
-                heroId: cleanHeroId,
-                hasStripeToken: !!stripeToken,
-                amount: 9.99,
-                currency: 'usd',
-                email: formData.email || 'user@example.com'
-            });
-
-            // Set up a timeout to prevent infinite loading
-            const timeoutId = setTimeout(() => {
-                if (isProcessing) {
-                    setError('Payment request timed out. Please try again.');
-                    setIsProcessing(false);
-                }
-            }, 30000); // 30 second timeout
-
-            // Send the payment data to your server
-            const response = await api.post('/api/process-payment', {
-                heroId: cleanHeroId,
-                stripeToken: stripeToken,
+            // Create the PaymentIntent on the server - using the correct endpoint path
+            const response = await api.post('/api/create-payment-intent', {
                 amount: 9.99, // Price in dollars
                 currency: 'usd',
+                heroId: cleanHeroId,
                 walletAddress: formData.walletAddress || '0x0000000000000000000000000000000000000000',
-                email: formData.email || 'user@example.com',
             });
 
-            // Clear the timeout since we got a response
-            clearTimeout(timeoutId);
+            const {clientSecret} = response.data;
+            
+            if (!clientSecret) {
+                throw new Error('No client secret returned from the server');
+            }
 
-            console.log('Payment response received:', response.data);
+            // Confirm the payment with Stripe.js
+            const {error} = await stripe.confirmPayment({
+                elements,
+                clientSecret,
+                confirmParams: {
+                    return_url: `${window.location.origin}/hero/${cleanHeroId}`,
+                    receipt_email: formData.email,
+                },
+                redirect: 'if_required',
+            });
 
-            // Handle the response
-            if (response.data && response.data.id) {
-                console.log('Payment successful:', response.data);
-                // Payment was successful
+            if (error) {
+                // Payment failed
+                console.error('Payment error:', error);
+                setError(error.message || 'An error occurred while processing your payment.');
+            } else {
+                // Payment succeeded
+                console.log('Payment succeeded!');
                 setSuccess(true);
 
                 // Update hero in store to reflect paid status
@@ -202,9 +171,6 @@ const CheckoutForm = () => {
                 setTimeout(() => {
                     navigate(`/hero/${cleanHeroId}`);
                 }, 2000);
-            } else {
-                console.error('Invalid payment response:', response.data);
-                setError('Payment processing returned an invalid response. Please try again.');
             }
         } catch (error: any) {
             console.error('Payment error:', error);
@@ -223,7 +189,7 @@ const CheckoutForm = () => {
 
             // Provide more detailed error message to the user
             const errorMessage = error.response?.data?.error ||
-                'Failed to process payment. Please check your card details and try again.';
+                'Failed to process payment. Please try again.';
             setError(errorMessage);
         } finally {
             setIsProcessing(false);
@@ -247,11 +213,7 @@ const CheckoutForm = () => {
                     {/* Central credit card icon */}
                     <div
                         className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-cosmic-800 rounded-xl flex items-center justify-center">
-                        <CheckoutProvider stripe={stripePromise}>
-                            <form>
-                                <PaymentElement size={32} className="text-cosmic-400"/>
-                            </form>
-                        </CheckoutProvider>
+                        <CreditCard size={32} className="text-cosmic-400"/>
                     </div>
 
                     {/* Orbiting animation */}
@@ -333,6 +295,24 @@ const CheckoutForm = () => {
         );
     }
 
+    // If Stripe is not available, show a friendly message
+    if (!stripe || !elements) {
+        return (
+            <div className="mt-8 bg-mystic-900/60 border border-mystic-700 rounded-xl p-6 text-center">
+                <div className="mb-6">
+                    <AlertTriangle size={32} className="mx-auto text-amber-400 mb-4" />
+                    <h2 className="text-2xl font-bold mb-2">Payment System Unavailable</h2>
+                    <p className="text-gray-400 mb-4">
+                        Our payment system is temporarily unavailable. Please try again later or contact support.
+                    </p>
+                    <Button onClick={() => navigate(`/hero/${id?.replace('preview-', '')}`)}>
+                        Return to Hero
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="mt-8 bg-mystic-900/60 border border-mystic-700 rounded-xl p-6">
             <div className="mb-6">
@@ -406,74 +386,8 @@ const CheckoutForm = () => {
                     />
                 </div>
 
-                <div className="mb-4">
-                    <label htmlFor="cardholderName" className="block text-sm font-medium mb-1">
-                        Cardholder Name
-                    </label>
-                    <input
-                        id="cardholderName"
-                        name="cardholderName"
-                        type="text"
-                        value={formData.cardholderName}
-                        onChange={handleInputChange}
-                        placeholder="John Doe"
-                        className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                        required
-                    />
-                </div>
-
-                <div className="mb-4">
-                    <label htmlFor="cardNumber" className="block text-sm font-medium mb-1">
-                        Card Number
-                    </label>
-                    <div className="relative">
-                        <input
-                            id="cardNumber"
-                            name="cardNumber"
-                            type="text"
-                            value={formData.cardNumber}
-                            onChange={handleInputChange}
-                            placeholder="1234 5678 9012 3456"
-                            className="w-full pl-10 pr-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                            required
-                        />
-                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                            <CreditCard size={16} className="text-gray-400"/>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div>
-                        <label htmlFor="expiryDate" className="block text-sm font-medium mb-1">
-                            Expiry Date
-                        </label>
-                        <input
-                            id="expiryDate"
-                            name="expiryDate"
-                            type="text"
-                            value={formData.expiryDate}
-                            onChange={handleInputChange}
-                            placeholder="MM/YY"
-                            className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="cvc" className="block text-sm font-medium mb-1">
-                            CVC
-                        </label>
-                        <input
-                            id="cvc"
-                            name="cvc"
-                            type="text"
-                            value={formData.cvc}
-                            onChange={handleInputChange}
-                            placeholder="123"
-                            className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                            required
-                        />
-                    </div>
+                <div className="mb-6 bg-mystic-800 border border-mystic-700 rounded-lg p-4">
+                    <PaymentElement />
                 </div>
 
                 <div className="mb-6 p-3 bg-cosmic-900/20 border border-cosmic-800/30 rounded-lg">
@@ -496,7 +410,7 @@ const CheckoutForm = () => {
                     <Button
                         type="submit"
                         icon={<CreditCard size={16}/>}
-                        disabled={isProcessing}
+                        disabled={isProcessing || !stripe || !elements}
                         className={isProcessing ? 'opacity-75' : ''}
                     >
                         {isProcessing ? 'Processing...' : 'Upgrade to Premium'}
@@ -507,8 +421,36 @@ const CheckoutForm = () => {
     );
 };
 
+// Stripe Elements options
+const stripeElementsOptions = {
+    mode: 'payment',
+    amount: 999, // In cents
+    currency: 'usd',
+    appearance: {
+        theme: 'night',
+        variables: {
+            colorPrimary: '#8B5CF6',
+            colorBackground: '#1F2937',
+            colorText: '#F9FAFB',
+            colorDanger: '#EF4444',
+            fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+            spacingUnit: '4px',
+            borderRadius: '8px',
+        },
+    },
+};
+
 const CheckoutPage: React.FC = () => {
     const navigate = useNavigate();
+    const [stripeError, setStripeError] = useState<string | null>(null);
+
+    // Initialize Stripe.js when the component mounts
+    useEffect(() => {
+        if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
+            console.error('Stripe publishable key is missing');
+            setStripeError('Payment system is not properly configured. Please contact support.');
+        }
+    }, []);
 
     return (
         <motion.div
@@ -526,7 +468,21 @@ const CheckoutPage: React.FC = () => {
                     </Button>
                 </div>
 
-                <CheckoutForm/>
+                {stripeError ? (
+                    <div className="mt-8 bg-red-900/20 border border-red-800 rounded-xl p-6 text-center">
+                        <AlertTriangle size={32} className="mx-auto text-red-400 mb-4" />
+                        <h2 className="text-xl font-bold text-red-400 mb-2">Payment System Error</h2>
+                        <p className="text-red-300 mb-4">{stripeError}</p>
+                        <Button onClick={() => navigate(-1)}>Go Back</Button>
+                    </div>
+                ) : (
+                    <Elements 
+                        stripe={stripePromise} 
+                        options={stripeElementsOptions}
+                    >
+                        <CheckoutForm/>
+                    </Elements>
+                )}
             </div>
         </motion.div>
     );
