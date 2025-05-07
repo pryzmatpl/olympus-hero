@@ -5,8 +5,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+RUN mkdir -p /app/storage/images /app/storage/temp
+
 COPY . .
 
 EXPOSE 9002
 
-CMD ["npm", "run", "server"] 
+CMD ["npm", "run", "server"]
