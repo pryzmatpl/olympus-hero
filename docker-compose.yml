@@ -29,7 +29,7 @@ services:
     volumes:
       - ./:/app
       - /app/node_modules
-      - ./storage/:/app/storage
+      - ./storage:/app/storage
     ports:
       - "9002:9002"
     command: npm run server:dev
