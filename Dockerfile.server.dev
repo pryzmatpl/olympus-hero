@@ -12,7 +12,7 @@ COPY package.json package-lock.json ./
 RUN npm ci 
 
 # Install mongodb package explicitly
-RUN npm install mongodb
+RUN npm install mongodb @stripe/stripe-js @stripe/react-stripe-js
 
 # Install nodemon for development
 RUN npm install -g nodemon

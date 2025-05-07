@@ -9,9 +9,9 @@ import { CreditCard, Lock, Shield, X, Check, AlertTriangle } from 'lucide-react'
 import api from '../utils/api';
 // Import the Stripe.js library
 import { loadStripe } from '@stripe/stripe-js';
-import {CheckoutProvider} from '@stripe/react-stripe-js';
+import { CheckoutProvider, PaymentElement} from '@stripe/react-stripe-js';
 // Initialize Stripe with your publishable key
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_51Ox7QuKlzwcfXFbfXXVAyFCWwtLCySzdWy5z3PYGGvVXJcwqnVKvf3WkF90tJbFKVNbZMzCImlnNzaHfEzM6PF8Kzu1wA');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 // Animation variants
 const pageVariants = {
@@ -239,7 +239,9 @@ const CheckoutForm = () => {
           {/* Central credit card icon */}
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-cosmic-800 rounded-xl flex items-center justify-center">
             <CheckoutProvider stripe={stripePromise}>
-              <CreditCard size={32} className="text-cosmic-400" />
+            <form>
+              <PaymentElement size={32} className="text-cosmic-400" />
+            </form>
             </CheckoutProvider>
           </div>
           
