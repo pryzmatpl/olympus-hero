@@ -38,7 +38,7 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-const stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
+const stripeInstance = stripe(process.env.STRIPE_PUB_KEY);
 
 // Initialize the database connection
 initializeDB().catch(console.error);
