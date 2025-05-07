@@ -158,9 +158,10 @@ app.post('/api/process-payment', async (req, res) => {
     // Check token type:
     // 1. tok_<timestamp> - Development mode mock token
     // 2. real_tok_<timestamp> - Production mode token that should use real Stripe in prod, but mocked in dev
-    // 3. tok_<valid_stripe_token> - Real Stripe token
+    // 3. tok_<random_string> - Real Stripe token (usually starts with 'tok_' followed by alphanumeric characters)
     const isDevelopmentMockToken = stripeToken.match(/^tok_\d+$/);
     const isProductionMockToken = stripeToken.match(/^real_tok_\d+$/);
+    const isRealStripeToken = stripeToken.match(/^tok_[a-zA-Z0-9]{14,}$/);
     
     // Determine if we should use mock processing
     const useMockProcessing = (isDevelopment && (isDevelopmentMockToken || isProductionMockToken)) || 
@@ -188,7 +189,8 @@ app.post('/api/process-payment', async (req, res) => {
       
       try {
         let tokenToUse = stripeToken;
-        if (!isProductionMockToken || isDevelopment) {
+        // In development, we can use Stripe's test token instead of a real one
+        if (isDevelopment && !isRealStripeToken) {
           tokenToUse = 'tok_visa'; // Stripe's test token for a successful payment
         }
         

@@ -7,6 +7,11 @@ import Button from '../components/ui/Button';
 import PageTitle from '../components/ui/PageTitle';
 import { CreditCard, Lock, Shield, X, Check, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
+// Import the Stripe.js library
+import { loadStripe } from '@stripe/stripe-js';
+
+// Initialize Stripe with your publishable key
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_51Ox7QuKlzwcfXFbfXXVAyFCWwtLCySzdWy5z3PYGGvVXJcwqnVKvf3WkF90tJbFKVNbZMzCImlnNzaHfEzM6PF8Kzu1wA');
 
 // Animation variants
 const pageVariants = {
@@ -110,22 +115,48 @@ const CheckoutForm = () => {
         stripeToken = `tok_${Date.now()}`;
         console.log('Development mode: Using mock Stripe token');
       } else {
-        // For production, this would normally use the Stripe SDK to create a real token
-        // For now, we'll still use a mock token that the server will recognize as needing real processing
-        // In a real app, this would be replaced with a call to Stripe.js to create a token
-
-        stripeToken = `real_tok_${Date.now()}`;
-        console.log('Production mode: This would use real Stripe processing');
+        // For production, use the Stripe.js library to create a real token
+        console.log('Production mode: Using Stripe.js to create a real token');
         
-        // TODO: In a real implementation, you would use Stripe.js to create a real token:
-        // const { token } = await stripe.createToken({
-        //   number: formData.cardNumber,
-        //   exp_month: formData.expiryDate.split('/')[0],
-        //   exp_year: formData.expiryDate.split('/')[1],
-        //   cvc: formData.cvc,
-        //   name: formData.cardholderName
-        // });
-        // stripeToken = token.id;
+        try {
+          // Load the Stripe instance
+          const stripe = await stripePromise;
+          if (!stripe) {
+            throw new Error('Failed to load Stripe.js');
+          }
+          
+          // Parse the expiry date
+          const expiryParts = formData.expiryDate.split('/');
+          if (expiryParts.length !== 2) {
+            throw new Error('Invalid expiry date format. Expected MM/YY');
+          }
+          
+          // Create a token with the card details
+          const { token, error } = await stripe.createToken({
+            number: formData.cardNumber.replace(/\s+/g, ''),
+            exp_month: parseInt(expiryParts[0], 10),
+            exp_year: parseInt(expiryParts[1], 10) < 100 ? parseInt(`20${expiryParts[1]}`, 10) : parseInt(expiryParts[1], 10),
+            cvc: formData.cvc,
+            name: formData.cardholderName
+          });
+          
+          if (error) {
+            console.error('Stripe token creation error:', error);
+            throw new Error(error.message);
+          }
+          
+          if (!token) {
+            throw new Error('No token returned from Stripe');
+          }
+          
+          console.log('Stripe token created successfully:', token.id);
+          stripeToken = token.id;
+        } catch (stripeError: any) {
+          console.error('Error creating Stripe token:', stripeError);
+          setError(stripeError.message || 'Failed to process payment method. Please try again.');
+          setIsProcessing(false);
+          return;
+        }
       }
       
       console.log(`Processing payment for hero: ${cleanHeroId}`);
