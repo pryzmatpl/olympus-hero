@@ -37,6 +37,9 @@ clean:
 build:
 	@echo "Building Docker images..."
 	docker-compose build
+build-nc:
+	@echo "Building Docker images wo cache..."
+	docker-compose build --no-cache
 
 # Additional useful targets
 
