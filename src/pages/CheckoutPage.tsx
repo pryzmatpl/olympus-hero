@@ -145,7 +145,7 @@ const CheckoutForm = () => {
       }, 30000); // 30 second timeout
       
       // Send the payment data to your server
-      const response = await api.post('/process-payment', {
+      const response = await api.post('/api/process-payment', {
         heroId: cleanHeroId,
         stripeToken: stripeToken,
         amount: 9.99, // Price in dollars

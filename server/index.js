@@ -106,7 +106,7 @@ app.get('/ping', (req, res) => {
 
 
 // Endpoint to process payment and create NFT using Charges API
-app.post('/process-payment', async (req, res) => {
+app.post('/api/process-payment', async (req, res) => {
   const { heroId, stripeToken, amount, currency, walletAddress, email } = req.body;
 
   console.log('Payment processing started for hero:', heroId);
@@ -262,7 +262,7 @@ app.post('/process-payment', async (req, res) => {
 });
 
 // Alternative: Endpoint to create Payment Intent
-app.post('/create-payment-intent', async (req, res) => {
+app.post('/api/create-payment-intent', async (req, res) => {
   const { amount, currency, heroId, walletAddress } = req.body;
 
   try {
@@ -279,7 +279,7 @@ app.post('/create-payment-intent', async (req, res) => {
 });
 
 // Webhook to handle Payment Intent success
-app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 

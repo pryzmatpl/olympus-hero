@@ -1,6 +1,19 @@
 import axios from 'axios';
 
-const baseApiUrl = import.meta.env.VITE_APP_SERVER_URL  ?? 'http://localhost:9002';
+// In production, use relative URLs to avoid mixed content issues
+// In development, use the configured server URL or fallback to localhost
+const isProduction = import.meta.env.PROD;
+let baseApiUrl;
+
+if (isProduction) {
+  // In production, we use relative URLs that work with our nginx configuration
+  // We don't add '/api' here because most endpoint calls already include it
+  baseApiUrl = '';
+} else {
+  // In development, use the configured server URL or fallback
+  baseApiUrl = import.meta.env.VITE_APP_SERVER_URL ?? 'http://localhost:9002';
+}
+
 // Create a custom axios instance
 const api = axios.create({
   baseURL: baseApiUrl,
