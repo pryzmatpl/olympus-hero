@@ -49,7 +49,23 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
     const elements = useElements();
     const [isProcessing, setIsProcessing] = useState(false);
     const [errorMessage, setErrorMessage] = useState(null);
+    const [paymentElementMounted, setPaymentElementMounted] = useState(false);
+    const mountedRef = React.useRef(false);
     const navigate = useNavigate();
+
+    // When the component mounts, set the ref flag
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    // Track when the Payment Element is ready
+    const handlePaymentElementReady = () => {
+        console.log("Payment Element is ready");
+        setPaymentElementMounted(true);
+    };
 
     // Handle form submission
     const handleSubmit = async (event) => {
@@ -57,13 +73,28 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
 
         if (!stripe || !elements) {
             console.error("Stripe or Elements not initialized");
+            onError("Payment processor not available. Please try again later.");
+            return;
+        }
+
+        if (!paymentElementMounted) {
+            console.error("Payment Element not ready yet");
+            onError("Payment form is still loading. Please wait and try again.");
             return;
         }
 
         setIsProcessing(true);
 
         try {
-            // Use either confirmPayment or confirmCardPayment depending on your integration
+            console.log("Confirming payment with client secret");
+            
+            // Verify we have the right elements instance
+            const element = elements.getElement(PaymentElement);
+            if (!element) {
+                throw new Error("Payment Element not found. Please refresh and try again.");
+            }
+
+            // Use confirmPayment with the mounted elements
             const { error, paymentIntent } = await stripe.confirmPayment({
                 elements,
                 confirmParams: {
@@ -86,17 +117,26 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
             }
         } catch (err) {
             console.error("Payment submission error:", err);
+            console.error("Error details:", err.message);
             setErrorMessage(err.message);
             onError(err.message);
+        } finally {
+            if (mountedRef.current) {
+                setIsProcessing(false);
+            }
         }
-
-        setIsProcessing(false);
     };
+
+    // Log when the stripe or elements change
+    useEffect(() => {
+        console.log("Stripe available:", !!stripe);
+        console.log("Elements available:", !!elements);
+    }, [stripe, elements]);
 
     return (
         <form onSubmit={handleSubmit}>
             <div className="mb-6 bg-mystic-800 border border-mystic-700 rounded-lg p-4">
-                <PaymentElement />
+                <PaymentElement onReady={handlePaymentElementReady} />
             </div>
 
             <div className="mb-6 p-3 bg-cosmic-900/20 border border-cosmic-800/30 rounded-lg">
@@ -137,7 +177,7 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
                 <Button
                     type="submit"
                     icon={<CreditCard size={16}/>}
-                    disabled={isProcessing || !stripe || !elements}
+                    disabled={isProcessing || !stripe || !elements || !paymentElementMounted}
                     className={isProcessing ? 'opacity-75' : ''}
                 >
                     {isProcessing ? 'Processing...' : 'Upgrade to Premium'}
@@ -146,6 +186,27 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
         </form>
     );
 };
+
+// Stripe appearance options
+const appearance = {
+    theme: 'night',
+    variables: {
+        colorPrimary: '#8B5CF6',
+        colorBackground: '#1F2937',
+        colorText: '#F9FAFB',
+        colorDanger: '#EF4444',
+        fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+        spacingUnit: '4px',
+        borderRadius: '8px',
+    },
+};
+
+// Stripe Element options
+const stripeElementsOptions = (clientSecret) => ({
+    clientSecret,
+    appearance,
+    loader: 'always',
+});
 
 const CheckoutPage = () => {
     const {id} = useParams<{ id: string }>();
@@ -162,6 +223,29 @@ const CheckoutPage = () => {
         walletAddress: '',
     });
     const [clientSecret, setClientSecret] = useState(null);
+    const [stripeReady, setStripeReady] = useState(false);
+
+    // Verify if the Stripe Elements can be initialized
+    useEffect(() => {
+        const checkStripeAvailability = async () => {
+            try {
+                // Check if stripePromise is resolved properly
+                const stripeInstance = await stripePromise;
+                if (!stripeInstance) {
+                    console.error("Stripe failed to initialize - no publishable key?");
+                    setError("Payment processing is unavailable. Please try again later.");
+                } else {
+                    console.log("Stripe initialized successfully");
+                    setStripeReady(true);
+                }
+            } catch (err) {
+                console.error("Error initializing Stripe:", err);
+                setError("Payment processing failed to initialize. Please try again later.");
+            }
+        };
+
+        checkStripeAvailability();
+    }, []);
 
     // Load hero and create payment intent
     useEffect(() => {
@@ -170,6 +254,11 @@ const CheckoutPage = () => {
                 console.error('Hero ID is missing in URL parameters');
                 setError('Hero ID is missing');
                 setIsLoading(false);
+                return;
+            }
+
+            if (!stripeReady) {
+                // Wait for Stripe to be ready before proceeding
                 return;
             }
 
@@ -211,7 +300,7 @@ const CheckoutPage = () => {
         };
 
         initializeCheckout();
-    }, [id, loadHeroFromAPI]);
+    }, [id, loadHeroFromAPI, stripeReady]);
 
     // Handle form input changes
     const handleInputChange = (e) => {
@@ -246,20 +335,6 @@ const CheckoutPage = () => {
     // Handle payment error
     const handlePaymentError = (errorMessage) => {
         setError(errorMessage);
-    };
-
-    // Stripe appearance options
-    const appearance = {
-        theme: 'night',
-        variables: {
-            colorPrimary: '#8B5CF6',
-            colorBackground: '#1F2937',
-            colorText: '#F9FAFB',
-            colorDanger: '#EF4444',
-            fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
-            spacingUnit: '4px',
-            borderRadius: '8px',
-        },
     };
 
     // Render loading state
@@ -407,22 +482,28 @@ const CheckoutPage = () => {
                             />
                         </div>
 
-                        <Elements
-                            stripe={stripePromise}
-                            options={{
-                                clientSecret,
-                                appearance,
-                            }}
-                        >
-                            <CheckoutFormContent
-                                clientSecret={clientSecret}
-                                heroId={id?.replace('preview-', '')}
-                                email={formData.email}
-                                walletAddress={formData.walletAddress}
-                                onSuccess={handlePaymentSuccess}
-                                onError={handlePaymentError}
-                            />
-                        </Elements>
+                        {stripeReady ? (
+                            <Elements
+                                stripe={stripePromise}
+                                options={stripeElementsOptions(clientSecret)}
+                            >
+                                <CheckoutFormContent
+                                    clientSecret={clientSecret}
+                                    heroId={id?.replace('preview-', '')}
+                                    email={formData.email}
+                                    walletAddress={formData.walletAddress}
+                                    onSuccess={handlePaymentSuccess}
+                                    onError={handlePaymentError}
+                                />
+                            </Elements>
+                        ) : (
+                            <div className="p-4 bg-amber-900/20 border border-amber-800/50 rounded-lg text-center">
+                                <AlertTriangle size={24} className="mx-auto text-amber-400 mb-2"/>
+                                <p className="text-amber-300">
+                                    Payment processor is initializing. Please wait...
+                                </p>
+                            </div>
+                        )}
                     </div>
                 ) : !error && (
                     <div className="mt-8 flex justify-center">
