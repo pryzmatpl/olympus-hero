@@ -17,10 +17,24 @@ import {
     AddressElement,
 } from '@stripe/react-stripe-js';
 
-// Initialize Stripe with your publishable key - safely handle potential missing key
-const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-    ? loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+// Determine if we're in development mode
+const isDevelopment = import.meta.env.MODE === 'development';
+
+// Choose the appropriate Stripe key based on environment
+const stripeKey = isDevelopment 
+    ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+    : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+
+// Initialize Stripe with the appropriate key
+const stripePromise = stripeKey
+    ? loadStripe(stripeKey)
     : Promise.resolve(null);
+
+// Log environment information for debugging (removed in production builds)
+if (isDevelopment) {
+    console.log('Running in development mode');
+    console.log('Using Stripe key:', stripeKey ? 'Key available' : 'No key available');
+}
 
 // Animation variants
 const pageVariants = {
@@ -94,6 +108,14 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
                     Your payment information is securely processed by Stripe.
                     We do not store your card details on our servers.
                 </p>
+                {isDevelopment && (
+                    <div className="mt-2 pt-2 border-t border-cosmic-800/30">
+                        <p className="text-amber-400 text-xs font-semibold">Development Mode</p>
+                        <p className="text-cosmic-500 text-xs">
+                            Use Stripe test card: 4242 4242 4242 4242, any future date, any 3 digits CVC, any postal code
+                        </p>
+                    </div>
+                )}
             </div>
 
             {errorMessage && (
@@ -170,6 +192,8 @@ const CheckoutPage = () => {
                     currency: 'usd',
                     heroId: cleanHeroId,
                     walletAddress: formData.walletAddress || '0x0000000000000000000000000000000000000000',
+                    // Send environment information to backend
+                    is_test: isDevelopment
                 });
 
                 if (!paymentResponse.data.clientSecret) {

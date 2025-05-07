@@ -266,17 +266,49 @@ app.post('/api/process-payment', async (req, res) => {
 
 // Alternative: Endpoint to create Payment Intent
 app.post('/api/create-payment-intent', async (req, res) => {
-  const { amount, currency, heroId, walletAddress } = req.body;
+  const { amount, currency, heroId, walletAddress, is_test } = req.body;
 
   try {
-    const paymentIntent = await stripeInstance.paymentIntents.create({
-      amount: amount * 100,
+    // Determine if we should use test mode
+    // is_test from frontend OR we're in development mode on the server
+    const useTestMode = is_test || process.env.NODE_ENV !== 'production';
+    
+    console.log(`Creating payment intent (${useTestMode ? 'TEST' : 'LIVE'} mode) for hero: ${heroId}`);
+    
+    if (useTestMode && !process.env.STRIPE_TEST_SECRET_KEY && process.env.NODE_ENV !== 'production') {
+      console.warn('No test secret key found, falling back to regular secret key');
+    }
+    
+    // Use the appropriate Stripe key based on mode
+    const stripeKey = useTestMode && process.env.STRIPE_TEST_SECRET_KEY 
+      ? process.env.STRIPE_TEST_SECRET_KEY 
+      : process.env.STRIPE_SECRET_KEY;
+      
+    if (!stripeKey) {
+      throw new Error('Stripe secret key is missing');
+    }
+    
+    // Create a new Stripe instance with the appropriate key
+    const stripeClient = stripe(stripeKey);
+    
+    const paymentIntent = await stripeClient.paymentIntents.create({
+      amount: Math.round(amount * 100), // Convert to cents and ensure integer
       currency,
-      metadata: { heroId, walletAddress },
+      metadata: { 
+        heroId, 
+        walletAddress,
+        is_test: useTestMode ? 'true' : 'false' 
+      },
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'always'
+      }
     });
 
+    console.log(`Payment intent created successfully: ${paymentIntent.id}`);
     res.status(200).json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
+    console.error('Error creating payment intent:', error);
     res.status(500).json({ error: error.message });
   }
 });
