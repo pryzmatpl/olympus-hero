@@ -189,7 +189,7 @@ app.post('/api/process-payment', async (req, res) => {
       try {
         let tokenToUse = stripeToken;
         if (isProductionMockToken && !isDevelopment) {
-          tokenToUse = process.env.STRIPE_SECRET_KEY; // Stripe's test token for a successful payment
+          tokenToUse = 'tok_visa'; // Stripe's test token for a successful payment
         }
         
         // Create a Stripe customer
