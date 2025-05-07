@@ -28,6 +28,25 @@ const pageVariants = {
     exit: {opacity: 0, transition: {duration: 0.3}}
 };
 
+// Stripe Elements options
+const stripeElementsOptions = {
+    mode: 'payment',
+    amount: 999, // In cents
+    currency: 'usd',
+    appearance: {
+        theme: 'night',
+        variables: {
+            colorPrimary: '#8B5CF6',
+            colorBackground: '#1F2937',
+            colorText: '#F9FAFB',
+            colorDanger: '#EF4444',
+            fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+            spacingUnit: '4px',
+            borderRadius: '8px',
+        },
+    },
+};
+
 const CheckoutForm = () => {
     const {id} = useParams<{ id: string }>();
     const {heroName, images, status, loadHeroFromAPI} = useHeroStore();
@@ -43,6 +62,7 @@ const CheckoutForm = () => {
         email: '',
         walletAddress: '',
     });
+    const [paymentElementReady, setPaymentElementReady] = useState(false);
 
     const stripe = useStripe();
     const elements = useElements();
@@ -91,12 +111,18 @@ const CheckoutForm = () => {
         });
     };
 
+    // Handle PaymentElement ready state
+    const handlePaymentElementReady = () => {
+        console.log("Payment Element is ready");
+        setPaymentElementReady(true);
+    };
+
     // Handle payment submission
     const handlePaymentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!stripe || !elements) {
-            // Stripe.js has not loaded yet. Make sure to disable form submission until Stripe.js has loaded.
+        if (!stripe || !elements || !paymentElementReady) {
+            // Stripe.js has not loaded yet or PaymentElement is not ready
             setError('Payment processing is not available. Please try again later.');
             return;
         }
@@ -135,8 +161,10 @@ const CheckoutForm = () => {
                 throw new Error('No client secret returned from the server');
             }
 
+            console.log("Confirming payment with client secret");
+            
             // Confirm the payment with Stripe.js
-            const {error} = await stripe.confirmPayment({
+            const {error, paymentIntent} = await stripe.confirmPayment({
                 elements,
                 clientSecret,
                 confirmParams: {
@@ -150,9 +178,9 @@ const CheckoutForm = () => {
                 // Payment failed
                 console.error('Payment error:', error);
                 setError(error.message || 'An error occurred while processing your payment.');
-            } else {
-                // Payment succeeded
-                console.log('Payment succeeded!');
+            } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+                // Payment succeeded directly (without redirect)
+                console.log('Payment succeeded!', paymentIntent);
                 setSuccess(true);
 
                 // Update hero in store to reflect paid status
@@ -171,6 +199,10 @@ const CheckoutForm = () => {
                 setTimeout(() => {
                     navigate(`/hero/${cleanHeroId}`);
                 }, 2000);
+            } else {
+                // Payment requires additional steps (like 3D Secure)
+                console.log('Additional authentication required or payment is processing.');
+                // The customer will be redirected by Stripe.js
             }
         } catch (error: any) {
             console.error('Payment error:', error);
@@ -387,7 +419,7 @@ const CheckoutForm = () => {
                 </div>
 
                 <div className="mb-6 bg-mystic-800 border border-mystic-700 rounded-lg p-4">
-                    <PaymentElement />
+                    <PaymentElement id="payment-element" onReady={handlePaymentElementReady} />
                 </div>
 
                 <div className="mb-6 p-3 bg-cosmic-900/20 border border-cosmic-800/30 rounded-lg">
@@ -410,7 +442,7 @@ const CheckoutForm = () => {
                     <Button
                         type="submit"
                         icon={<CreditCard size={16}/>}
-                        disabled={isProcessing || !stripe || !elements}
+                        disabled={isProcessing || !stripe || !elements || !paymentElementReady}
                         className={isProcessing ? 'opacity-75' : ''}
                     >
                         {isProcessing ? 'Processing...' : 'Upgrade to Premium'}
@@ -421,28 +453,10 @@ const CheckoutForm = () => {
     );
 };
 
-// Stripe Elements options
-const stripeElementsOptions = {
-    mode: 'payment',
-    amount: 999, // In cents
-    currency: 'usd',
-    appearance: {
-        theme: 'night',
-        variables: {
-            colorPrimary: '#8B5CF6',
-            colorBackground: '#1F2937',
-            colorText: '#F9FAFB',
-            colorDanger: '#EF4444',
-            fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
-            spacingUnit: '4px',
-            borderRadius: '8px',
-        },
-    },
-};
-
 const CheckoutPage: React.FC = () => {
     const navigate = useNavigate();
     const [stripeError, setStripeError] = useState<string | null>(null);
+    const [clientSecret, setClientSecret] = useState<string | null>(null);
 
     // Initialize Stripe.js when the component mounts
     useEffect(() => {
@@ -476,11 +490,11 @@ const CheckoutPage: React.FC = () => {
                         <Button onClick={() => navigate(-1)}>Go Back</Button>
                     </div>
                 ) : (
-                    <Elements 
+                    <Elements
                         stripe={stripePromise} 
                         options={stripeElementsOptions}
                     >
-                        <CheckoutForm/>
+                        <CheckoutForm />
                     </Elements>
                 )}
             </div>
