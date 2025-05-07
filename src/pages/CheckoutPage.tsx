@@ -9,7 +9,7 @@ import { CreditCard, Lock, Shield, X, Check, AlertTriangle } from 'lucide-react'
 import api from '../utils/api';
 // Import the Stripe.js library
 import { loadStripe } from '@stripe/stripe-js';
-
+import {CheckoutProvider} from '@stripe/react-stripe-js';
 // Initialize Stripe with your publishable key
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_51Ox7QuKlzwcfXFbfXXVAyFCWwtLCySzdWy5z3PYGGvVXJcwqnVKvf3WkF90tJbFKVNbZMzCImlnNzaHfEzM6PF8Kzu1wA');
 
@@ -98,7 +98,7 @@ const CheckoutForm = () => {
       setError('Please fill in all card details');
       return;
     }
-    
+
     try {
       setError(null);
       setIsProcessing(true);
@@ -119,15 +119,11 @@ const CheckoutForm = () => {
         console.log('Production mode: Using Stripe test token for now');
         
         try {
-          // We can't directly create tokens from card details without Stripe Elements
-          // Using a test token for now - in production, this will be accepted by Stripe
-          // Different test tokens can be used to simulate different scenarios:
-          // 'tok_visa' - succeeds
-          // 'tok_visa_debit' - succeeds
-          // 'tok_chargeDeclined' - fails with decline
-          // 'tok_insufficientFunds' - fails with insufficient_funds
-          
-          // Use a successful test token
+
+          // NOTE: In a real implementation, you would use Stripe Elements:
+          // 1. Create card elements in the UI
+          // 2. Create a token from the card element:
+          // const { token, error } = await stripe.createToken(cardElement);
           stripeToken = 'tok_visa';
           
           console.log('Using Stripe test token:', stripeToken);
@@ -242,7 +238,9 @@ const CheckoutForm = () => {
         <div className="relative h-32 mb-6">
           {/* Central credit card icon */}
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-cosmic-800 rounded-xl flex items-center justify-center">
-            <CreditCard size={32} className="text-cosmic-400" />
+            <CheckoutProvider stripe={stripePromise}>
+              <CreditCard size={32} className="text-cosmic-400" />
+            </CheckoutProvider>
           </div>
           
           {/* Orbiting animation */}
