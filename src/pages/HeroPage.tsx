@@ -345,7 +345,7 @@ const HeroPage: React.FC = () => {
                 {displayImages.map((image, index) => (
                   <button
                     key={index}
-                    onClick={() => setActiveImage(index)}
+                    onClick={() => isPaid ? setActiveImage(index) : setActiveImage(0)}
                     className={`
                       aspect-square rounded-lg overflow-hidden border-2 transition-all relative
                       ${activeImage === index 
