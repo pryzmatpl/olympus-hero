@@ -113,6 +113,7 @@ const CheckoutForm = () => {
         // For production, this would normally use the Stripe SDK to create a real token
         // For now, we'll still use a mock token that the server will recognize as needing real processing
         // In a real app, this would be replaced with a call to Stripe.js to create a token
+
         stripeToken = `real_tok_${Date.now()}`;
         console.log('Production mode: This would use real Stripe processing');
         
