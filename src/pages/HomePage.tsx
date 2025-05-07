@@ -69,7 +69,7 @@ const HomePage: React.FC = () => {
 
         {/* Floating Hero Images */}
         <div className="mt-16 flex flex-wrap justify-center gap-8">
-          {[{name:"Blazorus", id:1, url:"public/aries.webp"}, {name:"Energus", id:2, url:"public/capricorn.webp"}, {name:"Manakuanea", id:3, url:"public/rooster.webp"}].map((elem) => (
+          {[{name:"Blazorus", id:1, url:"storage/aries.webp"}, {name:"Energus", id:2, url:"storage/capricorn.webp"}, {name:"Manakuanea", id:3, url:"storage/rooster.webp"}].map((elem) => (
             <motion.div
               key={elem.id}
               initial={{ y: 50, opacity: 0 }}
