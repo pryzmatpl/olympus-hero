@@ -61,7 +61,7 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
  * @returns {object|null} The NFT or null if not found
  */
 export const getNFTById = async (nftId) => {
-  const db = await connectDB();
+  const db = await initializeDB();
   return db.collection('nfts').findOne({ id: nftId });
 };
 
@@ -71,7 +71,7 @@ export const getNFTById = async (nftId) => {
  * @returns {Array} Array of NFTs associated with the hero
  */
 export const getNFTsByHeroId = async (heroId) => {
-  const db = await connectDB();
+  const db = await initializeDB();
   return db.collection('nfts').find({ heroId }).toArray();
 };
 
@@ -81,7 +81,7 @@ export const getNFTsByHeroId = async (heroId) => {
  * @returns {Array} Array of NFTs owned by the address
  */
 export const getNFTsByOwner = async (ownerAddress) => {
-  const db = await connectDB();
+  const db = await initializeDB();
   return db.collection('nfts').find({ ownerAddress }).toArray();
 };
 

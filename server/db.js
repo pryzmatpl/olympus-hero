@@ -179,10 +179,11 @@ export const shareDb = {
  */
 export const initializeDB = async () => {
   try {
-    await connectDB();
+    const db = await connectDB();
     console.log('Database initialized successfully');
+    return db;
   } catch (error) {
     console.error('Failed to initialize database:', error);
-    process.exit(1);
+    throw error;
   }
 }; 

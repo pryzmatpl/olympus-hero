@@ -113,10 +113,58 @@ const HeroPage: React.FC = () => {
         exit={{ opacity: 0 }}
         className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
       >
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cosmic-500 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-semibold">Generating your cosmic hero...</h2>
-          <p className="text-gray-400 mt-2">This may take a moment as we align the stars.</p>
+        <div className="text-center max-w-md w-full bg-mystic-900/80 border border-cosmic-600/30 p-6 rounded-xl shadow-lg">
+          {/* Cosmic animation container */}
+          <div className="relative h-32 mb-6">
+            {/* Central sun/star */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-yellow-300 rounded-full animate-pulse shadow-glow"></div>
+            
+            {/* Orbiting planets */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-dashed border-cosmic-500/30 animate-spin" style={{ animationDuration: '8s' }}>
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-cosmic-500 rounded-full"></div>
+            </div>
+            
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-dashed border-cosmic-400/20 animate-spin" style={{ animationDuration: '15s' }}>
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-purple-500 rounded-full"></div>
+            </div>
+            
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border border-dashed border-cosmic-300/10 animate-spin" style={{ animationDuration: '20s' }}>
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-blue-500 rounded-full"></div>
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-semibold text-cosmic-300 mb-3">Aligning the Planets</h2>
+          
+          {/* Rotating cosmic messages */}
+          <div className="h-12 mb-4 flex items-center justify-center">
+            <motion.p 
+              key={Math.random()} 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.5 }}
+              className="text-gray-300"
+            >
+              {[
+                "Harmonizing celestial energies...",
+                "Consulting with cosmic entities...",
+                "Decoding astrological patterns...",
+                "Channeling zodiac influences...",
+                "Weaving your cosmic destiny...",
+                "Calculating stellar alignments..."
+              ][Math.floor(Date.now() / 3000) % 6]}
+            </motion.p>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="w-full bg-mystic-800 rounded-full h-2 mb-4">
+            <div className="bg-gradient-to-r from-cosmic-700 via-cosmic-500 to-cosmic-400 h-2 rounded-full animate-pulse"></div>
+          </div>
+          
+          <p className="text-gray-400 text-sm">
+            Your unique cosmic hero is being crafted from the stars.
+            <br />This usually takes around 30 seconds.
+          </p>
         </div>
       </motion.div>
     );
@@ -215,16 +263,14 @@ const HeroPage: React.FC = () => {
                   {!isPaid && "Unlock to "} Download Assets
                 </Button>
                 
-                <Link to="/shared-story">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    icon={<Users size={16} />}
-                    onClick={handleJoinClick}
-                  >
-                    {!isPaid && "Unlock to "} Join Shared Story
-                  </Button>
-                </Link>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  icon={<Users size={16} />}
+                  onClick={handleJoinClick}
+                >
+                  {!isPaid && "Unlock to "} Join Shared Story
+                </Button>
               </>
             )}
           </div>

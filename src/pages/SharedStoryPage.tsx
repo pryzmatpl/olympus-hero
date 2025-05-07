@@ -235,14 +235,25 @@ const SharedStoryPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   
-  // Set premium status when hero is loaded
+  // Set premium status when hero is loaded - improved version to handle payment updates
   useEffect(() => {
     if (heroId) {
       const fetchHeroStatus = async () => {
         try {
           setFetchingZodiac(true);
-          const response = await api.get(`/api/heroes/${heroId}`);
-          setIsPremium(response.data.paymentStatus === 'paid');
+          console.log(`Fetching hero data for hero ID: ${heroId}`);
+          
+          // Force a fresh API call to get the latest payment status
+          const response = await api.get(`/api/heroes/${heroId}?t=${Date.now()}`);
+          console.log('Hero data loaded from API:', response.data);
+          
+          // Check payment status from API response
+          const isPaid = response.data.paymentStatus === 'paid';
+          console.log(`Hero premium status: ${isPaid ? 'Premium' : 'Non-premium'}`);
+          setIsPremium(isPaid);
+          
+          // Update the hero store with the latest data including payment status
+          loadHeroFromAPI(response.data);
           
           // Also load the complete hero data to ensure we have zodiac signs
           if (!westernZodiac || !chineseZodiac) {
@@ -250,14 +261,13 @@ const SharedStoryPage: React.FC = () => {
               westernZodiac: response.data.westernZodiac,
               chineseZodiac: response.data.chineseZodiac
             });
-            
-            // Load into store for future reference
-            if (response.data.westernZodiac && response.data.chineseZodiac) {
-              loadHeroFromAPI(heroId);
-            }
           }
         } catch (error) {
           console.error('Error fetching hero payment status:', error);
+          // If the API call fails, try using the data from the hero store as a fallback
+          const storePaymentStatus = useHeroStore.getState().paymentStatus;
+          console.log(`Falling back to hero store payment status: ${storePaymentStatus}`);
+          setIsPremium(storePaymentStatus === 'paid');
         } finally {
           setFetchingZodiac(false);
         }
@@ -265,6 +275,7 @@ const SharedStoryPage: React.FC = () => {
       
       fetchHeroStatus();
     } else {
+      console.log('No hero ID available, setting premium status to false');
       setIsPremium(false);
     }
   }, [heroId, westernZodiac, chineseZodiac, loadHeroFromAPI]);

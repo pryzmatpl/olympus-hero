@@ -16,7 +16,7 @@ const pageVariants = {
 };
 
 const CheckoutForm = () => {
-  const { heroId } = useParams<{ heroId: string }>();
+  const { id } = useParams<{ id: string }>();
   const { heroName, images, status, loadHeroFromAPI } = useHeroStore();
   const { token } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -38,21 +38,37 @@ const CheckoutForm = () => {
   // Load hero details
   useEffect(() => {
     const loadHero = async () => {
-      if (!heroId) return;
+      if (!id) {
+        console.error('Hero ID is missing in URL parameters');
+        return;
+      }
+      
+      // Remove any 'preview-' prefix that might be in the heroId
+      const cleanHeroId = id.replace('preview-', '');
+      console.log(`Attempting to load hero with ID: ${cleanHeroId}`);
       
       try {
         setIsLoading(true);
-        await loadHeroFromAPI(heroId);
+        setError(null);
+        
+        // Directly fetch hero data from API first to verify API is working
+        const response = await api.get(`/api/heroes/${cleanHeroId}`);
+        console.log('Hero data fetched successfully:', response.data);
+        
+        // Now update the store with the fetched data
+        await loadHeroFromAPI(response.data);
+        console.log('Hero data loaded into store');
       } catch (error) {
         console.error('Error loading hero:', error);
-        setError('Failed to load hero details');
+        setError('Failed to load hero details. Please try refreshing the page.');
       } finally {
         setIsLoading(false);
       }
     };
-    console.log("STUCK?");
-    //loadHero();
-  }, [heroId, loadHeroFromAPI]);
+    
+    console.log("Loading hero for checkout");
+    loadHero();
+  }, [id, loadHeroFromAPI]);
   
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,7 +83,7 @@ const CheckoutForm = () => {
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!heroId) {
+    if (!id) {
       setError('Hero ID is missing');
       return;
     }
@@ -82,9 +98,43 @@ const CheckoutForm = () => {
       setError(null);
       setIsProcessing(true);
       
-      // In a real implementation, you would securely create a token on the client side
-      // For this example, we're simulating the token creation
-      const mockStripeToken = `tok_${Date.now()}`;
+      // Clean the heroId by removing any 'preview-' prefix
+      const cleanHeroId = id.replace('preview-', '');
+      
+      // Determine if we're in development or production
+      const isDevelopment = import.meta.env.MODE === 'development';
+      let stripeToken;
+      
+      if (isDevelopment) {
+        // For development, use a mock token
+        stripeToken = `tok_${Date.now()}`;
+        console.log('Development mode: Using mock Stripe token');
+      } else {
+        // For production, this would normally use the Stripe SDK to create a real token
+        // For now, we'll still use a mock token that the server will recognize as needing real processing
+        // In a real app, this would be replaced with a call to Stripe.js to create a token
+        stripeToken = `real_tok_${Date.now()}`;
+        console.log('Production mode: This would use real Stripe processing');
+        
+        // TODO: In a real implementation, you would use Stripe.js to create a real token:
+        // const { token } = await stripe.createToken({
+        //   number: formData.cardNumber,
+        //   exp_month: formData.expiryDate.split('/')[0],
+        //   exp_year: formData.expiryDate.split('/')[1],
+        //   cvc: formData.cvc,
+        //   name: formData.cardholderName
+        // });
+        // stripeToken = token.id;
+      }
+      
+      console.log(`Processing payment for hero: ${cleanHeroId}`);
+      console.log('Payment details prepared', { 
+        heroId: cleanHeroId, 
+        hasStripeToken: !!stripeToken,
+        amount: 9.99,
+        currency: 'usd',
+        email: formData.email || 'user@example.com'
+      });
       
       // Set up a timeout to prevent infinite loading
       const timeoutId = setTimeout(() => {
@@ -96,8 +146,8 @@ const CheckoutForm = () => {
       
       // Send the payment data to your server
       const response = await api.post('/process-payment', {
-        heroId,
-        stripeToken: mockStripeToken,
+        heroId: cleanHeroId,
+        stripeToken: stripeToken,
         amount: 9.99, // Price in dollars
         currency: 'usd',
         walletAddress: formData.walletAddress || '0x0000000000000000000000000000000000000000',
@@ -107,24 +157,49 @@ const CheckoutForm = () => {
       // Clear the timeout since we got a response
       clearTimeout(timeoutId);
       
+      console.log('Payment response received:', response.data);
+      
       // Handle the response
-      if (response.data) {
+      if (response.data && response.data.id) {
         console.log('Payment successful:', response.data);
         // Payment was successful
         setSuccess(true);
         
         // Update hero in store to reflect paid status
-        await loadHeroFromAPI(heroId);
+        try {
+          // Fetch the updated hero data with the new payment status
+          const updatedHeroResponse = await api.get(`/api/heroes/${cleanHeroId}`);
+          console.log('Updated hero data:', updatedHeroResponse.data);
+          await loadHeroFromAPI(updatedHeroResponse.data);
+          console.log('Hero data updated with paid status');
+        } catch (updateError) {
+          console.error('Error updating hero after payment:', updateError);
+          // Continue with success flow even if update fails
+        }
         
         // Redirect after a short delay
         setTimeout(() => {
-          navigate(`/heroes/${heroId}`);
+          navigate(`/hero/${cleanHeroId}`);
         }, 2000);
       } else {
-        setError('Payment processing failed. Please try again.');
+        console.error('Invalid payment response:', response.data);
+        setError('Payment processing returned an invalid response. Please try again.');
       }
     } catch (error: any) {
       console.error('Payment error:', error);
+      
+      // More detailed error logging
+      if (error.response) {
+        console.error('Server response:', {
+          status: error.response.status,
+          data: error.response.data
+        });
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Error details:', error.message);
+      }
+      
       // Provide more detailed error message to the user
       const errorMessage = error.response?.data?.error || 
                           'Failed to process payment. Please check your card details and try again.';
@@ -146,17 +221,62 @@ const CheckoutForm = () => {
   // Render processing state
   if (isProcessing) {
     return (
-      <div className="mt-8 bg-mystic-900/60 border border-mystic-700 rounded-xl p-6 text-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cosmic-500 mb-4 mx-auto"></div>
-        <h2 className="text-2xl font-bold text-cosmic-400 mb-2">
-          Processing Payment
-        </h2>
-        <p className="text-gray-400 mb-6">
-          Please wait while we process your payment. This may take a few moments.
-        </p>
-        <div className="w-full max-w-md mx-auto bg-mystic-800/50 rounded-lg overflow-hidden h-2">
-          <div className="bg-cosmic-500 h-full animate-pulse"></div>
+      <div className="mt-8 bg-mystic-900/60 border border-cosmic-600/30 rounded-xl p-8 text-center">
+        <div className="relative h-32 mb-6">
+          {/* Central credit card icon */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-cosmic-800 rounded-xl flex items-center justify-center">
+            <CreditCard size={32} className="text-cosmic-400" />
+          </div>
+          
+          {/* Orbiting animation */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border border-dashed border-cosmic-500/30 animate-spin" style={{ animationDuration: '4s' }}>
+            <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-green-500 rounded-full"></div>
+          </div>
+          
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-dashed border-cosmic-400/20 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}>
+            <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-blue-500 rounded-full"></div>
+          </div>
         </div>
+        
+        <h2 className="text-2xl font-bold text-cosmic-400 mb-3">
+          Processing Your Cosmic Transaction
+        </h2>
+        
+        {/* Rotating messages */}
+        <div className="h-12 mb-5 flex items-center justify-center">
+          <motion.p 
+            key={Math.random()} 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.5 }}
+            className="text-gray-300"
+          >
+            {[
+              "Connecting to the cosmic payment network...",
+              "Verifying star alignment for transaction...",
+              "Summoning the financial energies...",
+              "Creating your celestial receipt...",
+              "Securing payment with cosmic encryption...",
+              "Preparing your premium hero upgrade..."
+            ][Math.floor(Date.now() / 2500) % 6]}
+          </motion.p>
+        </div>
+        
+        {/* Animated progress bar */}
+        <div className="w-full max-w-md mx-auto bg-mystic-800/50 rounded-lg overflow-hidden h-2 mb-6">
+          <motion.div 
+            className="bg-gradient-to-r from-cosmic-700 via-cosmic-500 to-cosmic-400 h-full"
+            initial={{ width: "0%" }}
+            animate={{ width: "100%" }}
+            transition={{ duration: 15, ease: "linear" }}
+          ></motion.div>
+        </div>
+        
+        <p className="text-gray-400 text-sm">
+          Your payment is being secured in the cosmic vault.
+          <br />This may take a moment to complete.
+        </p>
       </div>
     );
   }
@@ -174,7 +294,7 @@ const CheckoutForm = () => {
         <p className="text-green-300 mb-4">
           Your hero has been upgraded to premium status!
         </p>
-        <Button onClick={() => navigate(`/heroes/${heroId}`)}>
+        <Button onClick={() => navigate(`/hero/${id?.replace('preview-', '')}`)}>
           Return to Hero
         </Button>
       </div>
