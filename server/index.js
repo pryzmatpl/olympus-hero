@@ -187,13 +187,9 @@ app.post('/api/process-payment', async (req, res) => {
       console.log(`${isDevelopment ? 'Development' : 'Production'} mode: Processing real payment with Stripe`);
       
       try {
-        // For production mock tokens, we'd use a real Stripe token here
-        // But since we don't have one, we'll use Stripe's test token
         let tokenToUse = stripeToken;
         if (isProductionMockToken && !isDevelopment) {
-          // In production, replace the mock token with a Stripe test token
-          // This is just for this example - in a real app, you'd use a real token from Stripe.js
-          tokenToUse = 'tok_visa'; // Stripe's test token for a successful payment
+          tokenToUse = process.env.STRIPE_SECRET_KEY; // Stripe's test token for a successful payment
         }
         
         // Create a Stripe customer
