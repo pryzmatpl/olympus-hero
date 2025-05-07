@@ -83,10 +83,34 @@ const HeroPage: React.FC = () => {
   
   const handleDownloadClick = () => {
     if (isPaid) {
+      const storedToken = localStorage.getItem('authToken');
       // Start download of hero assets
       api.get(`/api/heroes/${id}/download`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+        headers: { Authorization: `Bearer ${storedToken}` },
+        responseType: 'blob',
+      }).then((response)=>{
+        const blob = new Blob([response.data], { type: 'application/zip' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `hero_${id}_assets.zip`; // Set the default file name
+        document.body.appendChild(link);
+        link.click();
+
+        // Clean up
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }).catch((error) => {
+            console.error('Download failed:', error);
+            // Handle errors (e.g., show a notification to the user)
+            if (error.response?.status === 403) {
+              alert('You do not have permission to download this hero or payment is required.');
+            } else if (error.response?.status === 404) {
+              alert('Hero not found.');
+            } else {
+              alert('Failed to download the file. Please try again later.');
+            }
+          });
     } else {
       navigate(`/checkout/${id}`);
     }
