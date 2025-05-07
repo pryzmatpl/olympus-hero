@@ -229,7 +229,21 @@ const SharedStoryPage: React.FC = () => {
   const [copiedToClipboard, setCopiedToClipboard] = useState<boolean>(false);
   const [activeRooms, setActiveRooms] = useState<RoomListItem[]>([]);
   const [isNarratorTyping, setIsNarratorTyping] = useState<boolean>(false);
-  const [heroDetails, setHeroDetails] = useState<{westernZodiac?: string, chineseZodiac?: string}>({});
+  const [heroDetails, setHeroDetails] = useState<{
+    westernZodiac?: {
+      sign: string;
+      element: string;
+      traits: string[];
+      strengths?: string[];
+      weaknesses?: string[];
+    };
+    chineseZodiac?: {
+      sign: string;
+      element: string;
+      traits: string[];
+      compatibility?: string[];
+    };
+  }>({});
   const [fetchingZodiac, setFetchingZodiac] = useState<boolean>(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1040,8 +1054,8 @@ const SharedStoryPage: React.FC = () => {
                         <span className="text-gray-400 text-sm">Loading...</span>
                       </div>
                     ) : (
-                      <p className={`font-medium ${getZodiacColor(westernZodiac || heroDetails.westernZodiac)} text-lg`}>
-                        {westernZodiac || heroDetails.westernZodiac || 'Unknown'}
+                      <p className={`font-medium ${getZodiacColor(westernZodiac?.sign || heroDetails.westernZodiac?.sign)} text-lg`}>
+                        {westernZodiac?.sign || heroDetails.westernZodiac?.sign || 'Unknown'}
                       </p>
                     )}
                   </motion.div>
@@ -1062,7 +1076,7 @@ const SharedStoryPage: React.FC = () => {
                       </div>
                     ) : (
                       <p className="font-medium text-cosmic-400 text-lg">
-                        {chineseZodiac || heroDetails.chineseZodiac || 'Unknown'}
+                        {chineseZodiac?.sign || heroDetails.chineseZodiac?.sign || 'Unknown'}
                       </p>
                     )}
                   </motion.div>
