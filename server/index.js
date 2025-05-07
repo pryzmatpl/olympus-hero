@@ -38,7 +38,7 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-const stripeInstance = stripe(process.env.STRIPE_PUB_KEY);
+const stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
 
 // Initialize the database connection
 initializeDB().catch(console.error);
@@ -161,7 +161,7 @@ app.post('/api/process-payment', async (req, res) => {
     // 3. tok_<random_string> - Real Stripe token (usually starts with 'tok_' followed by alphanumeric characters)
     const isDevelopmentMockToken = stripeToken.match(/^tok_\d+$/);
     const isProductionMockToken = stripeToken.match(/^real_tok_\d+$/);
-    const isRealStripeToken = stripeToken.match(/^tok_[a-zA-Z0-9]{14,}$/);
+    const isRealStripeToken = stripeToken.match(/^tok_[a-zA-Z0-9_]{2,}$/);
     
     // Determine if we should use mock processing
     const useMockProcessing = (isDevelopment && (isDevelopmentMockToken || isProductionMockToken)) || 
@@ -189,10 +189,15 @@ app.post('/api/process-payment', async (req, res) => {
       
       try {
         let tokenToUse = stripeToken;
-        // In development, we can use Stripe's test token instead of a real one
+        
+        // No need to replace tokens in production for test tokens like tok_visa
+        // They are valid Stripe test tokens and should work with the API
+        // We only replace mock tokens in development
         if (isDevelopment && !isRealStripeToken) {
           tokenToUse = 'tok_visa'; // Stripe's test token for a successful payment
         }
+        
+        console.log('Using token for Stripe API:', tokenToUse);
         
         // Create a Stripe customer
         customer = await stripeInstance.customers.create({
