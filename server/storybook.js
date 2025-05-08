@@ -224,7 +224,8 @@ export const unlockChapters = async (storyBookId, chaptersToUnlock = DEFAULT_UNL
   
   // Ensure initial_chapter_generated_at is set for time tracking
   const updateData = {
-    chapters_unlocked_count: newUnlockedCount,
+    chapters_unlocked_count: newUnlockedCount + currentUnlocked,
+    chapters_total_count: currentUnlocked+ chapterNumbersToUnlock.length + newUnlockedCount,
     updated_at: new Date()
   };
   
