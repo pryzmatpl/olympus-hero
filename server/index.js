@@ -1069,12 +1069,11 @@ app.post('/api/storybook/:heroId/unlock-after-payment', async (req, res) => {
     }
     
     // Unlock 3 chapters instead of 10
-    await unlockChapters(storyBook.id, 3);
+    const chapters = await unlockChapters(storyBook.id, 3);
     
     // Get updated storybook and chapters
     const updatedStoryBook = await storyBookDb.findStoryBookById(storyBook.id);
-    const chapters = updatedStoryBook.chapters;
-    
+
     return res.status(200).json({ 
       message: 'Chapters unlocked successfully',
       storyBook: updatedStoryBook,

@@ -191,7 +191,7 @@ export const unlockChapters = async (storyBookId, chaptersToUnlock = DEFAULT_UNL
   
   // Calculate which chapters to unlock
   const currentUnlocked = storyBook.chapters_unlocked_count;
-  const newUnlockedCount = Math.min(currentUnlocked + chaptersToUnlock, storyBook.chapters_total_count);
+  const newUnlockedCount = Math.max(currentUnlocked + chaptersToUnlock, storyBook.chapters_total_count);
   
   if (currentUnlocked >= newUnlockedCount) {
     // No new chapters to unlock
