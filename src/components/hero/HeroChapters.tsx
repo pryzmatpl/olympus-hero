@@ -214,7 +214,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                     onClick={handleUnlockBundle}
                     isLoading={isUnlocking}
                   >
-                    Unlock 3 More Chapters – $14.99
+                    Unlock 3 More Chapters – $4.99
                   </Button>
                 </div>
               </div>
@@ -257,7 +257,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                 onClick={handleUnlockBundle}
                 isLoading={isUnlocking}
               >
-                Unlock 3 More Chapters – $14.99
+                Unlock 3 More Chapters – $4.99
               </Button>
             </div>
           </div>
