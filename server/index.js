@@ -20,6 +20,13 @@ import {
   generateSharedStoryResponse,
   listSharedStoryRooms
 } from './sharedStory.js';
+import {
+  createStoryBook,
+  getOrCreateStoryBook,
+  getStoryBookChapters,
+  unlockChapters,
+  checkAndUnlockDailyChapters
+} from './storybook.js';
 import path from 'path';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
@@ -805,7 +812,183 @@ app.get('/api/shared-story', async (req, res) => {
   }
 });
 
-// Socket.IO Connection Handling
+// StoryBook Routes
+app.get('/api/heroes/:heroId/storybook', authMiddleware, async (req, res) => {
+  try {
+    const { heroId } = req.params;
+    const userId = req.user.userId;
+    
+    // Get the hero data
+    const hero = await heroDb.findHeroById(heroId);
+    if (!hero) {
+      return res.status(404).json({ error: 'Hero not found' });
+    }
+    
+    // Verify the hero belongs to the user
+    if (hero.userid !== userId) {
+      return res.status(403).json({ error: 'You do not have permission to access this hero' });
+    }
+    
+    // Check if we need to unlock daily chapters (for premium heroes)
+    const isPremium = hero.paymentStatus === 'paid';
+    
+    // Get or create the storybook
+    const storyBook = await getOrCreateStoryBook(heroId, isPremium);
+    
+    // Check for daily chapter unlocks
+    if (isPremium) {
+      await checkAndUnlockDailyChapters(storyBook.id);
+    }
+    
+    // Get the chapters
+    const chapters = await getStoryBookChapters(storyBook.id);
+    
+    return res.status(200).json({
+      storyBook,
+      chapters
+    });
+  } catch (error) {
+    console.error('Error fetching storybook:', error);
+    return res.status(500).json({ error: 'Failed to fetch storybook' });
+  }
+});
+
+// Unlock chapters
+app.post('/api/storybook/:storyBookId/unlock', authMiddleware, async (req, res) => {
+  try {
+    const { storyBookId } = req.params;
+    const userId = req.user.userId;
+    const { count = 10 } = req.body;
+    
+    // Find the storybook
+    const storyBook = await storyBookDb.findStoryBookById(storyBookId);
+    if (!storyBook) {
+      return res.status(404).json({ error: 'Storybook not found' });
+    }
+    
+    // Find the hero to verify ownership
+    const hero = await heroDb.findHeroById(storyBook.heroId);
+    if (!hero) {
+      return res.status(404).json({ error: 'Hero not found' });
+    }
+    
+    // Verify the hero belongs to the user
+    if (hero.userid !== userId) {
+      return res.status(403).json({ error: 'You do not have permission to unlock chapters for this hero' });
+    }
+    
+    // Unlock chapters
+    const updatedStoryBook = await unlockChapters(storyBookId, count);
+    
+    // Get the updated chapters
+    const chapters = await getStoryBookChapters(storyBookId);
+    
+    return res.status(200).json({
+      storyBook: updatedStoryBook,
+      chapters
+    });
+  } catch (error) {
+    console.error('Error unlocking chapters:', error);
+    return res.status(500).json({ error: 'Failed to unlock chapters' });
+  }
+});
+
+// Set hero as premium and create a premium storybook
+app.post('/api/heroes/:heroId/set-premium', authMiddleware, async (req, res) => {
+  try {
+    const { heroId } = req.params;
+    const userId = req.user.userId;
+    
+    // Verify admin permission (implement proper admin check)
+    // This is a simplified check - implement proper admin validation
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ error: 'Admin permission required' });
+    }
+    
+    // Get the hero data
+    const hero = await heroDb.findHeroById(heroId);
+    if (!hero) {
+      return res.status(404).json({ error: 'Hero not found' });
+    }
+    
+    // Create or upgrade the storybook
+    const storyBook = await getOrCreateStoryBook(heroId, true);
+    
+    return res.status(200).json({
+      message: 'Hero set as premium successfully',
+      storyBook
+    });
+  } catch (error) {
+    console.error('Error setting hero as premium:', error);
+    return res.status(500).json({ error: 'Failed to set hero as premium' });
+  }
+});
+
+// Hook payment processing to unlock chapters
+app.post('/api/webhook/payment-success', async (req, res) => {
+  try {
+    const { heroId, unlockChapters, paymentIntent } = req.body;
+    
+    // Validate the webhook signature (simplified - implement proper validation)
+    // This would normally check digital signatures, etc.
+    
+    // Process the payment and create NFT
+    await processPaymentAndCreateNFT(heroId, paymentIntent);
+    
+    // Get the storybook
+    const storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
+    
+    if (storyBook && unlockChapters) {
+      // Unlock 10 more chapters
+      await unlockChapters(storyBook.id, 10);
+    }
+    
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error processing payment webhook:', error);
+    return res.status(500).json({ error: 'Failed to process payment' });
+  }
+});
+
+// Daily job to unlock chapters
+// This would be called by a cron job in a production environment
+app.post('/api/admin/unlock-daily-chapters', async (req, res) => {
+  try {
+    // Get all premium storybooks
+    const db = await initializeDB();
+    const premiumStorybooks = await db.collection('storybooks')
+      .find({ 
+        is_premium: true,
+        chapters_unlocked_count: { $lt: "$chapters_total_count" }
+      })
+      .toArray();
+    
+    const results = [];
+    
+    // Process each storybook
+    for (const storyBook of premiumStorybooks) {
+      const result = await checkAndUnlockDailyChapters(storyBook.id);
+      if (result) {
+        results.push({
+          storyBookId: storyBook.id,
+          heroId: storyBook.heroId,
+          chaptersUnlocked: result.chapters_unlocked_count - storyBook.chapters_unlocked_count
+        });
+      }
+    }
+    
+    return res.status(200).json({
+      message: `Processed ${premiumStorybooks.length} storybooks`,
+      unlocked: results.length,
+      results
+    });
+  } catch (error) {
+    console.error('Error unlocking daily chapters:', error);
+    return res.status(500).json({ error: 'Failed to unlock daily chapters' });
+  }
+});
+
+// Initialize Socket.IO and configure it
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
   

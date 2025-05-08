@@ -331,6 +331,102 @@ These abilities shape ${heroName}'s approach to challenges, with their ${western
   return await generateExpandedBackstory(backstory);
 }
 
+/**
+ * Generate a chapter for a hero's storybook
+ * @param {string} heroName - The name of the hero
+ * @param {object} heroData - Hero data including zodiac info and backstory
+ * @param {string} userPrompt - The user's original prompt/intent for the hero
+ * @param {number} chapterNumber - The chapter number to generate
+ * @param {string|null} previousChapterSummary - Summary of the previous chapter, if any
+ * @returns {string} - The generated chapter content
+ */
+export async function generateChapter(heroName, heroData, userPrompt, chapterNumber, previousChapterSummary = null) {
+  console.log(`Generating chapter ${chapterNumber} for ${heroName}...`);
+  
+  // Create a prompt for the chapter generation
+  let chapterPrompt = '';
+  
+  if (chapterNumber === 1) {
+    // First chapter prompt - uses backstory and zodiac info
+    chapterPrompt = `
+You are writing chapter 1 of an epic fantasy story about a cosmic hero named ${heroName}. 
+This is the beginning of their adventure based on the following backstory:
+
+${heroData.backstory}
+
+The hero has the following zodiac traits:
+- Western Zodiac: ${heroData.westernZodiac.sign} (${heroData.westernZodiac.element})
+- Strengths: ${heroData.westernZodiac.strengths.join(', ')}
+- Weaknesses: ${heroData.westernZodiac.weaknesses.join(', ')}
+- Chinese Zodiac: ${heroData.chineseZodiac.sign} (${heroData.chineseZodiac.element})
+- Traits: ${heroData.chineseZodiac.traits.join(', ')}
+
+Write an engaging first chapter (800-1200 words) that introduces the hero and sets up an overarching cosmic conflict that will span multiple chapters. 
+The chapter should establish their personality, showcase some of their abilities, and end with a compelling hook for chapter 2.
+    `;
+  } else {
+    // Subsequent chapter prompt - uses previous chapter summary for continuity
+    chapterPrompt = `
+You are writing chapter ${chapterNumber} in an ongoing epic fantasy story about a cosmic hero named ${heroName}.
+
+Hero backstory summary:
+${heroData.backstory.substring(0, 300)}...
+
+Previous chapter summary:
+${previousChapterSummary || "The hero began their cosmic journey."}
+
+Write an engaging chapter (800-1200 words) that continues the hero's adventure. This chapter should:
+1. Build on events from the previous chapter
+2. Introduce new challenges or developments
+3. Showcase the hero using their abilities
+4. End with a compelling hook for the next chapter
+
+Remember that this is chapter ${chapterNumber} out of a planned multi-chapter story arc, so pace the narrative appropriately.
+    `;
+  }
+  
+  try {
+    // Call OpenAI to generate the chapter
+    const response = await generateChatCompletionWithOpenAI([
+      { role: 'system', content: chapterPrompt },
+      { role: 'user', content: userPrompt || "Tell an epic cosmic adventure story for this hero." }
+    ]);
+    
+    // Extract chapter summary for next chapter generation (approximately 100 words)
+    const chapterSummary = await generateChapterSummary(response);
+    
+    return {
+      content: response,
+      summary: chapterSummary
+    };
+  } catch (error) {
+    console.error(`Error generating chapter ${chapterNumber} for ${heroName}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Generate a summary of a chapter for use in generating the next chapter
+ * @param {string} chapterContent - The full chapter content
+ * @returns {string} - A summary of the chapter
+ */
+async function generateChapterSummary(chapterContent) {
+  try {
+    const response = await generateChatCompletionWithOpenAI([
+      { 
+        role: 'system', 
+        content: 'Summarize the following chapter in about 100 words, focusing on key plot events and character developments that would be relevant for continuing the story in the next chapter.' 
+      },
+      { role: 'user', content: chapterContent }
+    ]);
+    
+    return response;
+  } catch (error) {
+    console.error('Error generating chapter summary:', error);
+    return chapterContent.substring(0, 200) + '...'; // Fallback to a simple truncation
+  }
+}
+
 // Helper function to generate a detailed image prompt
 function generateImagePrompt(heroName, westernZodiac, chineseZodiac, viewAngle) {
   // Get random traits to incorporate

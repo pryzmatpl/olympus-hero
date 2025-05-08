@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import { useHeroStore } from '../store/heroStore';
 import HeroPortrait from '../components/hero/HeroPortrait';
 import HeroBackstory from '../components/hero/HeroBackstory';
+import HeroChapters from '../components/hero/HeroChapters';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
@@ -27,7 +28,11 @@ const HeroPage: React.FC = () => {
     status,
     paymentStatus,
     loadHeroFromAPI,
-    setStatus
+    setStatus,
+    setStoryBook,
+    setChapters,
+    setIsLoadingChapters,
+    isLoadingChapters
   } = useHeroStore();
   
   useEffect(() => {
@@ -55,6 +60,29 @@ const HeroPage: React.FC = () => {
     
     fetchHero();
   }, [id, loadHeroFromAPI, setStatus]);
+  
+  // Fetch storybook and chapters data
+  useEffect(() => {
+    const fetchStoryBook = async () => {
+      if (!heroId || id?.startsWith('preview-')) return;
+      
+      try {
+        setIsLoadingChapters(true);
+        
+        const response = await api.get(`/api/heroes/${heroId}/storybook`);
+        
+        setStoryBook(response.data.storyBook);
+        setChapters(response.data.chapters);
+      } catch (error) {
+        console.error('Error fetching storybook:', error);
+        // Don't set an error state, just quietly fail as this is an enhancement
+      } finally {
+        setIsLoadingChapters(false);
+      }
+    };
+    
+    fetchStoryBook();
+  }, [heroId, id, setStoryBook, setChapters, setIsLoadingChapters]);
   
   const isPreview = id?.startsWith('preview-');
   const isLoading = loading || status === 'generating';
@@ -123,6 +151,12 @@ const HeroPage: React.FC = () => {
       navigate(`/checkout/${id}`);
     }
   };
+  
+  // Handle refreshing chapters after unlock
+  const handleChaptersUnlocked = () => {
+    // No specific action needed as the component will re-render with updated data
+  };
+  
   // Ensure backstory is a string
   const safeBackstory = typeof backstory === 'string' ? backstory : '';
   
@@ -389,6 +423,16 @@ const HeroPage: React.FC = () => {
                 </div>
               </div>
             )}
+            
+            {/* Hero Chapters (only shown on desktop view) */}
+            <div className="hidden lg:block pt-6">
+              {!isPreview && heroId && (
+                <HeroChapters 
+                  heroId={heroId} 
+                  onUnlockBundle={handleChaptersUnlocked} 
+                />
+              )}
+            </div>
           </div>
           
           {/* Right: Hero Info */}
@@ -488,6 +532,16 @@ const HeroPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+        
+        {/* Hero Chapters (mobile/tablet view) */}
+        <div className="lg:hidden mt-8">
+          {!isPreview && heroId && (
+            <HeroChapters 
+              heroId={heroId} 
+              onUnlockBundle={handleChaptersUnlocked} 
+            />
+          )}
         </div>
       </div>
     </motion.div>

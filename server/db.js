@@ -131,6 +131,100 @@ export const heroDb = {
 };
 
 /**
+ * StoryBook operations
+ */
+export const storyBookDb = {
+  // Create a new storybook
+  async createStoryBook(storyBook) {
+    const db = await connectDB();
+    await db.collection('storybooks').insertOne(storyBook);
+    return storyBook;
+  },
+
+  // Find a storybook by ID
+  async findStoryBookById(storyBookId) {
+    const db = await connectDB();
+    return db.collection('storybooks').findOne({ id: storyBookId });
+  },
+
+  // Find a storybook by hero ID
+  async findStoryBookByHeroId(heroId) {
+    const db = await connectDB();
+    return db.collection('storybooks').findOne({ heroId });
+  },
+
+  // Update a storybook
+  async updateStoryBook(storyBookId, update) {
+    const db = await connectDB();
+    await db.collection('storybooks').updateOne(
+      { id: storyBookId },
+      { $set: update }
+    );
+    return this.findStoryBookById(storyBookId);
+  },
+
+  // Increment chapters_unlocked_count
+  async incrementUnlockedChapters(storyBookId, increment = 1) {
+    const db = await connectDB();
+    await db.collection('storybooks').updateOne(
+      { id: storyBookId },
+      { $inc: { chapters_unlocked_count: increment } }
+    );
+    return this.findStoryBookById(storyBookId);
+  }
+};
+
+/**
+ * Chapter operations
+ */
+export const chapterDb = {
+  // Create a new chapter
+  async createChapter(chapter) {
+    const db = await connectDB();
+    await db.collection('chapters').insertOne(chapter);
+    return chapter;
+  },
+
+  // Find a chapter by ID
+  async findChapterById(chapterId) {
+    const db = await connectDB();
+    return db.collection('chapters').findOne({ id: chapterId });
+  },
+
+  // Get all chapters for a storybook
+  async getChaptersByStoryBookId(storyBookId) {
+    const db = await connectDB();
+    return db.collection('chapters')
+      .find({ storyBookId })
+      .sort({ chapter_number: 1 })
+      .toArray();
+  },
+
+  // Update a chapter
+  async updateChapter(chapterId, update) {
+    const db = await connectDB();
+    await db.collection('chapters').updateOne(
+      { id: chapterId },
+      { $set: update }
+    );
+    return this.findChapterById(chapterId);
+  },
+
+  // Mark chapters as unlocked
+  async unlockChapters(storyBookId, chapterNumbers) {
+    const db = await connectDB();
+    await db.collection('chapters').updateMany(
+      { 
+        storyBookId, 
+        chapter_number: { $in: chapterNumbers } 
+      },
+      { $set: { is_unlocked: true } }
+    );
+    return this.getChaptersByStoryBookId(storyBookId);
+  }
+};
+
+/**
  * Shared link operations
  */
 export const shareDb = {

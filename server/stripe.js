@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeDB, heroDb } from './db.js';
+import { getOrCreateStoryBook, unlockChapters } from './storybook.js';
 
 // Load environment variables
 dotenv.config();
@@ -46,6 +47,15 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
       nftId: tokenId,
       paymentStatus: 'paid'
     });
+    
+    // Create or update storybook as premium
+    const hero = await heroDb.findHeroById(heroId);
+    const storyBook = await getOrCreateStoryBook(heroId, true, hero.backstory.substring(0, 100));
+    
+    // Unlock chapters if specified in the payment intent
+    if (paymentIntent.unlockChapters) {
+      await unlockChapters(storyBook.id, 10);
+    }
     
     console.log(`NFT created successfully: ${tokenId}`);
     return nft;
