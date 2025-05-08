@@ -66,7 +66,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     
     if (!isPremium) {
       // Redirect to checkout page if not paid
-      navigate(`/checkout/${heroId}?type=chapter_unlock&amount=1499`);
+      navigate(`/checkout/${heroId}?type=chapter_unlock&amount=499`);
       return;
     }
     
@@ -231,7 +231,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                   <p className="text-gray-400 text-sm">Gain access to all premium chapters</p>
                 </div>
                 <div className="ml-auto">
-                  <Button onClick={() => navigate(`/checkout/${heroId}?type=chapter_unlock&amount=1499`)}>
+                  <Button onClick={() => navigate(`/checkout/${heroId}?type=chapter_unlock&amount=499`)}>
                     Unlock Now
                   </Button>
                 </div>
@@ -250,7 +250,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
             </div>
             <div>
               <h3 className="font-semibold text-lg mb-1">Unlock More Chapters</h3>
-              <p className="text-gray-400 text-sm">Continue your hero's journey with 3 more chapters now and daily chapter releases</p>
+              <p className="text-gray-400 text-sm">Continue your hero's journey with 3 more chapters now and daily chapter releases. </p>
             </div>
             <div className="ml-auto">
               <Button 

@@ -225,7 +225,7 @@ const CheckoutPage = () => {
     // Payment type information
     const isChapterUnlock = paymentType === 'chapter_unlock';
     const paymentTitle = isChapterUnlock ? 'Chapter Unlock' : 'Premium Upgrade';
-    const paymentDescription = isChapterUnlock ? 'Unlock 10 More Chapters' : 'Upgrade to Premium';
+    const paymentDescription = isChapterUnlock ? 'Unlock 3 More Chapters' : 'Upgrade to Premium';
     
     // State
     const [isLoading, setIsLoading] = useState(true);
