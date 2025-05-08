@@ -215,14 +215,27 @@ export const unlockChapters = async (storyBookId, chaptersToUnlock = DEFAULT_UNL
   
   // Mark the chapters as unlocked
   await chapterDb.unlockChapters(storyBookId, chapterNumbersToUnlock);
-  const currentChapters = storyBook.chapters_unlocked_count;
-  await generateAndSaveChapter(storyBookId, hero, currentChapters+1);
   
-  // Update the storybook with the new unlocked count
-  const updatedStoryBook = await storyBookDb.updateStoryBook(storyBookId, {
+  // Make sure there's a chapter placeholder for the next chapter
+  const nextChapterNumber = newUnlockedCount + 1;
+  if (nextChapterNumber <= storyBook.chapters_total_count) {
+    await generateAndSaveChapter(storyBookId, hero, '', nextChapterNumber);
+  }
+  
+  // Ensure initial_chapter_generated_at is set for time tracking
+  const updateData = {
     chapters_unlocked_count: newUnlockedCount,
     updated_at: new Date()
-  });
+  };
+  
+  // Set the initial generation date if it's not already set
+  // This is crucial for the daily unlock timer to work correctly
+  if (!storyBook.initial_chapter_generated_at) {
+    updateData.initial_chapter_generated_at = new Date();
+  }
+  
+  // Update the storybook with the new unlocked count
+  const updatedStoryBook = await storyBookDb.updateStoryBook(storyBookId, updateData);
   
   return updatedStoryBook;
 };

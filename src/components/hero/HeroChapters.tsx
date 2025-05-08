@@ -60,7 +60,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
   
   const timeUntilNextUnlock = calculateTimeUntilNextUnlock();
   
-  // Handle unlocking 10 more chapters
+  // Handle unlocking 3 more chapters
   const handleUnlockBundle = async () => {
     if (!storyBook || isUnlocking) return;
     
@@ -74,7 +74,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     
     try {
       // Call API to unlock chapters
-      const response = await api.post(`/api/storybook/${storyBook.id}`, { count: 10 });
+      const response = await api.post(`/api/storybook/${storyBook.id}`, { count: 3 });
       
       // Update store with new data
       setStoryBook(response.data.storyBook);
@@ -203,10 +203,10 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                   <h3 className="font-semibold text-lg mb-1">Next Chapter Unlocks Soon</h3>
                   {timeUntilNextUnlock ? (
                     <p className="text-gray-400 text-sm">
-                      Next chapter unlocks in {timeUntilNextUnlock.hours}h {timeUntilNextUnlock.minutes}m
+                      Next chapter unlocks in {timeUntilNextUnlock.hours}h {timeUntilNextUnlock.minutes}m. Premium chapters are released daily.
                     </p>
                   ) : (
-                    <p className="text-gray-400 text-sm">Daily chapter unlocks coming soon</p>
+                    <p className="text-gray-400 text-sm">New chapters are unlocked daily for premium users</p>
                   )}
                 </div>
                 <div className="ml-auto">
@@ -214,7 +214,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                     onClick={handleUnlockBundle}
                     isLoading={isUnlocking}
                   >
-                    Unlock 10 More Chapters – $14.99
+                    Unlock 3 More Chapters – $14.99
                   </Button>
                 </div>
               </div>
@@ -250,14 +250,14 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
             </div>
             <div>
               <h3 className="font-semibold text-lg mb-1">Unlock More Chapters</h3>
-              <p className="text-gray-400 text-sm">Continue your hero's journey with additional chapters</p>
+              <p className="text-gray-400 text-sm">Continue your hero's journey with 3 more chapters now and daily chapter releases</p>
             </div>
             <div className="ml-auto">
               <Button 
                 onClick={handleUnlockBundle}
                 isLoading={isUnlocking}
               >
-                Unlock 10 More Chapters – $14.99
+                Unlock 3 More Chapters – $14.99
               </Button>
             </div>
           </div>

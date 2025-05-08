@@ -336,11 +336,13 @@ const CheckoutPage = () => {
             const cleanHeroId = id.replace('preview-', '');
             
             if (isChapterUnlock) {
-                // If this is a chapter unlock payment, just refresh hero data
+                // If this is a chapter unlock payment, use the dedicated endpoint
                 console.log('Processing chapter unlock payment success');
-                await api.post(`/api/heroes/unlockstory/${cleanHeroId}`);
+                await api.post(`/api/storybook/${cleanHeroId}/unlock-after-payment`);
                 const updatedHeroResponse = await api.get(`/api/heroes/${cleanHeroId}`);
                 await loadHeroFromAPI(updatedHeroResponse.data);
+                // Also load updated story data
+                await loadStoryFromAPI(cleanHeroId);
             } else {
                 // For premium upgrades, set premium status
                 console.log('Processing premium upgrade payment success');
@@ -413,7 +415,7 @@ const CheckoutPage = () => {
                         </h2>
                         <p className="text-green-300 mb-4">
                             {isChapterUnlock 
-                                ? "10 more chapters have been unlocked for your hero!" 
+                                ? "3 new chapters have been unlocked for your hero! New chapters will be generated daily." 
                                 : "Your hero has been upgraded to premium status!"}
                         </p>
                         <Button onClick={() => navigate(`/hero/${id?.replace('preview-', '')}`)}>
@@ -469,7 +471,7 @@ const CheckoutPage = () => {
                                     <h2 className="text-xl font-semibold mb-1">{paymentDescription}</h2>
                                     <p className="text-cosmic-400">
                                         {isChapterUnlock 
-                                            ? "Unlock 10 more chapters of your hero's story." 
+                                            ? "Unlock 3 more chapters of your hero's story. New chapters will be generated daily after purchase." 
                                             : "Upgrade your hero to premium quality and unlock additional features."}
                                     </p>
                                 </div>

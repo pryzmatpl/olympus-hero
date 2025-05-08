@@ -1008,8 +1008,8 @@ app.post('/api/webhook/payment-success', async (req, res) => {
     const storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
     
     if (storyBook && shouldUnlockChapters) {
-      // Unlock 10 more chapters
-      await unlockChapters(storyBook.id, 10);
+      // Unlock 3 chapters instead of 10
+      await unlockChapters(storyBook.id, 3);
     }
     
     return res.status(200).json({ success: true });
@@ -1068,8 +1068,8 @@ app.post('/api/storybook/:heroId/unlock-after-payment', async (req, res) => {
       return res.status(404).json({ error: 'Storybook not found' });
     }
     
-    // Unlock 10 chapters
-    await unlockChapters(storyBook.id, 10);
+    // Unlock 3 chapters instead of 10
+    await unlockChapters(storyBook.id, 3);
     
     // Get updated storybook and chapters
     const updatedStoryBook = await storyBookDb.findStoryBookById(storyBook.id);

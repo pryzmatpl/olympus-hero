@@ -69,7 +69,7 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
     // Unlock chapters if specified in the payment intent
     if (shouldUnlockChapters) {
       console.log(`Unlocking chapters for storybook: ${storyBook.id}`);
-      await unlockChapters(storyBook.id, 10);
+      await unlockChapters(storyBook.id, 3);
     }
     
     console.log(`NFT created successfully: ${tokenId}`);
