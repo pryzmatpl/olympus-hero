@@ -96,6 +96,9 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
         <h2 className="text-xl font-display font-semibold mb-6 flex items-center">
           <Book className="mr-2 text-cosmic-500" size={20} />
           Chapters
+          <span className="ml-2 text-sm">
+            <div className="h-4 w-16 bg-mystic-700 rounded animate-pulse"></div>
+          </span>
         </h2>
         
         <div className="animate-pulse space-y-4">
@@ -116,6 +119,9 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
       <h2 className="text-xl font-display font-semibold mb-4 flex items-center">
         <Book className="mr-2 text-cosmic-500" size={20} />
         Chapters
+        <span className="ml-2 text-sm text-gray-400">
+          {storyBook?.chapters_unlocked_count || 0} of {storyBook?.chapters_total_count || 0}
+        </span>
         {isPremium && (
           <span className="ml-2 text-xs bg-cosmic-500/20 text-cosmic-200 px-2 py-1 rounded-full">
             Premium Story
