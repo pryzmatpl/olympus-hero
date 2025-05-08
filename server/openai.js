@@ -3,6 +3,11 @@ import { downloadImage } from './utils.js';
 
 const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
 
+// Global flag to track OpenAI quota status
+let isOpenAIQuotaExceeded = false;
+let quotaExceededTimestamp = null;
+const QUOTA_EXCEEDED_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+
 // Helper function to get random items from an array
 const getRandomItems = (array, count) => {
   const shuffled = [...array].sort(() => 0.5 - Math.random());
@@ -10,11 +15,63 @@ const getRandomItems = (array, count) => {
 };
 
 /**
+ * Check if an error is an OpenAI quota exceeded error
+ * @param {Error} error - The error object to check
+ * @returns {boolean} - True if it's a quota exceeded error
+ */
+export function isOpenAIQuotaError(error) {
+  return (
+    error?.status === 429 && 
+    (error?.code === 'insufficient_quota' || 
+     error?.error?.code === 'insufficient_quota' ||
+     error?.message?.includes('exceeded your current quota') ||
+     error?.error?.message?.includes('exceeded your current quota'))
+  );
+}
+
+/**
+ * Set the OpenAI quota exceeded flag
+ * @param {boolean} value - Whether the quota is exceeded
+ */
+export function setOpenAIQuotaExceeded(value) {
+  isOpenAIQuotaExceeded = value;
+  quotaExceededTimestamp = value ? Date.now() : null;
+  console.log(`OpenAI quota exceeded flag set to: ${value} at ${new Date().toISOString()}`);
+}
+
+/**
+ * Check if the OpenAI quota is currently exceeded
+ * @returns {boolean} - True if the quota is exceeded
+ */
+export function checkOpenAIQuotaExceeded() {
+  // If the flag is set but enough time has passed, reset it
+  if (isOpenAIQuotaExceeded && quotaExceededTimestamp) {
+    const timeSinceExceeded = Date.now() - quotaExceededTimestamp;
+    if (timeSinceExceeded > QUOTA_EXCEEDED_DURATION) {
+      setOpenAIQuotaExceeded(false);
+      return false;
+    }
+  }
+  
+  return isOpenAIQuotaExceeded;
+}
+
+/**
  * Generate a chat completion with OpenAI
  * @param {Array} messages - Array of message objects with role and content
  * @returns {Promise<string>} - The generated response text
  */
 export async function generateChatCompletionWithOpenAI(messages) {
+  // First check if quota is exceeded
+  if (checkOpenAIQuotaExceeded()) {
+    const error = new Error("OpenAI API quota exceeded. Please try again later or contact support.");
+    error.isQuotaExceededError = true;
+    error.userFriendlyMessage = "OpenAI API quota exceeded. Please try again later or contact support.";
+    error.status = 429;
+    error.code = 'insufficient_quota';
+    throw error;
+  }
+
   try {
     console.log('Generating chat completion with OpenAI...');
     
@@ -36,6 +93,17 @@ export async function generateChatCompletionWithOpenAI(messages) {
     return response.choices[0].message.content;
   } catch (error) {
     console.error('Error generating chat completion:', error);
+    
+    // Check if this is a quota exceeded error
+    if (isOpenAIQuotaError(error)) {
+      // Set the global flag when a quota error occurs
+      setOpenAIQuotaExceeded(true);
+      
+      // Enhance the error with a custom property to identify it later
+      error.isQuotaExceededError = true;
+      error.userFriendlyMessage = "OpenAI API quota exceeded. Please try again later or contact support."
+    }
+    
     throw error;
   }
 }

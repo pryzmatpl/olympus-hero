@@ -308,8 +308,17 @@ const SharedStoryPage: React.FC = () => {
       return;
     }
     
-    // Connect to socket
-    const socketIo = io(`${api.defaults.baseURL}`);
+    // Get the server URL from the API base URL or environment variable
+    const serverUrl = api.defaults.baseURL || import.meta.env.VITE_APP_SERVER_URL || 'http://localhost:9002';
+    
+    // Connect to socket with proper configuration
+    const socketIo = io(serverUrl, {
+      withCredentials: true, // Enable if your server requires credentials
+      autoConnect: true,
+      reconnection: true,
+      timeout: 20000, // Increase timeout to avoid premature disconnections
+    });
+    
     socketRef.current = socketIo;
     setSocket(socketIo);
     
@@ -322,6 +331,12 @@ const SharedStoryPage: React.FC = () => {
       if (token && heroId) {
         socketIo.emit('authenticate', { token, heroId });
       }
+    });
+    
+    socketIo.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      setError(`Failed to connect to the story server: ${error.message}`);
+      setIsLoading(false);
     });
     
     socketIo.on('authenticated', (data) => {

@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { calculate_western_zodiac, calculate_chinese_zodiac } from './zodiac.js';
-import { generateOpenAIImages, generateBackstory } from './openai.js';
+import { generateOpenAIImages, generateBackstory, isOpenAIQuotaError, checkOpenAIQuotaExceeded, setOpenAIQuotaExceeded } from './openai.js';
 import { registerUser, loginUser, authMiddleware, getUserById, addHeroToUser } from './auth.js';
 import { processPaymentAndCreateNFT, getNFTById, getNFTsByHeroId } from './stripe.js';
 import { createSharedLink, accessSharedHero, getSharedLinksByUser, deactivateSharedLink } from './share.js';
@@ -276,6 +276,16 @@ app.post('/api/create-payment-intent', async (req, res) => {
   const { amount, currency, heroId, walletAddress, is_test, unlockChapters, paymentType } = req.body;
 
   try {
+    // Check if OpenAI quota is exceeded before proceeding with payment
+    if (checkOpenAIQuotaExceeded()) {
+      console.error('Payment intent creation rejected: OpenAI quota exceeded');
+      return res.status(429).json({ 
+        error: 'OpenAI API quota exceeded', 
+        errorType: 'quota_exceeded',
+        message: "Cannot process payment at this time as the AI service is temporarily unavailable due to quota limitations. Please try again later."
+      });
+    }
+
     // Determine if we should use test mode
     // is_test from frontend OR we're in development mode on the server
     const useTestMode = is_test || process.env.NODE_ENV !== 'production';
@@ -323,6 +333,19 @@ app.post('/api/create-payment-intent', async (req, res) => {
     res.status(200).json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
     console.error('Error creating payment intent:', error);
+    
+    // Check if this is a quota exceeded error
+    if (isOpenAIQuotaError(error)) {
+      // Mark the quota as exceeded for future requests
+      setOpenAIQuotaExceeded(true);
+      
+      return res.status(429).json({ 
+        error: 'OpenAI API quota exceeded', 
+        errorType: 'quota_exceeded',
+        message: "Cannot process payment at this time as the AI service is temporarily unavailable due to quota limitations. Please try again later."
+      });
+    }
+    
     res.status(500).json({ error: error.message });
   }
 });
@@ -545,6 +568,16 @@ app.post('/api/heroes/generate/:id', authMiddleware, async (req, res) => {
     return res.status(403).json({ error: 'You do not have permission to modify this hero' });
   }
 
+  // Check if OpenAI quota is exceeded before proceeding with generation
+  if (checkOpenAIQuotaExceeded()) {
+    console.error('Hero generation rejected: OpenAI quota exceeded');
+    return res.status(429).json({ 
+      error: 'OpenAI API quota exceeded', 
+      errorType: 'quota_exceeded',
+      message: "Cannot generate hero content at this time as the AI service is temporarily unavailable due to quota limitations. Please try again later."
+    });
+  }
+
   try {
     // Update status
     hero.status = 'processing';
@@ -578,6 +611,21 @@ app.post('/api/heroes/generate/:id', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Error generating hero content:', error);
+    
+    // Check if this is a quota exceeded error
+    if (isOpenAIQuotaError(error)) {
+      // Mark the quota as exceeded for future requests
+      setOpenAIQuotaExceeded(true);
+      
+      await heroDb.updateHero(id, { status: 'error', error_type: 'quota_exceeded' });
+      
+      return res.status(429).json({ 
+        error: 'OpenAI API quota exceeded', 
+        errorType: 'quota_exceeded',
+        message: "Cannot generate hero content at this time as the AI service is temporarily unavailable due to quota limitations. Please try again later."
+      });
+    }
+    
     await heroDb.updateHero(id, { status: 'error' });
     return res.status(500).json({ error: 'Failed to generate hero content' });
   }
@@ -1062,6 +1110,16 @@ app.post('/api/storybook/:heroId/unlock-after-payment', async (req, res) => {
   try {
     const { heroId } = req.params;
     
+    // Check if OpenAI quota is exceeded before proceeding
+    if (checkOpenAIQuotaExceeded()) {
+      console.error('Chapter unlock after payment rejected: OpenAI quota exceeded');
+      return res.status(429).json({ 
+        error: 'OpenAI API quota exceeded', 
+        errorType: 'quota_exceeded',
+        message: "Cannot unlock chapters at this time as the AI service is temporarily unavailable due to quota limitations. Your payment has been processed, but chapter generation will be delayed. Please try again later."
+      });
+    }
+    
     // Find the storybook
     const storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
     if (!storyBook) {
@@ -1081,6 +1139,19 @@ app.post('/api/storybook/:heroId/unlock-after-payment', async (req, res) => {
     });
   } catch (error) {
     console.error('Error unlocking chapters after payment:', error);
+    
+    // Check if this is a quota exceeded error
+    if (isOpenAIQuotaError(error)) {
+      // Set the global flag
+      setOpenAIQuotaExceeded(true);
+      
+      return res.status(429).json({ 
+        error: 'OpenAI API quota exceeded', 
+        errorType: 'quota_exceeded',
+        message: "You have exceeded the OpenAI API quota. Your payment has been processed, but chapter generation will be delayed. Please try again later."
+      });
+    }
+    
     return res.status(500).json({ error: 'Failed to unlock chapters' });
   }
 });
@@ -1224,6 +1295,35 @@ io.on('connection', (socket) => {
       
       // Generate AI response if needed
       if (room.messages.filter(m => m.sender.id !== 'system').length % 3 === 0) {
+        // Check if OpenAI quota is exceeded before proceeding
+        if (checkOpenAIQuotaExceeded()) {
+          console.log('Skipping AI response generation due to OpenAI quota exceeded');
+          
+          // Directly send an error message
+          const errorMessage = {
+            id: uuidv4(),
+            sender: {
+              id: 'system',
+              name: 'System',
+              avatar: null
+            },
+            content: "The Cosmic Narrator is taking a brief rest. Our cosmic energies (API quota) have been temporarily depleted. Please try again later.",
+            timestamp: new Date(),
+            isError: true
+          };
+          
+          room.messages.push(errorMessage);
+          io.to(socket.roomId).emit('message', errorMessage);
+          
+          // Also emit the specialized API error event
+          socket.emit('api_error', { 
+            errorType: 'quota_exceeded',
+            message: "OpenAI API quota exceeded. The Cosmic Narrator is unavailable at the moment. Please try again later."
+          });
+          
+          return;
+        }
+        
         // Notify clients that the narrator is generating a response
         io.to(socket.roomId).emit('narrator_typing');
         
@@ -1233,40 +1333,87 @@ io.on('connection', (socket) => {
         // Start timing the response generation
         const startTime = Date.now();
         
-        // Get AI response
-        const responseContent = await generateSharedStoryResponse(prompt);
-        
-        // Calculate how long the AI response took
-        const responseTime = Date.now() - startTime;
-        
-        // Ensure the narrator typing animation is shown for at least 3.5 seconds
-        // for a more dramatic effect
-        const MIN_TYPING_TIME = 3500; // milliseconds
-        
-        if (responseTime < MIN_TYPING_TIME) {
-          await new Promise(resolve => setTimeout(resolve, MIN_TYPING_TIME - responseTime));
+        try {
+          // Get AI response
+          const responseContent = await generateSharedStoryResponse(prompt);
+          
+          // Calculate how long the AI response took
+          const responseTime = Date.now() - startTime;
+          
+          // Ensure the narrator typing animation is shown for at least 3.5 seconds
+          // for a more dramatic effect
+          const MIN_TYPING_TIME = 3500; // milliseconds
+          
+          if (responseTime < MIN_TYPING_TIME) {
+            await new Promise(resolve => setTimeout(resolve, MIN_TYPING_TIME - responseTime));
+          }
+          
+          // Add the AI response to the room
+          const aiMessage = {
+            id: uuidv4(),
+            sender: {
+              id: 'system',
+              name: 'Cosmic Narrator',
+              avatar: null
+            },
+            content: responseContent,
+            timestamp: new Date()
+          };
+          
+          room.messages.push(aiMessage);
+          
+          // Broadcast the AI message to all users in the room
+          io.to(socket.roomId).emit('message', aiMessage);
+        } catch (aiError) {
+          console.error('Error generating AI response:', aiError);
+          
+          // Check if this is a quota exceeded error
+          if (isOpenAIQuotaError(aiError)) {
+            // Set the global flag
+            setOpenAIQuotaExceeded(true);
+            
+            // Send a specialized error to the client
+            socket.emit('api_error', { 
+              errorType: 'quota_exceeded',
+              message: "OpenAI API quota exceeded. The Cosmic Narrator is unavailable at the moment. Please try again later."
+            });
+            
+            // Also send a system message to all users in the room
+            const errorMessage = {
+              id: uuidv4(),
+              sender: {
+                id: 'system',
+                name: 'System',
+                avatar: null
+              },
+              content: "The Cosmic Narrator is taking a brief rest. Our cosmic energies (API quota) have been temporarily depleted. Please try again later.",
+              timestamp: new Date(),
+              isError: true
+            };
+            
+            room.messages.push(errorMessage);
+            io.to(socket.roomId).emit('message', errorMessage);
+          } else {
+            // Handle other errors
+            socket.emit('error', { message: 'Failed to generate AI response' });
+          }
         }
-        
-        // Add the AI response to the room
-        const aiMessage = {
-          id: uuidv4(),
-          sender: {
-            id: 'system',
-            name: 'Cosmic Narrator',
-            avatar: null
-          },
-          content: responseContent,
-          timestamp: new Date()
-        };
-        
-        room.messages.push(aiMessage);
-        
-        // Broadcast the AI message to all users in the room
-        io.to(socket.roomId).emit('message', aiMessage);
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      socket.emit('error', { message: 'Failed to send message' });
+      
+      // Check if this is a quota exceeded error
+      if (isOpenAIQuotaError(error)) {
+        // Set the global flag
+        setOpenAIQuotaExceeded(true);
+        
+        socket.emit('api_error', { 
+          errorType: 'quota_exceeded',
+          message: "OpenAI API quota exceeded. Please try again later."
+        });
+      } else {
+        socket.emit('error', { message: 'Failed to send message' });
+      }
     }
   });
   
@@ -1312,6 +1459,25 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error handling disconnect:', error);
     }
+  });
+});
+
+// Add a quota status check endpoint
+app.get('/api/status/openai-quota', async (req, res) => {
+  const isQuotaExceeded = checkOpenAIQuotaExceeded();
+  
+  if (isQuotaExceeded) {
+    return res.status(429).json({
+      status: 'exceeded',
+      message: 'OpenAI API quota is currently exceeded. Generation features and payments are temporarily disabled. Please try again later.',
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  return res.status(200).json({
+    status: 'available',
+    message: 'OpenAI API quota is currently available.',
+    timestamp: new Date().toISOString()
   });
 });
 

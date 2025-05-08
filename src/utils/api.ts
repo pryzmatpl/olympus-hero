@@ -1,5 +1,41 @@
 import axios from 'axios';
 
+// Simple browser-compatible event emitter implementation
+class SimpleEventEmitter {
+  private events: Record<string, Array<(data?: any) => void>> = {};
+
+  on(event: string, listener: (data?: any) => void): void {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(listener);
+  }
+
+  off(event: string, listener: (data?: any) => void): void {
+    if (!this.events[event]) return;
+    this.events[event] = this.events[event].filter(l => l !== listener);
+  }
+
+  emit(event: string, data?: any): void {
+    if (!this.events[event]) return;
+    this.events[event].forEach(listener => {
+      try {
+        listener(data);
+      } catch (error) {
+        console.error(`Error in event listener for ${event}:`, error);
+      }
+    });
+  }
+}
+
+// Create an event emitter for API events
+export const apiEvents = new SimpleEventEmitter();
+
+// API Error events
+export const API_ERROR_EVENTS = {
+  OPENAI_QUOTA_EXCEEDED: 'OPENAI_QUOTA_EXCEEDED'
+};
+
 // In production, use relative URLs to avoid mixed content issues
 // In development, use the configured server URL or fallback to localhost
 const isProduction = import.meta.env.PROD;
@@ -23,6 +59,30 @@ const api = axios.create({
   // Add a reasonable timeout to prevent hanging requests
   timeout: 300000, // 30 seconds
 });
+
+// Check if an API error is an OpenAI quota exceeded error
+const isOpenAIQuotaError = (error: any): boolean => {
+  if (!error.response || !error.response.data) return false;
+  
+  const data = error.response.data;
+  
+  // Check for the errorType field we added in the server
+  if (data.errorType === 'quota_exceeded') return true;
+  
+  // Check the status code
+  if (error.response.status === 429) {
+    // Check if the error message contains keywords related to quota
+    if (data.error && (
+      data.error.includes('quota') || 
+      data.error.includes('exceeded') ||
+      data.error.includes('limit')
+    )) {
+      return true;
+    }
+  }
+  
+  return false;
+};
 
 // Add a request interceptor to add the auth token to requests
 api.interceptors.request.use(
@@ -76,6 +136,22 @@ api.interceptors.response.use(
       window.location.href = '/login';
     }
     
+    // Handle OpenAI quota exceeded errors
+    if (isOpenAIQuotaError(error)) {
+      console.error('OpenAI quota exceeded');
+      
+      // Emit a quota exceeded event
+      apiEvents.emit(API_ERROR_EVENTS.OPENAI_QUOTA_EXCEEDED, {
+        message: error.response?.data?.message || 'OpenAI API quota exceeded. Please try again later or contact support.',
+        url: error.config?.url,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+      
+      // Add a custom field to the error for easy identification
+      error.isOpenAIQuotaExceeded = true;
+    }
+    
     // Log all API errors
     console.error('API Error:', {
       url: error.config?.url,
@@ -87,5 +163,36 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Add a function to check OpenAI quota status
+export const checkOpenAIQuotaStatus = async (): Promise<{
+  isQuotaExceeded: boolean;
+  message: string;
+}> => {
+  try {
+    const response = await api.get('/api/status/openai-quota');
+    
+    // If we get a 200 response, quota is available
+    return {
+      isQuotaExceeded: false,
+      message: response.data.message
+    };
+  } catch (error) {
+    // If we get a 429 response, quota is exceeded
+    if (error.response && error.response.status === 429) {
+      return {
+        isQuotaExceeded: true,
+        message: error.response.data?.message || 'OpenAI API quota exceeded. Please try again later.'
+      };
+    }
+    
+    // For other errors, assume quota might be exceeded to be safe
+    console.error('Error checking OpenAI quota status:', error);
+    return {
+      isQuotaExceeded: true, 
+      message: 'Unable to verify AI service availability. Please try again later.'
+    };
+  }
+};
 
 export default api; 

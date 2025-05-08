@@ -23,6 +23,8 @@ import ZodiacGuidePage from './pages/ZodiacGuidePage';
 import NFTBasicsPage from './pages/NFTBasicsPage';
 import FAQsPage from './pages/FAQsPage';
 import SupportPage from './pages/SupportPage';
+import { NotificationProvider } from './context/NotificationContext';
+import ApiErrorHandler from './components/ApiErrorHandler';
 
 // Create auth context
 interface AuthContextType {
@@ -96,90 +98,93 @@ function App() {
 
   return (
     <AuthContext.Provider value={authContextValue}>
-      <Router>
-        <div className="flex flex-col min-h-screen bg-gradient-to-b from-mystic-900 to-mystic-800 text-white relative overflow-hidden">
-          <StarBackground />
-          <Header />
-          <main className="flex-grow">
-            <AnimatePresence mode="wait">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route 
-                  path="/create" 
-                  element={
-                    <ProtectedRoute>
-                      <CreatorPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/hero/:id" 
-                  element={
-                    <ProtectedRoute>
-                      <HeroPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/checkout/:id" 
-                  element={
-                    <ProtectedRoute>
-                      <CheckoutPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/profile" 
-                  element={
-                    <ProtectedRoute>
-                      <ProfilePage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/heroes" 
-                  element={
-                    <ProtectedRoute>
-                      <HeroesListPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="/share/:shareId" element={<SharedHeroPage />} />
-                <Route 
-                  path="/shared-story" 
-                  element={
-                    <ProtectedRoute>
-                      <SharedStoryPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route 
-                  path="/shared-story/:roomId" 
-                  element={
-                    <ProtectedRoute>
-                      <SharedStoryPage />
-                    </ProtectedRoute>
-                  }
-                />
+      <NotificationProvider>
+        <ApiErrorHandler />
+        <Router>
+          <div className="flex flex-col min-h-screen bg-gradient-to-b from-mystic-900 to-mystic-800 text-white relative overflow-hidden">
+            <StarBackground />
+            <Header />
+            <main className="flex-grow">
+              <AnimatePresence mode="wait">
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route 
+                    path="/create" 
+                    element={
+                      <ProtectedRoute>
+                        <CreatorPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/hero/:id" 
+                    element={
+                      <ProtectedRoute>
+                        <HeroPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/checkout/:id" 
+                    element={
+                      <ProtectedRoute>
+                        <CheckoutPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/profile" 
+                    element={
+                      <ProtectedRoute>
+                        <ProfilePage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/heroes" 
+                    element={
+                      <ProtectedRoute>
+                        <HeroesListPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route path="/share/:shareId" element={<SharedHeroPage />} />
+                  <Route 
+                    path="/shared-story" 
+                    element={
+                      <ProtectedRoute>
+                        <SharedStoryPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route 
+                    path="/shared-story/:roomId" 
+                    element={
+                      <ProtectedRoute>
+                        <SharedStoryPage />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* New pages */}
-                <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                <Route path="/cookie-policy" element={<CookiePolicyPage />} />
-                <Route path="/zodiac-guide" element={<ZodiacGuidePage />} />
-                <Route path="/nft-basics" element={<NFTBasicsPage />} />
-                <Route path="/faqs" element={<FAQsPage />} />
-                <Route path="/support" element={<SupportPage />} />
+                  {/* New pages */}
+                  <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+                  <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                  <Route path="/cookie-policy" element={<CookiePolicyPage />} />
+                  <Route path="/zodiac-guide" element={<ZodiacGuidePage />} />
+                  <Route path="/nft-basics" element={<NFTBasicsPage />} />
+                  <Route path="/faqs" element={<FAQsPage />} />
+                  <Route path="/support" element={<SupportPage />} />
 
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </AnimatePresence>
-          </main>
-          <Footer />
-        </div>
-      </Router>
+                  <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+              </AnimatePresence>
+            </main>
+            <Footer />
+          </div>
+        </Router>
+      </NotificationProvider>
     </AuthContext.Provider>
   );
 }

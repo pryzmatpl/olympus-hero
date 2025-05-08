@@ -16,6 +16,7 @@ import {
     useElements,
     AddressElement,
 } from '@stripe/react-stripe-js';
+import QuotaStatusCheck from '../components/QuotaStatusCheck';
 
 // Determine if we're in development mode
 const isDevelopment = import.meta.env.MODE === 'development';
@@ -209,34 +210,27 @@ const stripeElementsOptions = (clientSecret) => ({
 });
 
 const CheckoutPage = () => {
-    const {id} = useParams<{ id: string }>();
-    const {heroName, images, status, loadHeroFromAPI} = useHeroStore();
-    const { loadStoryFromAPI } = useStoryStore();
-    const {token} = useContext(AuthContext);
+    const { id } = useParams();
+    const { token, user } = useContext(AuthContext);
+    const { heroId, heroName, images, setPaymentStatus, fetchStorybook } = useHeroStore();
+    const { fetchStorybook: storybookFetch } = useStoryStore();
     const navigate = useNavigate();
-
-    // Get query parameters for payment type and amount
-    const searchParams = new URLSearchParams(window.location.search);
-    const paymentType = searchParams.get('type');
-    const paymentAmount = searchParams.get('amount') ? 
-        parseFloat(searchParams.get('amount')) / 100 : 
-        9.99; // Default amount is $9.99
     
-    // Payment type information
-    const isChapterUnlock = paymentType === 'chapter_unlock';
-    const paymentTitle = isChapterUnlock ? 'Chapter Unlock' : 'Premium Upgrade';
-    const paymentDescription = isChapterUnlock ? 'Unlock 3 More Chapters' : 'Upgrade to Premium';
-    
-    // State
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [success, setSuccess] = useState(false);
-    const [formData, setFormData] = useState({
-        email: '',
-        walletAddress: '',
-    });
+    // State variables
     const [clientSecret, setClientSecret] = useState(null);
     const [stripeReady, setStripeReady] = useState(false);
+    const [error, setError] = useState(null);
+    const [email, setEmail] = useState(user?.email || '');
+    const [walletAddress, setWalletAddress] = useState('');
+    const [paymentAmount, setPaymentAmount] = useState(9.99);
+    const [paymentTitle, setPaymentTitle] = useState('Unlock Premium Hero');
+    const [paymentDescription, setPaymentDescription] = useState('Upgrade to Premium');
+    const [paymentType, setPaymentType] = useState('premium_upgrade');
+    const [isUnlockingChapters, setIsUnlockingChapters] = useState(false);
+    const [isPaymentDisabled, setIsPaymentDisabled] = useState(false);
+    
+    // Determine the actual hero ID to use
+    const effectiveHeroId = id || heroId;
 
     // Verify if the Stripe Elements can be initialized
     useEffect(() => {
@@ -260,172 +254,105 @@ const CheckoutPage = () => {
         checkStripeAvailability();
     }, []);
 
-    // Load hero and create payment intent
+    // Initialize the checkout when parameters are available
     useEffect(() => {
         const initializeCheckout = async () => {
-            if (!id) {
-                console.error('Hero ID is missing in URL parameters');
-                setError('Hero ID is missing');
-                setIsLoading(false);
-                return;
-            }
-
-            if (!stripeReady) {
-                // Wait for Stripe to be ready before proceeding
-                return;
-            }
-
+            // Skip if no hero ID is available or if disabled
+            if (!effectiveHeroId || isPaymentDisabled) return;
+            
             try {
-                setIsLoading(true);
-                setError(null);
-
-                // Clean the heroId by removing any 'preview-' prefix
-                const cleanHeroId = id.replace('preview-', '');
-                console.log(`Initializing checkout for hero ID: ${cleanHeroId}`);
-
-                // 1. Load hero details
-                const heroResponse = await api.get(`/api/heroes/${cleanHeroId}`);
-                console.log('Hero data fetched successfully:', heroResponse.data);
-                await loadHeroFromAPI(heroResponse.data);
-
-                // 2. Create payment intent to get client secret
-                const paymentResponse = await api.post('/api/create-payment-intent', {
-                    amount: paymentAmount, // Use the amount from query params or default to 9.99
-                    currency: 'usd',
-                    heroId: cleanHeroId,
-                    walletAddress: formData.walletAddress || '0x0000000000000000000000000000000000000000',
-                    // Pass information about the payment type
-                    unlockChapters: isChapterUnlock,
-                    paymentType: paymentType || 'premium_upgrade',
-                    // Make sure to clearly indicate test mode
-                    is_test: isDevelopment
-                });
-
-                if (!paymentResponse.data.clientSecret) {
-                    throw new Error('No client secret returned from the server');
+                console.log(`Initializing checkout for hero: ${effectiveHeroId}`);
+                
+                // Determine payment type and amount from URL params
+                const urlParams = new URLSearchParams(window.location.search);
+                const type = urlParams.get('type') || 'premium_upgrade';
+                setPaymentType(type);
+                
+                if (type === 'chapters') {
+                    setPaymentTitle('Unlock More Chapters');
+                    setPaymentDescription('Unlock 3 Chapters');
+                    setPaymentAmount(4.99);
+                    setIsUnlockingChapters(true);
                 }
-
-                setClientSecret(paymentResponse.data.clientSecret);
-                console.log('Payment intent created successfully');
+                
+                // Create a payment intent
+                const response = await api.post('/api/create-payment-intent', {
+                    amount: type === 'chapters' ? 4.99 : 9.99,
+                    currency: 'usd',
+                    heroId: effectiveHeroId,
+                    walletAddress: walletAddress,
+                    unlockChapters: type === 'chapters',
+                    paymentType: type,
+                    is_test: isDevelopment // Pass development mode flag
+                });
+                
+                console.log("Payment intent created");
+                setClientSecret(response.data.clientSecret);
             } catch (err) {
-                console.error('Error initializing checkout:', err);
-                setError(err.message || 'Failed to initialize checkout. Please try again.');
-            } finally {
-                setIsLoading(false);
+                console.error("Error creating payment intent:", err);
+                if (err.response?.data?.errorType === 'quota_exceeded') {
+                    setError(err.response.data.message || "Payment processing is temporarily unavailable due to AI service quota limitations.");
+                } else {
+                    setError(err.message || "Failed to initialize payment. Please try again later.");
+                }
             }
         };
+        
+        if (effectiveHeroId && !isPaymentDisabled) {
+            initializeCheckout();
+        }
+    }, [effectiveHeroId, walletAddress, isPaymentDisabled]);
 
-        initializeCheckout();
-    }, [id, loadHeroFromAPI, stripeReady]);
-
-    // Handle form input changes
+    // Handle input changes
     const handleInputChange = (e) => {
-        const {name, value} = e.target;
-        setFormData({
-            ...formData,
-            [name]: value
-        });
+        const { name, value } = e.target;
+        if (name === 'email') setEmail(value);
+        if (name === 'walletAddress') setWalletAddress(value);
     };
 
-    // Handle payment success
+    // Handle successful payment
     const handlePaymentSuccess = async (paymentIntent) => {
-        setSuccess(true);
+        console.log("Payment successful:", paymentIntent);
         
         try {
-            // Refresh hero data to reflect paid status
-            const cleanHeroId = id.replace('preview-', '');
+            // Update hero payment status
+            await api.post(`/api/heroes/setpremium/${effectiveHeroId}`);
             
-            if (isChapterUnlock) {
-                // If this is a chapter unlock payment, use the dedicated endpoint
-                console.log('Processing chapter unlock payment success');
-                await api.post(`/api/storybook/${cleanHeroId}/unlock-after-payment`);
-                const updatedHeroResponse = await api.get(`/api/heroes/${cleanHeroId}`);
-                await loadHeroFromAPI(updatedHeroResponse.data);
-                // Also load updated story data
-                await loadStoryFromAPI(cleanHeroId);
-            } else {
-                // For premium upgrades, set premium status
-                console.log('Processing premium upgrade payment success');
-                const updatedHeroResponse = await api.post(`/api/heroes/setpremium/${cleanHeroId}`);
-                await loadHeroFromAPI(updatedHeroResponse.data);
+            // If unlocking chapters, make additional API call
+            if (isUnlockingChapters) {
+                await api.post(`/api/storybook/${effectiveHeroId}/unlock-after-payment`);
             }
             
-            console.log('Hero data updated after payment');
-
-            // Redirect after a short delay
-            setTimeout(() => {
-                navigate(`/hero/${cleanHeroId}`);
-            }, 2000);
+            // Update local state
+            setPaymentStatus('paid');
+            
+            // Fetch updated storybook
+            fetchStorybook(effectiveHeroId);
+            
+            // Navigate back to hero page with success message
+            navigate(`/hero/${effectiveHeroId}?payment=success`);
         } catch (err) {
-            console.error('Error updating hero after payment:', err);
-            // Continue with success flow even if update fails
+            console.error("Error handling successful payment:", err);
+            setError("Payment was successful, but we encountered an error updating your hero. Please refresh the page.");
         }
     };
 
     // Handle payment error
     const handlePaymentError = (errorMessage) => {
+        console.error("Payment error:", errorMessage);
         setError(errorMessage);
     };
-
-    // Render loading state
-    if (isLoading) {
-        return (
-            <motion.div
-                className="container mx-auto px-4 pt-20 pb-10"
-                variants={pageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-            >
-                <div className="max-w-2xl mx-auto">
-                    <div className="flex items-center justify-between mb-6">
-                        <PageTitle>{paymentTitle}</PageTitle>
-                        <Button variant="ghost" icon={<X size={16}/>} onClick={() => navigate(-1)}>
-                            Cancel
-                        </Button>
-                    </div>
-                    <div className="mt-8 flex justify-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cosmic-500"></div>
-                    </div>
-                </div>
-            </motion.div>
-        );
-    }
-
-    // Render success state
-    if (success) {
-        return (
-            <motion.div
-                className="container mx-auto px-4 pt-20 pb-10"
-                variants={pageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-            >
-                <div className="max-w-2xl mx-auto">
-                    <div className="flex items-center justify-between mb-6">
-                        <PageTitle>{paymentTitle}</PageTitle>
-                    </div>
-                    <div className="mt-8 bg-green-900/20 border border-green-800 rounded-xl p-6 text-center">
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-900/30 rounded-full mb-4">
-                            <Check size={32} className="text-green-400"/>
-                        </div>
-                        <h2 className="text-2xl font-bold text-green-400 mb-2">
-                            Payment Successful!
-                        </h2>
-                        <p className="text-green-300 mb-4">
-                            {isChapterUnlock 
-                                ? "3 new chapters have been unlocked for your hero! New chapters will be generated daily." 
-                                : "Your hero has been upgraded to premium status!"}
-                        </p>
-                        <Button onClick={() => navigate(`/hero/${id?.replace('preview-', '')}`)}>
-                            Return to Hero
-                        </Button>
-                    </div>
-                </div>
-            </motion.div>
-        );
-    }
+    
+    // Handle quota exceeded
+    const handleQuotaExceeded = () => {
+        setIsPaymentDisabled(true);
+        setError("Payment processing is temporarily disabled because the AI service quota has been exceeded. Please try again later.");
+    };
+    
+    // Handle quota available
+    const handleQuotaAvailable = () => {
+        setIsPaymentDisabled(false);
+    };
 
     return (
         <motion.div
@@ -453,41 +380,56 @@ const CheckoutPage = () => {
                     </div>
                 )}
 
-                {!error && !isLoading && clientSecret ? (
-                    <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
-                        <div className="mb-8">
-                            <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-6">
-                                {/* Hero image thumbnail if available */}
-                                {images?.thumbnail && (
-                                    <div className="w-20 h-20 rounded-lg overflow-hidden bg-mystic-900 flex-shrink-0">
-                                        <img
-                                            src={images.thumbnail}
-                                            alt={heroName || 'Hero'}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                )}
-                                <div>
-                                    <h2 className="text-xl font-semibold mb-1">{paymentDescription}</h2>
-                                    <p className="text-cosmic-400">
-                                        {isChapterUnlock 
-                                            ? "Unlock 3 more chapters of your hero's story. New chapters will be generated daily after purchase." 
-                                            : "Upgrade your hero to premium quality and unlock additional features."}
-                                    </p>
-                                </div>
-                            </div>
+                <QuotaStatusCheck 
+                    onQuotaExceeded={handleQuotaExceeded}
+                    onQuotaAvailable={handleQuotaAvailable}
+                >
+                    <div className="bg-mystic-900 border border-mystic-800 rounded-xl p-6 mb-8">
+                        <h2 className="text-xl font-medium text-white mb-6">Payment Details</h2>
+
+                        <div className="mb-6">
+                            <label htmlFor="email" className="block text-white font-medium mb-2">
+                                Email Address
+                            </label>
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                value={email}
+                                onChange={handleInputChange}
+                                className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+                                placeholder="your.email@example.com"
+                                required
+                            />
                         </div>
 
-                        {stripeReady ? (
-                            <Elements
-                                stripe={stripePromise}
-                                options={stripeElementsOptions(clientSecret)}
-                            >
+                        <div className="mb-6">
+                            <div className="flex items-center justify-between mb-2">
+                                <label htmlFor="walletAddress" className="block text-white font-medium">
+                                    Wallet Address <span className="text-gray-400 font-normal">(Optional)</span>
+                                </label>
+                            </div>
+                            <input
+                                type="text"
+                                id="walletAddress"
+                                name="walletAddress"
+                                value={walletAddress}
+                                onChange={handleInputChange}
+                                className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
+                                placeholder="0x..."
+                            />
+                            <p className="text-gray-400 text-xs mt-2">
+                                For storing your hero as an NFT in the future (not required)
+                            </p>
+                        </div>
+
+                        {stripeReady && clientSecret ? (
+                            <Elements stripe={stripePromise} options={stripeElementsOptions(clientSecret)}>
                                 <CheckoutFormContent
                                     clientSecret={clientSecret}
-                                    heroId={id?.replace('preview-', '')}
-                                    email={formData.email}
-                                    walletAddress={formData.walletAddress}
+                                    heroId={effectiveHeroId}
+                                    email={email}
+                                    walletAddress={walletAddress}
                                     onSuccess={handlePaymentSuccess}
                                     onError={handlePaymentError}
                                     paymentAmount={paymentAmount}
@@ -496,19 +438,17 @@ const CheckoutPage = () => {
                                 />
                             </Elements>
                         ) : (
-                            <div className="p-4 bg-amber-900/20 border border-amber-800/50 rounded-lg text-center">
-                                <AlertTriangle size={24} className="mx-auto text-amber-400 mb-2"/>
-                                <p className="text-amber-300">
-                                    Payment processor is initializing. Please wait...
-                                </p>
+                            <div className="flex justify-center items-center py-8">
+                                {!error && (
+                                    <>
+                                        <div className="mr-3 w-6 h-6 border-4 border-cosmic-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <span className="text-cosmic-300">Initializing payment form...</span>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
-                ) : !error && (
-                    <div className="mt-8 flex justify-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cosmic-500"></div>
-                    </div>
-                )}
+                </QuotaStatusCheck>
             </div>
         </motion.div>
     );
