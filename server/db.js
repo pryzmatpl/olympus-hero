@@ -123,6 +123,18 @@ export const heroDb = {
     return this.findHeroById(heroId);
   },
 
+  // Upgrade a hero to premium
+  async upgradeHero(heroId, update) {
+    const db = await connectDB();
+    let upHero = db.collection('heroes').findOne({ id: heroId });
+    upHero['paymentStatus'] = 'paid';
+    await db.collection('heroes').updateOne(
+        { id: heroId },
+        { $set: upHero }
+    );
+    return this.findHeroById(heroId);
+  },
+
   // Get all heroes for a user
   async getHeroesByUserId(userId) {
     const db = await connectDB();

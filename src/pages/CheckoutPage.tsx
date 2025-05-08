@@ -318,7 +318,7 @@ const CheckoutPage = () => {
         try {
             // Refresh hero data to reflect paid status
             const cleanHeroId = id.replace('preview-', '');
-            const updatedHeroResponse = await api.get(`/api/heroes/${cleanHeroId}`);
+            const updatedHeroResponse = await api.post(`/api/heroes/setpremium/${cleanHeroId}`, hero);
             await loadHeroFromAPI(updatedHeroResponse.data);
             console.log('Hero data updated with paid status');
 
