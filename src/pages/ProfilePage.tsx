@@ -146,7 +146,6 @@ const ProfilePage = () => {
                           <div className="flex-grow">
                             <h3 className="font-semibold">{hero.name}</h3>
                             <p className="text-sm text-cosmic-400">
-                              {/* Fixed: Correctly accessing zodiac signs */}
                               {hero.westernZodiac?.sign || 'Unknown'} • {hero.chineseZodiac?.sign || 'Unknown'}
                             </p>
                           </div>
