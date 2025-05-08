@@ -162,14 +162,14 @@ const chineseNewYearTable = generateChineseNewYearTable();
 // Calculate Chinese zodiac sign based on birth date
 export function calculate_chinese_zodiac(date) {
   const year = date.getFullYear();
-  const cnyStr = chineseNewYearDates[year];
-  const month = birthdate.getMonth() + 1;
-  const day = birthdate.getDate();
+  const cnyStr = chineseNewYearTable[year];
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
   let zodiacYear = year;
 
   if (cnyStr) {
     const cny = new Date(cnyStr);
-    if (birthdate < cny) {
+    if (date < cny) {
       zodiacYear -= 1;
     }
   } else {
