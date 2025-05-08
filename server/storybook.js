@@ -183,63 +183,63 @@ export const getOrCreateStoryBook = async (heroId, isPremium = false, userPrompt
  * @returns {object} Updated storybook
  */
 export const unlockChapters = async (storyBookId, chaptersToUnlock = DEFAULT_UNLOCK_BUNDLE_SIZE) => {
+  // Validate input
+  if (chaptersToUnlock <= 0) {
+    throw new Error('chaptersToUnlock must be positive');
+  }
+
   // Get the storybook
   const storyBook = await storyBookDb.findStoryBookById(storyBookId);
   if (!storyBook) {
     throw new Error('Storybook not found');
   }
-  
+
   // Calculate which chapters to unlock
   const currentUnlocked = storyBook.chapters_unlocked_count;
-  const newUnlockedCount = currentUnlocked+3;
-  
+  const newUnlockedCount = currentUnlocked + chaptersToUnlock;
+
   if (currentUnlocked >= newUnlockedCount) {
-    // No new chapters to unlock
     return storyBook;
   }
-  
+
   // Get the hero data for chapter generation
   const hero = await heroDb.findHeroById(storyBook.heroId);
   if (!hero) {
     throw new Error('Hero not found');
   }
-  
+
   // Generate and unlock chapters
   const chapterNumbersToUnlock = [];
   for (let i = currentUnlocked + 1; i <= newUnlockedCount; i++) {
     chapterNumbersToUnlock.push(i);
-    
-    // Generate content for the chapter if it's a placeholder
     await generateAndSaveChapter(storyBookId, hero, '', i);
   }
-  
+
   // Mark the chapters as unlocked
   await chapterDb.unlockChapters(storyBookId, chapterNumbersToUnlock);
-  
+
   // Make sure there's a chapter placeholder for the next chapter
   const nextChapterNumber = newUnlockedCount + 1;
-  if (nextChapterNumber <= storyBook.chapters_total_count) {
+  const nextChapter = await chapterDb.findChapter(storyBookId, nextChapterNumber);
+  if (!nextChapter && nextChapterNumber <= Math.max(storyBook.chapters_total_count, newUnlockedCount)) {
     await generateAndSaveChapter(storyBookId, hero, '', nextChapterNumber);
   }
-  
-  // Ensure initial_chapter_generated_at is set for time tracking
-  const counts = chapterNumbersToUnlock.length + newUnlockedCount;
-  console.log(`{counts} - chapter numbers to unlock and new unlocked count`);
+
+  // Prepare update data
   const updateData = {
-    chapters_unlocked_count: counts,
-    chapters_total_count: counts,
+    chapters_unlocked_count: newUnlockedCount,
+    chapters_total_count: Math.max(storyBook.chapters_total_count, newUnlockedCount),
     updated_at: new Date()
   };
-  
+
   // Set the initial generation date if it's not already set
-  // This is crucial for the daily unlock timer to work correctly
   if (!storyBook.initial_chapter_generated_at) {
     updateData.initial_chapter_generated_at = new Date();
   }
-  
+
   // Update the storybook with the new unlocked count
   const updatedStoryBook = await storyBookDb.updateStoryBook(storyBookId, updateData);
-  
+
   return updatedStoryBook;
 };
 
