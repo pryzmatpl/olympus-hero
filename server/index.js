@@ -282,17 +282,22 @@ app.post('/api/create-payment-intent', async (req, res) => {
     
     console.log(`Creating payment intent (${useTestMode ? 'TEST' : 'LIVE'} mode) for hero: ${heroId}`);
     
-    if (useTestMode && !process.env.STRIPE_TEST_SECRET_KEY && process.env.NODE_ENV !== 'production') {
-      console.warn('No test secret key found, falling back to regular secret key');
-    }
-    
     // Use the appropriate Stripe key based on mode
-    const stripeKey = useTestMode && process.env.STRIPE_TEST_SECRET_KEY 
-      ? process.env.STRIPE_TEST_SECRET_KEY 
-      : process.env.STRIPE_SECRET_KEY;
-      
-    if (!stripeKey) {
-      throw new Error('Stripe secret key is missing');
+    let stripeKey;
+    if (useTestMode) {
+      // In test mode, we must have a test key
+      if (!process.env.STRIPE_TEST_SECRET_KEY) {
+        console.error('No test secret key found but test mode is requested');
+        return res.status(500).json({ error: 'Stripe test key is missing. Check server configuration.' });
+      }
+      stripeKey = process.env.STRIPE_TEST_SECRET_KEY;
+    } else {
+      // In live mode, we must have a live key
+      if (!process.env.STRIPE_SECRET_KEY) {
+        console.error('No live secret key found but live mode is requested');
+        return res.status(500).json({ error: 'Stripe live key is missing. Check server configuration.' });
+      }
+      stripeKey = process.env.STRIPE_SECRET_KEY;
     }
     
     // Create a new Stripe instance with the appropriate key
@@ -312,7 +317,7 @@ app.post('/api/create-payment-intent', async (req, res) => {
       }
     });
 
-    console.log(`Payment intent created successfully: ${paymentIntent.id}`);
+    console.log(`Payment intent created successfully: ${paymentIntent.id} in ${useTestMode ? 'TEST' : 'LIVE'} mode`);
     res.status(200).json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
     console.error('Error creating payment intent:', error);

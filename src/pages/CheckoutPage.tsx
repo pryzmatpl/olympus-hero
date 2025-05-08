@@ -22,7 +22,7 @@ const isDevelopment = import.meta.env.MODE === 'development';
 
 // Choose the appropriate Stripe key based on environment
 const stripeKey = isDevelopment 
-    ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+    ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY 
     : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 // Initialize Stripe with the appropriate key
@@ -33,7 +33,7 @@ const stripePromise = stripeKey
 // Log environment information for debugging (removed in production builds)
 if (isDevelopment) {
     console.log('Running in development mode');
-    console.log('Using Stripe key:', stripeKey ? 'Key available' : 'No key available');
+    console.log('Using Stripe key:', stripeKey ? 'TEST key available' : 'No key available');
 }
 
 // Animation variants
@@ -281,7 +281,7 @@ const CheckoutPage = () => {
                     currency: 'usd',
                     heroId: cleanHeroId,
                     walletAddress: formData.walletAddress || '0x0000000000000000000000000000000000000000',
-                    // Send environment information to backend
+                    // Make sure to clearly indicate test mode
                     is_test: isDevelopment
                 });
 
