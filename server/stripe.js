@@ -22,6 +22,19 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
   
   const tokenId = uuidv4();
   
+  // Check for chapter unlock in metadata
+  const shouldUnlockChapters = 
+    (paymentIntent.unlockChapters === true) || 
+    (paymentIntent.metadata && paymentIntent.metadata.unlockChapters === 'true') || 
+    (paymentIntent.metadata && paymentIntent.metadata.paymentType === 'chapter_unlock');
+  
+  // Get payment type from metadata
+  const paymentType = paymentIntent.metadata && paymentIntent.metadata.paymentType 
+    ? paymentIntent.metadata.paymentType 
+    : 'premium_upgrade';
+  
+  console.log(`Payment type: ${paymentType}, Unlock chapters: ${shouldUnlockChapters}`);
+  
   // Create the NFT object
   const nft = {
     id: tokenId,
@@ -31,7 +44,8 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
       paymentId: paymentIntent.id,
       amount: paymentIntent.amount,
       currency: paymentIntent.currency,
-      status: 'confirmed'
+      status: 'confirmed',
+      paymentType: paymentType
     },
     tokenURI: `/nft/${tokenId}`,
     ownerAddress: paymentIntent.walletAddress || '0x0000000000000000000000000000000000000000'
@@ -53,7 +67,8 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
     const storyBook = await getOrCreateStoryBook(heroId, true, hero.backstory.substring(0, 100));
     
     // Unlock chapters if specified in the payment intent
-    if (paymentIntent.unlockChapters) {
+    if (shouldUnlockChapters) {
+      console.log(`Unlocking chapters for storybook: ${storyBook.id}`);
       await unlockChapters(storyBook.id, 10);
     }
     

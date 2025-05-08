@@ -273,14 +273,14 @@ app.post('/api/process-payment', async (req, res) => {
 
 // Alternative: Endpoint to create Payment Intent
 app.post('/api/create-payment-intent', async (req, res) => {
-  const { amount, currency, heroId, walletAddress, is_test } = req.body;
+  const { amount, currency, heroId, walletAddress, is_test, unlockChapters, paymentType } = req.body;
 
   try {
     // Determine if we should use test mode
     // is_test from frontend OR we're in development mode on the server
     const useTestMode = is_test || process.env.NODE_ENV !== 'production';
     
-    console.log(`Creating payment intent (${useTestMode ? 'TEST' : 'LIVE'} mode) for hero: ${heroId}`);
+    console.log(`Creating payment intent (${useTestMode ? 'TEST' : 'LIVE'} mode) for hero: ${heroId}, type: ${paymentType}`);
     
     // Use the appropriate Stripe key based on mode
     let stripeKey;
@@ -309,6 +309,8 @@ app.post('/api/create-payment-intent', async (req, res) => {
       metadata: { 
         heroId, 
         walletAddress,
+        unlockChapters: unlockChapters ? 'true' : 'false',
+        paymentType: paymentType || 'premium_upgrade',
         is_test: useTestMode ? 'true' : 'false' 
       },
       automatic_payment_methods: {
@@ -342,9 +344,23 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
 
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object;
-    const { heroId, walletAddress } = paymentIntent.metadata;
-
-    await processPaymentAndCreateNFT(heroId, paymentIntent)
+    console.log('Payment intent succeeded:', paymentIntent.id);
+    
+    // Extract hero ID from metadata
+    const { heroId } = paymentIntent.metadata;
+    
+    if (!heroId) {
+      console.error('Missing heroId in payment intent metadata');
+      return res.status(400).json({ error: 'Missing heroId in payment intent metadata' });
+    }
+    
+    try {
+      // Process the payment and create NFT
+      await processPaymentAndCreateNFT(heroId, paymentIntent);
+      console.log(`Payment processed for hero: ${heroId}`);
+    } catch (error) {
+      console.error('Error processing payment webhook:', error);
+    }
   }
 
   res.json({ received: true });
@@ -1014,6 +1030,35 @@ app.post('/api/admin/unlock-daily-chapters', async (req, res) => {
   } catch (error) {
     console.error('Error unlocking daily chapters:', error);
     return res.status(500).json({ error: 'Failed to unlock daily chapters' });
+  }
+});
+
+// Direct chapter unlock after payment
+app.post('/api/storybook/:heroId/unlock-after-payment', async (req, res) => {
+  try {
+    const { heroId } = req.params;
+    
+    // Find the storybook
+    const storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
+    if (!storyBook) {
+      return res.status(404).json({ error: 'Storybook not found' });
+    }
+    
+    // Unlock 10 chapters
+    await unlockChapters(storyBook.id, 10);
+    
+    // Get updated storybook and chapters
+    const updatedStoryBook = await storyBookDb.findStoryBookById(storyBook.id);
+    const chapters = await chapterDb.findChaptersByStoryBookId(storyBook.id);
+    
+    return res.status(200).json({ 
+      message: 'Chapters unlocked successfully',
+      storyBook: updatedStoryBook,
+      chapters
+    });
+  } catch (error) {
+    console.error('Error unlocking chapters after payment:', error);
+    return res.status(500).json({ error: 'Failed to unlock chapters' });
   }
 });
 

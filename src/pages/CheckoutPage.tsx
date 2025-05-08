@@ -44,7 +44,7 @@ const pageVariants = {
 };
 
 // This is the inner form component that uses the Elements context
-const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuccess, onError }) => {
+const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuccess, onError, paymentAmount, paymentTitle, paymentDescription }) => {
     const stripe = useStripe();
     const elements = useElements();
     const [isProcessing, setIsProcessing] = useState(false);
@@ -170,7 +170,7 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
 
             <div className="flex items-center justify-between">
                 <div className="text-xl font-bold">
-                    <span className="text-cosmic-400">$9.99</span>
+                    <span className="text-cosmic-400">${paymentAmount.toFixed(2)}</span>
                     <span className="text-xs text-gray-500 ml-1">USD</span>
                 </div>
 
@@ -180,7 +180,7 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
                     disabled={isProcessing || !stripe || !elements || !paymentElementMounted}
                     className={isProcessing ? 'opacity-75' : ''}
                 >
-                    {isProcessing ? 'Processing...' : 'Upgrade to Premium'}
+                    {isProcessing ? 'Processing...' : paymentDescription}
                 </Button>
             </div>
         </form>
@@ -214,6 +214,18 @@ const CheckoutPage = () => {
     const {token} = useContext(AuthContext);
     const navigate = useNavigate();
 
+    // Get query parameters for payment type and amount
+    const searchParams = new URLSearchParams(window.location.search);
+    const paymentType = searchParams.get('type');
+    const paymentAmount = searchParams.get('amount') ? 
+        parseFloat(searchParams.get('amount')) / 100 : 
+        9.99; // Default amount is $9.99
+    
+    // Payment type information
+    const isChapterUnlock = paymentType === 'chapter_unlock';
+    const paymentTitle = isChapterUnlock ? 'Chapter Unlock' : 'Premium Upgrade';
+    const paymentDescription = isChapterUnlock ? 'Unlock 10 More Chapters' : 'Upgrade to Premium';
+    
     // State
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -277,10 +289,13 @@ const CheckoutPage = () => {
 
                 // 2. Create payment intent to get client secret
                 const paymentResponse = await api.post('/api/create-payment-intent', {
-                    amount: 9.99, // Price in dollars
+                    amount: paymentAmount, // Use the amount from query params or default to 9.99
                     currency: 'usd',
                     heroId: cleanHeroId,
                     walletAddress: formData.walletAddress || '0x0000000000000000000000000000000000000000',
+                    // Pass information about the payment type
+                    unlockChapters: isChapterUnlock,
+                    paymentType: paymentType || 'premium_upgrade',
                     // Make sure to clearly indicate test mode
                     is_test: isDevelopment
                 });
@@ -318,9 +333,20 @@ const CheckoutPage = () => {
         try {
             // Refresh hero data to reflect paid status
             const cleanHeroId = id.replace('preview-', '');
-            const updatedHeroResponse = await api.post(`/api/heroes/setpremium/${cleanHeroId}`);
-            await loadHeroFromAPI(updatedHeroResponse.data);
-            console.log('Hero data updated with paid status');
+            
+            if (isChapterUnlock) {
+                // If this is a chapter unlock payment, just refresh hero data
+                console.log('Processing chapter unlock payment success');
+                const heroResponse = await api.get(`/api/heroes/${cleanHeroId}`);
+                await loadHeroFromAPI(heroResponse.data);
+            } else {
+                // For premium upgrades, set premium status
+                console.log('Processing premium upgrade payment success');
+                const updatedHeroResponse = await api.post(`/api/heroes/setpremium/${cleanHeroId}`);
+                await loadHeroFromAPI(updatedHeroResponse.data);
+            }
+            
+            console.log('Hero data updated after payment');
 
             // Redirect after a short delay
             setTimeout(() => {
@@ -349,7 +375,7 @@ const CheckoutPage = () => {
             >
                 <div className="max-w-2xl mx-auto">
                     <div className="flex items-center justify-between mb-6">
-                        <PageTitle>Checkout</PageTitle>
+                        <PageTitle>{paymentTitle}</PageTitle>
                         <Button variant="ghost" icon={<X size={16}/>} onClick={() => navigate(-1)}>
                             Cancel
                         </Button>
@@ -374,7 +400,7 @@ const CheckoutPage = () => {
             >
                 <div className="max-w-2xl mx-auto">
                     <div className="flex items-center justify-between mb-6">
-                        <PageTitle>Checkout</PageTitle>
+                        <PageTitle>{paymentTitle}</PageTitle>
                     </div>
                     <div className="mt-8 bg-green-900/20 border border-green-800 rounded-xl p-6 text-center">
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-green-900/30 rounded-full mb-4">
@@ -384,7 +410,9 @@ const CheckoutPage = () => {
                             Payment Successful!
                         </h2>
                         <p className="text-green-300 mb-4">
-                            Your hero has been upgraded to premium status!
+                            {isChapterUnlock 
+                                ? "10 more chapters have been unlocked for your hero!" 
+                                : "Your hero has been upgraded to premium status!"}
                         </p>
                         <Button onClick={() => navigate(`/hero/${id?.replace('preview-', '')}`)}>
                             Return to Hero
@@ -405,81 +433,45 @@ const CheckoutPage = () => {
         >
             <div className="max-w-2xl mx-auto">
                 <div className="flex items-center justify-between mb-6">
-                    <PageTitle>Checkout</PageTitle>
+                    <PageTitle>{paymentTitle}</PageTitle>
                     <Button variant="ghost" icon={<X size={16}/>} onClick={() => navigate(-1)}>
                         Cancel
                     </Button>
                 </div>
 
-                {error && !clientSecret && (
-                    <div className="mt-8 bg-red-900/20 border border-red-800 rounded-xl p-6 text-center">
-                        <AlertTriangle size={32} className="mx-auto text-red-400 mb-4" />
-                        <h2 className="text-xl font-bold text-red-400 mb-2">Checkout Error</h2>
-                        <p className="text-red-300 mb-4">{error}</p>
-                        <Button onClick={() => navigate(-1)}>Go Back</Button>
+                {error && (
+                    <div className="bg-red-900/20 border border-red-800 rounded-xl p-6 mb-8 flex items-start gap-4">
+                        <AlertTriangle className="text-red-400 flex-shrink-0 mt-1" size={24}/>
+                        <div>
+                            <h3 className="text-lg font-semibold text-red-400 mb-2">Error</h3>
+                            <p className="text-red-300">{error}</p>
+                        </div>
                     </div>
                 )}
 
-                {clientSecret ? (
-                    <div className="mt-8 bg-mystic-900/60 border border-mystic-700 rounded-xl p-6">
-                        <div className="mb-6">
-                            <h2 className="text-2xl font-bold mb-2">Upgrade to Premium</h2>
-                            <p className="text-gray-400">
-                                Upgrade your hero to unlock all features including shared story creation.
-                            </p>
-                        </div>
-
-                        {heroName && (
-                            <div className="mb-6 flex items-center gap-4 p-4 bg-mystic-800/50 rounded-lg">
-                                <div className="w-16 h-16 rounded-full overflow-hidden bg-mystic-700">
-                                    {images && images.length > 0 ? (
+                {!error && !isLoading && clientSecret ? (
+                    <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
+                        <div className="mb-8">
+                            <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-6">
+                                {/* Hero image thumbnail if available */}
+                                {images?.thumbnail && (
+                                    <div className="w-20 h-20 rounded-lg overflow-hidden bg-mystic-900 flex-shrink-0">
                                         <img
-                                            src={images[0]?.url}
-                                            alt={heroName}
+                                            src={images.thumbnail}
+                                            alt={heroName || 'Hero'}
                                             className="w-full h-full object-cover"
                                         />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-500">
-                                            <span>No Image</span>
-                                        </div>
-                                    )}
-                                </div>
+                                    </div>
+                                )}
                                 <div>
-                                    <h3 className="text-lg font-semibold">{heroName}</h3>
-                                    <p className="text-cosmic-400">Upgrading to Premium Hero</p>
+                                    <h2 className="text-xl font-semibold mb-1">{paymentDescription}</h2>
+                                    <p className="text-cosmic-400">
+                                        {isChapterUnlock 
+                                            ? "Unlock 10 more chapters of your hero's story." 
+                                            : "Upgrade your hero to premium quality and unlock additional features."}
+                                    </p>
                                 </div>
                             </div>
-                        )}
-
-                        <div className="mb-4">
-                            <label htmlFor="email" className="block text-sm font-medium mb-1">
-                                Email
-                            </label>
-                            <input
-                                id="email"
-                                name="email"
-                                type="email"
-                                value={formData.email}
-                                onChange={handleInputChange}
-                                placeholder="your@email.com"
-                                className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                                required
-                            />
-                        </div>
-
-                        <div className="mb-4">
-                            <label htmlFor="walletAddress" className="block text-sm font-medium mb-1">
-                                Wallet Address (optional)
-                            </label>
-                            <input
-                                id="walletAddress"
-                                name="walletAddress"
-                                type="text"
-                                value={formData.walletAddress}
-                                onChange={handleInputChange}
-                                placeholder="0x..."
-                                className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                            />
                         </div>
 
                         {stripeReady ? (
@@ -494,6 +486,9 @@ const CheckoutPage = () => {
                                     walletAddress={formData.walletAddress}
                                     onSuccess={handlePaymentSuccess}
                                     onError={handlePaymentError}
+                                    paymentAmount={paymentAmount}
+                                    paymentTitle={paymentTitle}
+                                    paymentDescription={paymentDescription}
                                 />
                             </Elements>
                         ) : (
