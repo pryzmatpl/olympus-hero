@@ -123,6 +123,24 @@ export const heroDb = {
     return this.findHeroById(heroId);
   },
 
+  // Update a hero
+  async addStoryQuota(heroId, update) {
+    const db = await connectDB();
+    let story = db.collection('storybooks').findOne({ heroid: heroId });
+    const storyId = story['id'];
+    const totalCount = story['chatpers_total_count'];
+
+    story['chatpers_total_count'] = totalCount + 10;
+
+    await db.collection('storybooks').updateOne(
+        { heroid: heroId },
+        { id: storyId },
+        { $set: story }
+    );
+    return this.findHeroById(heroId);
+  },
+
+
   // Upgrade a hero to premium
   async upgradeHero(heroId, update) {
     const db = await connectDB();

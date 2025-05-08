@@ -506,6 +506,30 @@ app.post('/api/heroes/setpremium/:id', authMiddleware, async (req, res) => {
   return res.json(updatedHero);
 });
 
+app.post('/api/heroes/unlockstory/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.userId;
+
+  if (typeof userId !== 'string') {
+    return res.status(400).json({ error: 'Share check' });
+  }
+
+  const hero = await heroDb.findHeroById(id);
+
+  if (!hero) {
+    return res.status(404).json({ error: 'Hero not found' });
+  }
+
+  // Check if the user owns this hero
+  if (hero.userid !== userId) {
+    return res.status(403).json({ error: 'You do not have permission to view this hero' });
+  }
+
+  const updatedHero = await heroDb.addStoryQuota(id);
+
+  return res.json(updatedHero);
+});
+
 // Generate hero images and backstory
 app.post('/api/heroes/generate/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;

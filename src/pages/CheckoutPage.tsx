@@ -337,7 +337,7 @@ const CheckoutPage = () => {
             if (isChapterUnlock) {
                 // If this is a chapter unlock payment, just refresh hero data
                 console.log('Processing chapter unlock payment success');
-                const heroResponse = await api.get(`/api/heroes/${cleanHeroId}`);
+                const heroResponse = await api.get(`/api/heroes/unlockstory/${cleanHeroId}`);
                 await loadHeroFromAPI(heroResponse.data);
             } else {
                 // For premium upgrades, set premium status
