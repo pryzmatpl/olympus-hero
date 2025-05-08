@@ -248,7 +248,7 @@ export const chapterDb = {
         storyBookId, 
         chapter_number: { $in: chapterNumbers } 
       },
-      { $set: { is_unlocked: true } }
+      { $set: { is_unlocked: true, is_premium: true, chapters_total_count: chapterNumbers } }
     );
     return this.getChaptersByStoryBookId(storyBookId);
   }
