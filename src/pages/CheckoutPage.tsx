@@ -326,8 +326,8 @@ const CheckoutPage = () => {
             // Update local state
             setPaymentStatus('paid');
             
-            // Fetch updated storybook
-            fetchStorybook(effectiveHeroId);
+            // Fetch updated storybook - using the properly renamed function
+            storybookFetch(effectiveHeroId);
             
             // Navigate back to hero page with success message
             navigate(`/hero/${effectiveHeroId}?payment=success`);
