@@ -9,7 +9,7 @@ import { generateOpenAIImages, generateBackstory } from './openai.js';
 import { registerUser, loginUser, authMiddleware, getUserById, addHeroToUser } from './auth.js';
 import { processPaymentAndCreateNFT, getNFTById, getNFTsByHeroId } from './stripe.js';
 import { createSharedLink, accessSharedHero, getSharedLinksByUser, deactivateSharedLink } from './share.js';
-import { initializeDB, heroDb } from './db.js';
+import { initializeDB, heroDb, storyBookDb } from './db.js';
 import { ensureStorageDirectories, createHeroZip } from './utils.js';
 import { 
   createSharedStoryRoom, 
@@ -956,7 +956,7 @@ app.post('/api/heroes/:heroId/set-premium', authMiddleware, async (req, res) => 
 // Hook payment processing to unlock chapters
 app.post('/api/webhook/payment-success', async (req, res) => {
   try {
-    const { heroId, unlockChapters, paymentIntent } = req.body;
+    const { heroId, shouldUnlockChapters, paymentIntent } = req.body;
     
     // Validate the webhook signature (simplified - implement proper validation)
     // This would normally check digital signatures, etc.
@@ -967,7 +967,7 @@ app.post('/api/webhook/payment-success', async (req, res) => {
     // Get the storybook
     const storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
     
-    if (storyBook && unlockChapters) {
+    if (storyBook && shouldUnlockChapters) {
       // Unlock 10 more chapters
       await unlockChapters(storyBook.id, 10);
     }
