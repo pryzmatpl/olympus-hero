@@ -82,7 +82,7 @@ app.use((req, res, next) => {
 
 // Main CORS middleware
 app.use(cors({
-  origin: ['http://localhost:9001', 'http://127.0.0.1:9001'],
+  origin: ['http://localhost:9001', 'http://127.0.0.1:9001', 'https://mythicalhero.me', 'http://mythicalhero.me'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
