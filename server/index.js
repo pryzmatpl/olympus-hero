@@ -485,7 +485,7 @@ app.post('/api/heroes/setpremium/:id', authMiddleware, async (req, res) => {
     return res.status(403).json({ error: 'You do not have permission to view this hero' });
   }
 
-  const updatedHero = await heroDb.upgradeHero(hero['id']);
+  const updatedHero = await heroDb.upgradeHero(id);
 
   return res.json(updatedHero);
 });
