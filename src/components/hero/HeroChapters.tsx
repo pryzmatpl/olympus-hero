@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Book, Lock, Clock, CreditCard } from 'lucide-react';
 import Button from '../ui/Button';
-import { useHeroStore } from '../../store/heroStore';
+import { useHeroStore, useStoryStore } from '../../store/heroStore';
 import { formatMarkdown } from '../../utils/markdownHelper';
 import api from '../../utils/api';
 
@@ -21,7 +21,15 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     setChapters,
     setStoryBook 
   } = useHeroStore();
-  
+
+  const {
+    chapters_unlocked_count,
+    setChaptersUnlockedCount,
+    is_premium,
+    setIsPremium,
+  } = useStoryStore()
+
+
   const navigate = useNavigate();
   const [activeChapter, setActiveChapter] = useState<number>(1);
   const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
@@ -56,7 +64,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
   const handleUnlockBundle = async () => {
     if (!storyBook || isUnlocking) return;
     
-    if (!isPaid) {
+    if (!isPremium) {
       // Redirect to checkout page if not paid
       navigate(`/checkout/${heroId}?type=chapter_unlock&amount=1499`);
       return;
@@ -66,7 +74,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     
     try {
       // Call API to unlock chapters
-      const response = await api.post(`/api/storybook/${storyBook.id}/unlock`, { count: 10 });
+      const response = await api.post(`/api/storybook/${storyBook.id}`, { count: 10 });
       
       // Update store with new data
       setStoryBook(response.data.storyBook);

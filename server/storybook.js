@@ -215,6 +215,8 @@ export const unlockChapters = async (storyBookId, chaptersToUnlock = DEFAULT_UNL
   
   // Mark the chapters as unlocked
   await chapterDb.unlockChapters(storyBookId, chapterNumbersToUnlock);
+  const currentChapters = storyBook.chapters_unlocked_count;
+  await generateAndSaveChapter(storyBookId, hero, currentChapters+1);
   
   // Update the storybook with the new unlocked count
   const updatedStoryBook = await storyBookDb.updateStoryBook(storyBookId, {

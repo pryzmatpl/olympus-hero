@@ -2,7 +2,7 @@ import React, {useState, useEffect, useContext} from 'react';
 import {useParams, useNavigate, Link} from 'react-router-dom';
 import {motion} from 'framer-motion';
 import {AuthContext} from '../App';
-import {useHeroStore} from '../store/heroStore';
+import {useHeroStore, useStoryStore} from '../store/heroStore';
 import Button from '../components/ui/Button';
 import PageTitle from '../components/ui/PageTitle';
 import {CreditCard, Lock, Shield, X, Check, AlertTriangle} from 'lucide-react';
@@ -211,6 +211,7 @@ const stripeElementsOptions = (clientSecret) => ({
 const CheckoutPage = () => {
     const {id} = useParams<{ id: string }>();
     const {heroName, images, status, loadHeroFromAPI} = useHeroStore();
+    const { loadStoryFromAPI } = useStoryStore();
     const {token} = useContext(AuthContext);
     const navigate = useNavigate();
 
@@ -337,8 +338,8 @@ const CheckoutPage = () => {
             if (isChapterUnlock) {
                 // If this is a chapter unlock payment, just refresh hero data
                 console.log('Processing chapter unlock payment success');
-                const heroResponse = await api.get(`/api/heroes/unlockstory/${cleanHeroId}`);
-                await loadHeroFromAPI(heroResponse.data);
+                const storyResponse = await api.post(`/api/heroes/unlockstory/${cleanHeroId}`);
+                await loadStoryFromAPI(storyResponse.data);
             } else {
                 // For premium upgrades, set premium status
                 console.log('Processing premium upgrade payment success');
