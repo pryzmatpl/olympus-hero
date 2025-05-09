@@ -12,6 +12,7 @@
     "server:dev": "nodemon server/index.js --port 9002",
     "start": "concurrently \"npm run dev\" \"npm run server\"",
     "migrate-passwords": "node server/index.js --migrate-passwords",
+    "migrate-passwords-standalone": "node server/runMigration.js",
     "test-bcrypt": "node server/testBcrypt.js"
   },
   "dependencies": {
