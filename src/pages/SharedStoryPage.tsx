@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
+vimport React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
@@ -319,6 +319,7 @@ const SharedStoryPage: React.FC = () => {
       reconnection: true,
       timeout: 20000, // Increase timeout to avoid premature disconnections
       secure: true, // Prefer HTTPS connections
+      transports: ['websocket', 'polling'],
     });
     
     socketRef.current = socketIo;

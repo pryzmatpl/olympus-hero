@@ -131,7 +131,7 @@ async function startServer() {
     // Configure Socket.IO to work with HTTPS
     const io = new Server(httpServer, {
       cors: {
-        origin: ['https://mythicalhero.me', 'http://mythicalhero.me', 'http://localhost:9001', 'http://127.0.0.1:9001'],
+        origin: process.env.NODE_ENV === 'production' ? ['https://mythicalhero.me'] : ['https://mythicalhero.me', 'http://mythicalhero.me', 'http://localhost:9001', 'http://127.0.0.1:9001'],
         methods: ['GET', 'POST'],
         credentials: true
       },
@@ -157,7 +157,7 @@ async function startServer() {
       // For preflight requests
       if (req.method === 'OPTIONS') {
         console.log('Handling OPTIONS preflight request');
-        res.header('Access-Control-Allow-Origin', 'https://mythicalhero.me');
+        res.header('Access-Control-Allow-Origin', protocol === 'https' ? 'https://mythicalhero.me' : 'http://localhost:9001');
         res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
         res.header('Access-Control-Allow-Credentials', 'true');
