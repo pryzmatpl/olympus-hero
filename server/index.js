@@ -35,6 +35,22 @@ import stripe from 'stripe';
 // Load environment variables
 dotenv.config();
 
+// Check if migration mode is requested
+const args = process.argv.slice(2);
+if (args.includes('--migrate-passwords')) {
+  console.log('Running password migration script...');
+  import('./migratePlaintextPasswords.js')
+    .then(() => {
+      console.log('Migration script loaded.');
+    })
+    .catch(err => {
+      console.error('Error loading migration script:', err);
+      process.exit(1);
+    });
+  // Don't continue with normal server startup
+  return;
+}
+
 // Verify critical environment variables
 const requiredEnvVars = ['OPENAI_API_KEY', 'JWT_SECRET'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
