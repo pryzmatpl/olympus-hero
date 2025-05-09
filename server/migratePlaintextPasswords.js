@@ -39,9 +39,11 @@ const migratePasswords = async () => {
     console.log(`Migration complete! ${migratedCount} passwords were migrated to bcrypt hashes.`);
   } catch (error) {
     console.error('Error during password migration:', error);
-  } finally {
-    process.exit(0);
+    process.exit(1); // Exit with error code
   }
+  
+  // Always exit the process when done
+  process.exit(0);
 };
 
 // Run the migration
