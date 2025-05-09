@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNotification } from '../context/NotificationContext';
-import { apiEvents, API_ERROR_EVENTS } from '../utils/api';
+import { apiEvents, API_ERROR_EVENTS, getSocketUrl } from '../utils/api';
 import { io } from 'socket.io-client';
 
 /**
@@ -33,14 +33,16 @@ const ApiErrorHandler: React.FC = () => {
 
   // Listen for socket.io errors related to OpenAI quota
   useEffect(() => {
-    // Get the server URL from the environment or use a default
-    const serverUrl = import.meta.env.VITE_APP_SERVER_URL || 'http://localhost:9002';
+    // Get the server URL using secure socket helper
+    const serverUrl = getSocketUrl();
     
     // Initialize socket with the server URL
     const socketIo = io(serverUrl, {
       withCredentials: true, // Enable if your server requires credentials
       autoConnect: true,
       reconnection: true,
+      // Add secure parameter to prefer HTTPS
+      secure: true
     });
 
     // Listen for API errors from socket.io

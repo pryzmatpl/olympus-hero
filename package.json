@@ -13,7 +13,8 @@
     "start": "concurrently \"npm run dev\" \"npm run server\"",
     "migrate-passwords": "node server/index.js --migrate-passwords",
     "migrate-passwords-standalone": "node server/runMigration.js",
-    "test-bcrypt": "node server/testBcrypt.js"
+    "test-bcrypt": "node server/testBcrypt.js",
+    "health-check": "node server/health-check.js"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.7.0",

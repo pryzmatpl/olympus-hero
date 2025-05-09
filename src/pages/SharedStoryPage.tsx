@@ -10,6 +10,7 @@ import PageTitle from '../components/ui/PageTitle';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
 import { Plus, Send, Share2, User, Users, ArrowLeft, Copy, Sparkles, Sun, Moon, Star, Loader2 } from 'lucide-react';
+import { getSocketUrl } from '../utils/api';
 
 // Animation variants
 const pageVariants = {
@@ -308,8 +309,8 @@ const SharedStoryPage: React.FC = () => {
       return;
     }
     
-    // Get the server URL from the API base URL or environment variable
-    const serverUrl = api.defaults.baseURL || import.meta.env.VITE_APP_SERVER_URL || 'http://localhost:9002';
+    // Get the server URL from our secure socket helper
+    const serverUrl = getSocketUrl();
     
     // Connect to socket with proper configuration
     const socketIo = io(serverUrl, {
@@ -317,6 +318,7 @@ const SharedStoryPage: React.FC = () => {
       autoConnect: true,
       reconnection: true,
       timeout: 20000, // Increase timeout to avoid premature disconnections
+      secure: true, // Prefer HTTPS connections
     });
     
     socketRef.current = socketIo;

@@ -50,6 +50,18 @@ if (isProduction) {
   baseApiUrl = import.meta.env.VITE_APP_SERVER_URL ?? 'http://localhost:9002';
 }
 
+// Socket.io URL helper - explicitly use HTTPS in production
+export const getSocketUrl = (): string => {
+  if (isProduction) {
+    // In production, use the same host with HTTPS protocol
+    const host = window.location.host;
+    return `https://${host}`;
+  } else {
+    // In development, use the same base URL as the API
+    return baseApiUrl;
+  }
+};
+
 // Create a custom axios instance
 const api = axios.create({
   baseURL: baseApiUrl,
