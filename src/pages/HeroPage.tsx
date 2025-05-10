@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users } from 'lucide-react';
 import Button from '../components/ui/Button';
@@ -11,6 +11,7 @@ import ZodiacInfo from '../components/hero/ZodiacInfo';
 import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
+import { useNotification } from '../context/NotificationContext';
 
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,8 @@ const HeroPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { showNotification } = useNotification();
   
   // Get hero data from the store
   const { 
@@ -35,6 +38,39 @@ const HeroPage: React.FC = () => {
     setIsLoadingChapters,
     isLoadingChapters
   } = useHeroStore();
+  
+  // Check for payment success and chapter purchase
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const paymentStatus = searchParams.get('payment');
+    const paymentType = searchParams.get('type');
+    
+    if (paymentStatus === 'success') {
+      if (paymentType === 'chapters') {
+        // Show specific message for chapter purchase
+        showNotification(
+          'success',
+          'Chapters Purchase Successful',
+          'Your chapters will become available soon. The cosmic energies are aligning to craft your continued journey.',
+          true,
+          6000
+        );
+      } else {
+        // General success message for other purchases
+        showNotification(
+          'success',
+          'Purchase Successful',
+          'Your purchase was completed successfully!',
+          true,
+          4000
+        );
+      }
+      
+      // Clean up the URL to prevent showing notification on refresh
+      const newUrl = location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, [location, showNotification]);
   
   useEffect(() => {
     const fetchHero = async () => {

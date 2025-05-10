@@ -17,6 +17,7 @@ import {
     AddressElement,
 } from '@stripe/react-stripe-js';
 import QuotaStatusCheck from '../components/QuotaStatusCheck';
+import axios from 'axios';
 
 // Determine if we're in development mode
 const isDevelopment = import.meta.env.MODE === 'development';
@@ -212,8 +213,7 @@ const stripeElementsOptions = (clientSecret) => ({
 const CheckoutPage = () => {
     const { id } = useParams();
     const { token, user } = useContext(AuthContext);
-    const { heroId, heroName, images, setPaymentStatus, fetchStorybook } = useHeroStore();
-    const { fetchStorybook: storybookFetch } = useStoryStore();
+    const { heroId, heroName, images, setPaymentStatus } = useHeroStore();
     const navigate = useNavigate();
     
     // State variables
@@ -313,27 +313,74 @@ const CheckoutPage = () => {
     // Handle successful payment
     const handlePaymentSuccess = async (paymentIntent) => {
         console.log("Payment successful:", paymentIntent);
+        let navigationTimeout = null;
         
         try {
+            // Set a safety timeout to ensure navigation happens even if API calls hang
+            navigationTimeout = setTimeout(() => {
+                console.log("Navigation timeout triggered - ensuring redirect happens");
+                navigate(`/hero/${effectiveHeroId}?payment=success${isUnlockingChapters ? '&type=chapters' : ''}`);
+            }, 5000); // 5 second safety timeout
+            
             // Update hero payment status
             await api.post(`/api/heroes/setpremium/${effectiveHeroId}`);
             
-            // If unlocking chapters, make additional API call
-            if (isUnlockingChapters) {
-                await api.post(`/api/storybook/${effectiveHeroId}/unlock-after-payment`);
-            }
-            
-            // Update local state
+            // Update local state immediately
             setPaymentStatus('paid');
             
-            // Fetch updated storybook - using the properly renamed function
-            storybookFetch(effectiveHeroId);
+            // If unlocking chapters, make additional API call with timeout protection
+            if (isUnlockingChapters) {
+                try {
+                    // Create a specialized API instance with shorter timeout for this critical call
+                    const fastApi = axios.create({
+                        baseURL: api.defaults.baseURL,
+                        headers: api.defaults.headers,
+                        timeout: 3000 // 3 seconds timeout
+                    });
+                    
+                    // Add authorization header
+                    const authToken = localStorage.getItem('authToken');
+                    if (authToken) {
+                        fastApi.defaults.headers.Authorization = `Bearer ${authToken}`;
+                    }
+                    
+                    // Make the API call with the specialized instance
+                    await fastApi.post(`/api/storybook/${effectiveHeroId}/unlock-after-payment`);
+                    console.log("Successfully unlocked chapters after payment");
+                } catch (unlockError) {
+                    console.error("Error or timeout unlocking chapters:", unlockError);
+                    // Continue execution even if this fails
+                }
+            }
             
-            // Navigate back to hero page with success message
-            navigate(`/hero/${effectiveHeroId}?payment=success`);
+            // Fetch updated storybook using the store's function directly
+            try {
+                // Use a non-blocking approach to fetch the storybook data
+                setTimeout(() => {
+                    try {
+                        console.log("Fetching storybook data after payment");
+                        useStoryStore.getState().fetchStorybook(effectiveHeroId);
+                    } catch (fetchError) {
+                        console.error("Error in delayed storybook fetch:", fetchError);
+                    }
+                }, 0);
+            } catch (fetchError) {
+                console.error("Error setting up storybook fetch:", fetchError);
+                // Continue with navigation even if storybook fetch fails
+            }
         } catch (err) {
             console.error("Error handling successful payment:", err);
             setError("Payment was successful, but we encountered an error updating your hero. Please refresh the page.");
+        } finally {
+            // Clear the navigation timeout since we're navigating normally
+            if (navigationTimeout) {
+                clearTimeout(navigationTimeout);
+                navigationTimeout = null;
+            }
+            
+            // Always navigate back to hero page with success message and payment type
+            // This ensures navigation happens regardless of any errors in the process
+            navigate(`/hero/${effectiveHeroId}?payment=success${isUnlockingChapters ? '&type=chapters' : ''}`);
         }
     };
 

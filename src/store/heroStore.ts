@@ -88,6 +88,7 @@ export const useStoryStore = create<StoryState>((set) => ({
     if (!heroId || heroId.startsWith('preview-')) return;
     
     try {
+      console.log(`StoryStore: Fetching storybook for hero ${heroId}`);
       const response = await api.get(`/api/heroes/${heroId}/storybook`);
       
       // Set storyBook in the StoryStore
@@ -97,16 +98,24 @@ export const useStoryStore = create<StoryState>((set) => ({
       
       // Update the chapters in the HeroStore using setTimeout to avoid circular dependency
       if (response.data.chapters) {
-        setTimeout(() => {
-          useHeroStore.setState({
-            chapters: response.data.chapters,
-            storyBook: response.data.storyBook
-          });
-        }, 0);
+        try {
+          setTimeout(() => {
+            console.log(`StoryStore: Updating chapters in HeroStore for hero ${heroId}`);
+            useHeroStore.setState({
+              chapters: response.data.chapters,
+              storyBook: response.data.storyBook
+            });
+          }, 0);
+        } catch (updateError) {
+          console.error('Error updating hero store with chapters:', updateError);
+        }
       }
+      
+      return response.data;
     } catch (error) {
-      console.error('Error fetching storybook:', error);
+      console.error(`Error fetching storybook for hero ${heroId}:`, error);
       // Don't set an error state, just quietly fail as this is an enhancement
+      return null;
     }
   }
 }));
