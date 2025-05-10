@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ZodiacInfo } from '../hooks/useZodiac';
+import api from '../utils/api';
 
 interface Chapter {
   id: string;
@@ -36,6 +37,7 @@ interface StoryState {
   setUpdatedAt: (date: string) => void;
   resetStory: () => void;
   loadStoryFromAPI: (storyData: any) => void;
+  fetchStorybook: (heroId: string) => Promise<void>;
 }
 
 export const useStoryStore = create<StoryState>((set) => ({
@@ -82,6 +84,31 @@ export const useStoryStore = create<StoryState>((set) => ({
       updated_at: storyData.updatedAt || '',
     },
   }),
+  fetchStorybook: async (heroId) => {
+    if (!heroId || heroId.startsWith('preview-')) return;
+    
+    try {
+      const response = await api.get(`/api/heroes/${heroId}/storybook`);
+      
+      // Set storyBook in the StoryStore
+      set(state => ({
+        storyBook: response.data.storyBook || null
+      }));
+      
+      // Update the chapters in the HeroStore using setTimeout to avoid circular dependency
+      if (response.data.chapters) {
+        setTimeout(() => {
+          useHeroStore.setState({
+            chapters: response.data.chapters,
+            storyBook: response.data.storyBook
+          });
+        }, 0);
+      }
+    } catch (error) {
+      console.error('Error fetching storybook:', error);
+      // Don't set an error state, just quietly fail as this is an enhancement
+    }
+  }
 }));
 
 interface HeroState {

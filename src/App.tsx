@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/layout/Header';
@@ -23,7 +23,7 @@ import ZodiacGuidePage from './pages/ZodiacGuidePage';
 import NFTBasicsPage from './pages/NFTBasicsPage';
 import FAQsPage from './pages/FAQsPage';
 import SupportPage from './pages/SupportPage';
-import { NotificationProvider } from './context/NotificationContext';
+import { NotificationProvider, useNotification } from './context/NotificationContext';
 import ApiErrorHandler from './components/ApiErrorHandler';
 
 // Create auth context
@@ -65,9 +65,16 @@ function App() {
     const storedUser = localStorage.getItem('user');
     
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-      setIsAuthenticated(true);
+      try {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        // Clear invalid stored data
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+      }
     }
   }, []);
   
@@ -78,14 +85,19 @@ function App() {
     setToken(token);
     setUser(user);
     setIsAuthenticated(true);
+    // Login success notification will be handled in the LoginPage component
   };
   
   const logout = () => {
+    const userName = user?.name || 'Hero';
+    
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
+    
+    // Logout notification will be shown by the component that calls logout
   };
   
   const authContextValue = {
@@ -97,8 +109,8 @@ function App() {
   };
 
   return (
-    <AuthContext.Provider value={authContextValue}>
-      <NotificationProvider>
+    <NotificationProvider>
+      <AuthContext.Provider value={authContextValue}>
         <ApiErrorHandler />
         <Router>
           <div className="flex flex-col min-h-screen bg-gradient-to-b from-mystic-900 to-mystic-800 text-white relative overflow-hidden">
@@ -184,8 +196,8 @@ function App() {
             <Footer />
           </div>
         </Router>
-      </NotificationProvider>
-    </AuthContext.Provider>
+      </AuthContext.Provider>
+    </NotificationProvider>
   );
 }
 

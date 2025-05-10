@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Menu, X, Sparkles, LogOut, User, Users } from 'lucide-react';
 import { AuthContext } from '../../App';
+import { useNotification } from '../../context/NotificationContext';
 
 const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -10,6 +11,7 @@ const Header: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useContext(AuthContext);
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,8 +27,18 @@ const Header: React.FC = () => {
   }, [location]);
 
   const handleLogout = () => {
+    const userName = user?.name || 'Hero';
     logout();
     navigate('/');
+    
+    // Show logout notification
+    showNotification(
+      'info',
+      'Logged Out',
+      `Goodbye, ${userName}. Your cosmic journey awaits your return!`,
+      true,
+      3000
+    );
   };
 
   return (

@@ -1,9 +1,10 @@
-import React, { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useContext, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../utils/api';
 import { AuthContext } from '../App';
 import PageTitle from '../components/ui/PageTitle';
+import { useNotification } from '../context/NotificationContext';
 
 const pageVariants = {
   initial: { opacity: 0 },
@@ -17,8 +18,19 @@ const LoginPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
-  const { login } = useContext(AuthContext);
+  const { login, isAuthenticated } = useContext(AuthContext);
+  const { showNotification } = useNotification();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Redirect to home or previous page if already authenticated
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,11 +54,41 @@ const LoginPage = () => {
       // Store the token and user data
       login(token, user);
       
-      // Redirect to home
-      navigate('/');
+      // Show success notification
+      showNotification(
+        'success',
+        'Login Successful',
+        `Welcome back, ${user.name || 'Hero'}!`,
+        true,
+        3000
+      );
+      
+      // Redirect to home or intended page
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.response?.data?.error || 'Login failed. Please try again.');
+      
+      // Clear any previous error
+      setError(null);
+      
+      // Handle different error scenarios
+      if (err.response) {
+        // The request was made and the server responded with an error status
+        if (err.response.status === 401) {
+          setError('Invalid email or password. Please try again.');
+        } else if (err.response.data?.error) {
+          setError(err.response.data.error);
+        } else {
+          setError('Login failed. Please try again.');
+        }
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError('No response from server. Please check your connection and try again.');
+      } else {
+        // Something happened in setting up the request
+        setError('Login request failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -82,6 +124,7 @@ const LoginPage = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
+                autoComplete="email"
               />
             </div>
             
@@ -96,6 +139,7 @@ const LoginPage = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
+                autoComplete="current-password"
               />
             </div>
             

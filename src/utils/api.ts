@@ -139,13 +139,25 @@ api.interceptors.response.use(
       error.message = 'Network error. Please check your connection and try again.';
     }
     
-    // Handle unauthorized responses
-    if (error.response && error.response.status === 401) {
-      console.log('Unauthorized request - redirecting to login');
-      // Unauthorized - clear localStorage and redirect to login
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      // Don't redirect to login for login/auth endpoints (avoid loops)
+      const isAuthEndpoint = error.config?.url?.includes('/api/auth/');
+      
+      if (!isAuthEndpoint) {
+        console.log('Unauthorized request - redirecting to login');
+        // Unauthorized - clear localStorage and redirect to login
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      } else {
+        // For auth endpoints, provide more specific error
+        if (!error.response.data?.error) {
+          error.response.data = { 
+            error: 'Authentication failed. Please check your credentials and try again.' 
+          };
+        }
+      }
     }
     
     // Handle OpenAI quota exceeded errors
