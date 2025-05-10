@@ -7,6 +7,7 @@ import { AuthContext } from '../App';
 import { useHeroStore } from '../store/heroStore';
 import Button from '../components/ui/Button';
 import PageTitle from '../components/ui/PageTitle';
+import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
 import { Plus, Send, Share2, User, Users, ArrowLeft, Copy, Sparkles, Sun, Moon, Star, Loader2 } from 'lucide-react';
@@ -758,12 +759,29 @@ const SharedStoryPage: React.FC = () => {
   // Room view (with roomId)
   return (
     <motion.div
-      className="container mx-auto px-4 pt-20 pb-10"
       variants={pageVariants}
       initial="initial"
       animate="animate"
       exit="exit"
+      className="container mx-auto px-4 pt-24 pb-16"
     >
+      {/* Meta tags for shared story page */}
+      {room ? (
+        <MetaTags
+          title={`${room.title} | Cosmic Heroes Shared Story`}
+          description={`Join a cosmic adventure with heroes from across the zodiac. Experience an epic shared story in a mystical realm where celestial powers converge.`}
+          image="/logo.jpg"
+          type="article"
+        />
+      ) : (
+        <MetaTags
+          title="Shared Stories | Cosmic Heroes"
+          description="Embark on collaborative cosmic adventures with heroes from across the stars. Join or create a shared story and weave epic tales together!"
+          image="/logo.jpg"
+          type="website"
+        />
+      )}
+      
       <div className="max-w-6xl mx-auto">
         {/* Dynamic background element that appears when narrator is typing */}
         <AnimatePresence>

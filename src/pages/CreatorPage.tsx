@@ -128,7 +128,16 @@ const CreatorPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error creating hero:', error);
-      setStatus('error');
+      
+      // Check if this is due to already having a non-premium hero
+      if (error.response && error.response.data && error.response.data.error === 'You already have a non-premium hero') {
+        setStatus('limit_reached');
+        // Show alert with message and redirect to heroes page
+        alert(error.response.data.message);
+        navigate('/heroes');
+      } else {
+        setStatus('error');
+      }
     } finally {
       setLoading(false);
     }
@@ -147,6 +156,33 @@ const CreatorPage: React.FC = () => {
       }
     };
   }, [resetHero, step]);
+
+  // Check if user already has a non-premium hero
+  React.useEffect(() => {
+    const checkExistingHeroes = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await api.get('/api/user/heroes', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (response.data && response.data.heroes) {
+          const hasNonPremiumHero = response.data.heroes.some(hero => hero.paymentStatus !== 'paid');
+          
+          if (hasNonPremiumHero) {
+            alert('You can only have one non-premium hero at a time. Please upgrade your existing hero to premium before creating a new one.');
+            navigate('/heroes');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking existing heroes:', error);
+      }
+    };
+    
+    checkExistingHeroes();
+  }, [navigate]);
 
   return (
     <motion.div

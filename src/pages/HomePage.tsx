@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, Star } from 'lucide-react';
 import Button from '../components/ui/Button';
+import MetaTags from '../components/ui/MetaTags';
 
 const HomePage: React.FC = () => {
   // @ts-ignore
@@ -13,6 +14,13 @@ const HomePage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 pt-24 pb-16"
     >
+      {/* Meta tags for home page */}
+      <MetaTags
+        title="Cosmic Heroes - Your Zodiac-Powered Mythical Identity"
+        description="Unleash your mythical identity through the power of zodiac influences. Create a unique hero based on your date of birth and cosmic destiny."
+        image="/logo.jpg"
+      />
+
       {/* Hero Section */}
       <section className="min-h-[80vh] flex flex-col items-center justify-center text-center relative">
         <div className="absolute inset-0 bg-cosmic-radial -z-10"></div>

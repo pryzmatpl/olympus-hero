@@ -88,12 +88,23 @@ const HeroesListPage: React.FC = () => {
                 variant="primary" 
                 size="md"
                 icon={<Plus size={16} />}
+                disabled={heroes.some(hero => hero.paymentStatus !== 'paid')}
               >
                 Create New Hero
               </Button>
             </Link>
           </div>
         </div>
+        
+        {/* Non-premium hero limit notice */}
+        {heroes.some(hero => hero.paymentStatus !== 'paid') && (
+          <div className="mb-6 p-4 bg-amber-900/30 border border-amber-700/50 rounded-lg">
+            <p className="text-amber-400 text-sm">
+              <strong>Note:</strong> You can only have one non-premium hero at a time. 
+              To create a new hero, please upgrade your existing non-premium hero to premium status.
+            </p>
+          </div>
+        )}
         
         {/* Search */}
         <div className="relative mb-8">

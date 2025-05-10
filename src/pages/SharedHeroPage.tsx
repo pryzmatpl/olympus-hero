@@ -6,6 +6,7 @@ import PageTitle from '../components/ui/PageTitle';
 import HeroPortrait from '../components/hero/HeroPortrait';
 import HeroBackstory from '../components/hero/HeroBackstory';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
+import MetaTags from '../components/ui/MetaTags';
 import { Sparkles } from 'lucide-react';
 
 // Animation variants
@@ -95,6 +96,16 @@ const SharedHeroPage = () => {
       animate="animate"
       exit="exit"
     >
+      {/* Add dynamic meta tags for shared hero page */}
+      {hero && (
+        <MetaTags
+          title={`${hero.name} | Shared Cosmic Hero`}
+          description={`Behold ${hero.name}, a mythical cosmic hero born under the ${hero.westernZodiac?.sign} and ${hero.chineseZodiac?.sign} zodiac signs. View their heroic journey and cosmic powers!`}
+          image={hero.images && hero.images.length > 0 ? hero.images[0].url : '/logo.jpg'}
+          type="profile"
+        />
+      )}
+
       <div className="flex flex-col items-center">
         <div className="bg-cosmic-900/30 rounded-lg border border-cosmic-700 p-2 inline-block mb-2">
           <span className="text-cosmic-400 text-sm">Shared Hero</span>

@@ -521,6 +521,17 @@ async function startServer() {
           return res.status(400).json({ error: 'Birth date and hero name are required' });
         }
         
+        // Check if user already has a non-premium hero
+        const existingHeroes = await heroDb.getHeroesByUserId(user.userId);
+        const hasNonPremiumHero = existingHeroes.some(hero => hero.paymentStatus !== 'paid');
+        
+        if (hasNonPremiumHero) {
+          return res.status(403).json({ 
+            error: 'You already have a non-premium hero', 
+            message: 'You can only have one non-premium hero at a time. Please purchase your existing hero to generate a new one.'
+          });
+        }
+        
         // Parse the birthdate
         const dob = new Date(data.birthdate);
 

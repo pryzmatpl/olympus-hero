@@ -8,6 +8,7 @@ import HeroPortrait from '../components/hero/HeroPortrait';
 import HeroBackstory from '../components/hero/HeroBackstory';
 import HeroChapters from '../components/hero/HeroChapters';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
+import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
 
@@ -275,6 +276,16 @@ const HeroPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 pt-32 pb-20"
     >
+      {/* Add dynamic meta tags for hero page */}
+      {!isLoading && !error && heroName && (
+        <MetaTags
+          title={`${heroName} | Cosmic Heroes`}
+          description={`Discover the cosmic journey of ${heroName}, a mythical hero with ${zodiacInfo?.western.sign} and ${zodiacInfo?.chinese.sign} zodiac influences.`}
+          image={images && images.length > 0 ? images[0].url : '/logo.jpg'}
+          type="profile"
+        />
+      )}
+      
       <div className="max-w-6xl mx-auto">
         {/* Hero Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
