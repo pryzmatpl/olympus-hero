@@ -221,6 +221,15 @@ export const chapterDb = {
     return db.collection('chapters').findOne({ id: chapterId });
   },
 
+  // Find a chapter by storyBookId and chapter number
+  async findChapter(storyBookId, chapterNumber) {
+    const db = await connectDB();
+    return db.collection('chapters').findOne({ 
+      storyBookId, 
+      chapter_number: chapterNumber 
+    });
+  },
+
   // Get all chapters for a storybook
   async getChaptersByStoryBookId(storyBookId) {
     const db = await connectDB();
