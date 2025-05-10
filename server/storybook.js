@@ -210,10 +210,41 @@ export const generateAndSaveChapter = async (storyBookId, hero, userPrompt, chap
  * Get all chapters for a storybook
  * @param {string} storyBookId - The ID of the storybook
  * @param {boolean} includeContent - Whether to include chapter content
+ * @param {boolean} fixCounts - Whether to fix any issues with chapter counts
  * @returns {array} Array of chapters
  */
-export const getStoryBookChapters = async (storyBookId, includeContent = true) => {
+export const getStoryBookChapters = async (storyBookId, includeContent = true, fixCounts = true) => {
   const chapters = await chapterDb.getChaptersByStoryBookId(storyBookId);
+  
+  // Optionally fix any issues with chapter counts
+  if (fixCounts) {
+    try {
+      const storyBook = await storyBookDb.findStoryBookById(storyBookId);
+      if (storyBook) {
+        // Count chapters and unlocked chapters
+        const totalChapters = chapters.length;
+        const unlockedChapters = chapters.filter(c => c.is_unlocked).length;
+        
+        // Check if counts need updating
+        if (totalChapters !== storyBook.chapters_total_count || 
+            unlockedChapters !== storyBook.chapters_unlocked_count) {
+          console.log(`Fixing chapter counts for storybook ${storyBookId}: ` +
+                      `total ${storyBook.chapters_total_count} -> ${totalChapters}, ` +
+                      `unlocked ${storyBook.chapters_unlocked_count} -> ${unlockedChapters}`);
+          
+          // Update storybook counts
+          await storyBookDb.updateStoryBook(storyBookId, {
+            chapters_total_count: totalChapters,
+            chapters_unlocked_count: unlockedChapters,
+            updated_at: new Date()
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`Error fixing chapter counts for storybook ${storyBookId}:`, error);
+      // Continue despite errors in fixing counts
+    }
+  }
   
   if (!includeContent) {
     // Remove content from locked chapters to reduce payload size
@@ -394,4 +425,65 @@ export const checkAndUnlockDailyChapters = async (storyBookId) => {
   }
   
   return null;
+};
+
+/**
+ * Fix and synchronize chapters and storybook data
+ * @param {string} storyBookId - The ID of the storybook to fix
+ * @returns {object} The fixed storybook data
+ */
+export const fixStoryBookChapters = async (storyBookId) => {
+  // Get the storybook
+  const storyBook = await storyBookDb.findStoryBookById(storyBookId);
+  if (!storyBook) {
+    throw new Error('Storybook not found');
+  }
+
+  // Get all chapters for this storybook
+  const allChapters = await chapterDb.getChaptersByStoryBookId(storyBookId);
+  if (!allChapters.length) {
+    console.log(`No chapters found for storybook ${storyBookId}`);
+    return storyBook;
+  }
+
+  // Count total chapters and unlocked chapters
+  const totalChapters = allChapters.length;
+  const unlockedChapters = allChapters.filter(c => c.is_unlocked).length;
+
+  // Fix any issues with chapters
+  for (const chapter of allChapters) {
+    const updateFields = {};
+    let needsUpdate = false;
+
+    // Remove invalid chapters_total_count array if it exists
+    if (chapter.chapters_total_count && Array.isArray(chapter.chapters_total_count)) {
+      updateFields.chapters_total_count = null; // Set to null to remove the field
+      needsUpdate = true;
+    }
+
+    // Make sure premium status matches storybook
+    if (chapter.is_premium !== storyBook.is_premium) {
+      updateFields.is_premium = storyBook.is_premium;
+      needsUpdate = true;
+    }
+
+    // Update the chapter if needed
+    if (needsUpdate) {
+      await chapterDb.updateChapter(chapter.id, updateFields);
+      console.log(`Fixed chapter ${chapter.chapter_number} for storybook ${storyBookId}`);
+    }
+  }
+
+  // Update the storybook with correct counts
+  const updateData = {
+    chapters_total_count: Math.max(totalChapters, storyBook.chapters_total_count || 0),
+    chapters_unlocked_count: Math.max(unlockedChapters, storyBook.chapters_unlocked_count || 0),
+    updated_at: new Date()
+  };
+
+  // Update the storybook
+  const updatedStoryBook = await storyBookDb.updateStoryBook(storyBookId, updateData);
+  console.log(`Updated storybook ${storyBookId} with correct chapter counts: total=${updateData.chapters_total_count}, unlocked=${updateData.chapters_unlocked_count}`);
+
+  return updatedStoryBook;
 }; 

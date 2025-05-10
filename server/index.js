@@ -25,7 +25,8 @@ import {
   getOrCreateStoryBook,
   getStoryBookChapters,
   unlockChapters,
-  checkAndUnlockDailyChapters
+  checkAndUnlockDailyChapters,
+  fixStoryBookChapters
 } from './storybook.js';
 import path from 'path';
 import fs from 'fs';
@@ -1242,6 +1243,70 @@ async function startServer() {
         }
         
         return res.status(500).json({ error: 'Failed to unlock chapters' });
+      }
+    });
+
+    // Check for daily chapters on login
+    app.post('/api/user/login', async (req, res) => {
+      // ... existing code ...
+    });
+
+    // Fix storybook chapter issues (admin or developer use)
+    app.post('/api/admin/fix-storybook/:storyBookId?', authMiddleware, async (req, res) => {
+      try {
+        const { storyBookId } = req.params;
+        const userId = req.user.userId;
+        
+        // Check if user is admin (simplified - implement proper admin check)
+        const user = await userDb.findUserById(userId);
+        if (!user || !user.isAdmin) {
+          return res.status(403).json({ error: 'Only admins can perform this operation' });
+        }
+        
+        let result = [];
+        
+        // If a specific storyBookId is provided, fix just that one
+        if (storyBookId) {
+          const storyBook = await storyBookDb.findStoryBookById(storyBookId);
+          if (!storyBook) {
+            return res.status(404).json({ error: 'Storybook not found' });
+          }
+          
+          const updatedStoryBook = await fixStoryBookChapters(storyBookId);
+          result.push({
+            storyBookId,
+            success: true,
+            message: `Fixed storybook ${storyBookId}`
+          });
+        } else {
+          // Fix all storybooks if no ID provided
+          const allStoryBooks = await storyBookDb.getAllStoryBooks();
+          
+          for (const storyBook of allStoryBooks) {
+            try {
+              await fixStoryBookChapters(storyBook.id);
+              result.push({
+                storyBookId: storyBook.id,
+                success: true,
+                message: `Fixed storybook ${storyBook.id}`
+              });
+            } catch (error) {
+              result.push({
+                storyBookId: storyBook.id,
+                success: false,
+                error: error.message
+              });
+            }
+          }
+        }
+        
+        return res.status(200).json({
+          message: 'Storybook fix operation completed',
+          results: result
+        });
+      } catch (error) {
+        console.error('Error fixing storybooks:', error);
+        return res.status(500).json({ error: 'Failed to fix storybooks' });
       }
     });
 

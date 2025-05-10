@@ -201,6 +201,12 @@ export const storyBookDb = {
       { $inc: { chapters_unlocked_count: increment } }
     );
     return this.findStoryBookById(storyBookId);
+  },
+  
+  // Get all storybooks
+  async getAllStoryBooks() {
+    const db = await connectDB();
+    return db.collection('storybooks').find({}).toArray();
   }
 };
 
@@ -257,7 +263,7 @@ export const chapterDb = {
         storyBookId, 
         chapter_number: { $in: chapterNumbers } 
       },
-      { $set: { is_unlocked: true, is_premium: true, chapters_total_count: chapterNumbers } }
+      { $set: { is_unlocked: true, is_premium: true } }
     );
     return this.getChaptersByStoryBookId(storyBookId);
   }
