@@ -179,8 +179,6 @@ export function calculate_chinese_zodiac(date) {
     }
   }
 
-  const chineseIndex = (zodiacYear - 1924 + 12) % 12;
-
   // Define the animals array (unchanged from original)
   const animals = [
     {
@@ -268,18 +266,6 @@ export function calculate_chinese_zodiac(date) {
       compatibility: ['Sheep', 'Rabbit', 'Tiger']
     }
   ];
-
-  if (cnyStr) {
-    const cny = new Date(cnyStr);
-    if (date < cny) {
-      zodiacYear -= 1;
-    }
-  } else {
-    // fallback assumption: Feb 1
-    if (month === 1 || (month === 2 && day < 1)) {
-      zodiacYear -= 1;
-    }
-  }
 
   let index = (zodiacYear - 1924 + 12) % 12;
 

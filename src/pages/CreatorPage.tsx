@@ -94,7 +94,6 @@ const CreatorPage: React.FC = () => {
         body: JSON.stringify({
           heroName: heroName,
           birthdate: birthdate,
-          zodiacInfo: zodiacInfo,
           heroId: heroId,
           userId: userId,
         }),
