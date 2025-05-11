@@ -234,7 +234,7 @@ const CreatorPage: React.FC = () => {
                 if (date) setBirthdateError('');
               }}
               error={birthdateError}
-              helpText="This will be used to calculate your zodiac signs"
+              helpText="Select month, day, and year"
             />
             
             <div className="flex justify-end mt-6">
