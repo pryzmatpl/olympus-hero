@@ -517,7 +517,7 @@ function generateImagePrompt(heroName, westernZodiac, chineseZodiac, viewAngle) 
       colorPalette = 'deep blues, teals, and flowing purples';
       break;
     default:
-      colorPalette = 'mystical purples, cosmic blues, and starlight accents';
+      colorPalette = 'mystical purples, cosmic blues, and starlight accents, chaotic and vibrant';
   }
   
   // Generate view-specific descriptions
@@ -539,7 +539,7 @@ function generateImagePrompt(heroName, westernZodiac, chineseZodiac, viewAngle) 
   
   // Build the prompt
   const prompt = `
-    Mythical cosmic hero named "${heroName}", 
+    Mythical cosmic hero named "${heroName}", with gender traits discerned by name,
     a powerful character with ${westernZodiac.sign} and ${chineseZodiac.sign} zodiac influences.
     ${westernTraits.join(', ')} personality, combined with ${chineseTraits.join(', ')} traits.
     ${viewDescription}.
