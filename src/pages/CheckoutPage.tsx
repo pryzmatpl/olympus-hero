@@ -222,7 +222,7 @@ const CheckoutPage = () => {
     const [error, setError] = useState(null);
     const [email, setEmail] = useState(user?.email || '');
     const [walletAddress, setWalletAddress] = useState('');
-    const [paymentAmount, setPaymentAmount] = useState(9.99);
+    const [paymentAmount, setPaymentAmount] = useState(3.99);
     const [paymentTitle, setPaymentTitle] = useState('Unlock Premium Hero');
     const [paymentDescription, setPaymentDescription] = useState('Upgrade to Premium');
     const [paymentType, setPaymentType] = useState('premium_upgrade');
@@ -271,13 +271,13 @@ const CheckoutPage = () => {
                 if (type === 'chapters') {
                     setPaymentTitle('Unlock More Chapters');
                     setPaymentDescription('Unlock 3 Chapters');
-                    setPaymentAmount(4.99);
+                    setPaymentAmount(1.99);
                     setIsUnlockingChapters(true);
                 }
                 
                 // Create a payment intent
                 const response = await api.post('/api/create-payment-intent', {
-                    amount: type === 'chapters' ? 4.99 : 9.99,
+                    amount: type === 'chapters' ? 1.99 : 3.99,
                     currency: 'usd',
                     heroId: effectiveHeroId,
                     walletAddress: walletAddress,

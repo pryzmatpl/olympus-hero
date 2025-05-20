@@ -430,6 +430,7 @@ The hero has the following zodiac traits:
 - Traits: ${heroData.chineseZodiac.traits.join(', ')}
 
 Write an engaging first chapter (800-1200 words) that introduces the hero and sets up an overarching cosmic conflict that will span multiple chapters. 
+Assure that the chapters follow pretty formatting so that the stories are easy to read.
 The chapter should establish their personality, showcase some of their abilities, and end with a compelling hook for chapter 2.
     `;
   } else {
