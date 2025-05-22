@@ -515,9 +515,21 @@ const SharedStoryPage: React.FC = () => {
     setMessage('');
   };
   
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive but only if the user is at the bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Check if the user is near the bottom of the message container
+    const scrollContainer = messagesEndRef.current?.parentElement;
+    if (scrollContainer) {
+      const isNearBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 100;
+      
+      // Only auto-scroll if the user is already near the bottom or it's a system message
+      const latestMessage = messages[messages.length - 1];
+      const isSystemMessage = latestMessage?.sender.id === 'system';
+      
+      if (isNearBottom || isSystemMessage) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   }, [messages]);
   
   // Open/close share dialog
@@ -869,7 +881,7 @@ const SharedStoryPage: React.FC = () => {
         {/* Main chat area */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Messages */}
-          <div className="lg:col-span-3 bg-mystic-900/30 rounded-xl border border-mystic-800 flex flex-col h-[600px]">
+          <div className="lg:col-span-3 bg-mystic-900/30 rounded-xl border border-mystic-800 flex flex-col h-[600px] md:h-[600px] h-[calc(100vh-220px)]">
             {/* Messages container */}
             <div className="flex-grow overflow-y-auto p-4">
               {messages.length === 0 ? (
@@ -1141,10 +1153,15 @@ const SharedStoryPage: React.FC = () => {
             </div>
             
             {/* Participants list */}
-            <div className="bg-mystic-900/30 rounded-xl border border-mystic-800 p-4">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <div className="bg-mystic-900/30 rounded-xl border border-mystic-800 p-4 overflow-y-auto max-h-[300px] lg:max-h-[400px]">
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 sticky top-0 bg-mystic-900/95 py-1">
                 <Users size={18} />
                 <span>Heroes</span>
+                {room?.participants?.length > 0 && (
+                  <span className="ml-auto text-sm text-gray-400">
+                    {room.participants.length} {room.participants.length === 1 ? 'Hero' : 'Heroes'}
+                  </span>
+                )}
               </h2>
               
               <div className="space-y-4">

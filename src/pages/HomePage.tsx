@@ -16,8 +16,8 @@ const HomePage: React.FC = () => {
     >
       {/* Meta tags for home page */}
       <MetaTags
-        title="Cosmic Heroes - Your Zodiac-Powered Mythical Identity"
-        description="Unleash your mythical identity through the power of zodiac influences. Create a unique hero based on your date of birth and cosmic destiny."
+        title="Cosmic Heroes - Personalized Fantasy Story & AI-Generated Hero Journey"
+        description="Discover your zodiac-powered mythical identity with Cosmic Heroes. Create a personalized fantasy story and embark on an AI-generated hero journey."
         image="/logo.jpg"
       />
 
@@ -40,9 +40,9 @@ const HomePage: React.FC = () => {
           transition={{ delay: 0.4, duration: 0.8 }}
           className="text-4xl md:text-6xl lg:text-7xl font-display font-bold mb-6 leading-tight"
         >
-          Discover Your <br className="md:hidden" />
+          Your Personalized <br className="md:hidden" />
           <span className="bg-gradient-to-r from-white to-cosmic-500 bg-clip-text text-transparent">
-            Cosmic Hero
+            Fantasy Story
           </span>
         </motion.h1>
         
@@ -52,8 +52,8 @@ const HomePage: React.FC = () => {
           transition={{ delay: 0.6, duration: 0.8 }}
           className="text-lg md:text-xl text-gray-300 max-w-2xl mb-10"
         >
-          Unleash your mythical identity through the power of zodiac influences.
-          Create a unique hero based on your date of birth and cosmic destiny.
+          Embark on a zodiac hero journey through AI-generated personalized storytelling.
+          Create a unique mythical identity based on your cosmic destiny.
         </motion.p>
         
         <motion.div
@@ -69,7 +69,7 @@ const HomePage: React.FC = () => {
               className="group"
             >
               <span className="group-hover:mr-1 transition-all">
-                Create Your Hero
+                Start Your Hero Journey
               </span>
             </Button>
           </Link>
@@ -96,8 +96,9 @@ const HomePage: React.FC = () => {
             >
               <img 
                 src={elem.url}
-                alt={`Hero example ${elem.id}`}
+                alt={`Zodiac Hero Example: ${elem.name}`}
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-mystic-900 via-transparent to-transparent"></div>
               <div className="absolute bottom-0 w-full p-4 flex items-center gap-2">
@@ -112,9 +113,9 @@ const HomePage: React.FC = () => {
       {/* Features Section */}
       <section className="py-20">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">How It Works</h2>
+          <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">Your AI-Generated Hero Journey</h2>
           <p className="text-gray-300 max-w-2xl mx-auto">
-            Create your unique cosmic hero in three simple steps
+            Create your unique zodiac-based character in three simple steps
           </p>
         </div>
 
@@ -122,18 +123,18 @@ const HomePage: React.FC = () => {
           {[
             {
               icon: <Calendar className="h-10 w-10 text-cosmic-500" />,
-              title: "Enter Your Birth Date",
-              description: "Your zodiac signs influence your hero's powers and appearance."
+              title: "Connect With Your Zodiac",
+              description: "Your birth date influences your hero's powers and mythical identity."
             },
             {
               icon: <User className="h-10 w-10 text-cosmic-500" />,
-              title: "Name Your Hero",
-              description: "Choose a name that resonates with your mythical persona."
+              title: "Personalize Your Hero",
+              description: "Name and customize your character for a truly personalized fantasy story."
             },
             {
               icon: <Image className="h-10 w-10 text-cosmic-500" />,
-              title: "Generate Your Hero",
-              description: "Our AI creates unique artwork and backstory based on your cosmic influences."
+              title: "AI-Powered Story Creation",
+              description: "Our advanced AI creates unique artwork and backstory based on your cosmic influences."
             }
           ].map((feature, index) => (
             <motion.div
@@ -163,9 +164,9 @@ const HomePage: React.FC = () => {
           transition={{ duration: 0.8 }}
           className="bg-mystic-gradient p-10 md:p-16 rounded-2xl text-center"
         >
-          <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">Ready to Discover Your Cosmic Identity?</h2>
+          <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">Begin Your Zodiac-Based Character Creation</h2>
           <p className="text-gray-300 max-w-2xl mx-auto mb-8">
-            Your unique alignment of the stars creates a one-of-a-kind hero that reflects your cosmic essence.
+            Experience AI-driven personalized storytelling that brings your unique cosmic essence to life.
           </p>
           <Link to="/create">
             <Button 
@@ -173,7 +174,7 @@ const HomePage: React.FC = () => {
               variant="secondary"
               icon={<Sparkles size={18} />} 
             >
-              Begin Your Cosmic Journey
+              Create Your Personalized Fantasy Story
             </Button>
           </Link>
         </motion.div>

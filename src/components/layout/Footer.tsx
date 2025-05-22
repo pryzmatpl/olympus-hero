@@ -36,6 +36,7 @@ const Footer: React.FC = () => {
             <h3 className="text-white font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2">
               <FooterLink href="/">Home</FooterLink>
+              <FooterLink href="/blog">Blog</FooterLink>
               <FooterLink href="/create">Create Hero</FooterLink>
               <FooterLink href="/heroes">Gallery</FooterLink>
               <FooterLink href="/shared-story">Shared Stories</FooterLink>
@@ -45,6 +46,8 @@ const Footer: React.FC = () => {
           <div className="col-span-1">
             <h3 className="text-white font-semibold mb-4">Resources</h3>
             <ul className="space-y-2">
+              <FooterLink href="/blog/zodiac-hero-archetypes">Zodiac Hero Archetypes</FooterLink>
+              <FooterLink href="/blog/ai-mythical-journeys">AI Storytelling</FooterLink>
               <FooterLink href="/zodiac-guide">Zodiac Guide</FooterLink>
               <FooterLink href="/nft-basics">NFT Basics</FooterLink>
               <FooterLink href="/faqs">FAQs</FooterLink>
@@ -59,6 +62,7 @@ const Footer: React.FC = () => {
               <FooterLink href="/privacy-policy">Privacy Policy</FooterLink>
               <FooterLink href="/cookie-policy">Cookie Policy</FooterLink>
               <FooterLink href="/support">Contact Us</FooterLink>
+              <FooterLink href="/backlink-strategy">Partnership Opportunities</FooterLink>
             </ul>
           </div>
         </div>

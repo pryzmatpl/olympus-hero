@@ -9,8 +9,8 @@ interface MetaTagsProps {
 }
 
 const MetaTags: React.FC<MetaTagsProps> = ({ 
-  title = 'Cosmic Heroes - Your Zodiac-Powered Mythical Identity',
-  description = 'Discover your cosmic alter-ego through the ancient wisdom of zodiac signs. Create a mythical hero powered by your celestial birth chart and embark on legendary adventures across the stars.',
+  title = 'Cosmic Heroes - Personalized Fantasy Story & AI-Generated Hero Journey',
+  description = 'Discover your zodiac-powered mythical identity with Cosmic Heroes. Create a personalized fantasy story and embark on an AI-generated hero journey.',
   image = '/logo.jpg',
   type = 'website',
   url = window.location.href

@@ -190,6 +190,8 @@ Guidelines:
 5. Use vivid, descriptive language to paint the cosmic landscape
 6. End your responses with scenarios or questions that invite player participation
 7. Respond to player actions and weave them into the continuing narrative
+8. Assure that the story is engaging and interesting to the players
+9. Assure that the spacing and formatting of the story is correct so it is easy to read
 
 Recent conversation context (if applicable):
 ${room.messages.slice(-5).map(m => `${m.sender.name}: ${m.content}`).join('\n')}

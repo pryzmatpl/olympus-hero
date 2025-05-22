@@ -1,0 +1,23 @@
+# Cosmic Heroes Robots.txt
+User-agent: *
+Allow: /
+Disallow: /checkout/
+Disallow: /profile
+Disallow: /hero/
+
+# Allow all images to be crawled
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.png$
+Allow: /*.gif$
+Allow: /*.webp$
+Allow: /*.svg$
+
+# Important content to crawl
+Allow: /blog/
+Allow: /zodiac-guide
+Allow: /nft-basics
+Allow: /faqs
+
+# Specify sitemap location
+Sitemap: https://mythicalhero.me/sitemap.xml 

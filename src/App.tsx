@@ -23,6 +23,12 @@ import ZodiacGuidePage from './pages/ZodiacGuidePage';
 import NFTBasicsPage from './pages/NFTBasicsPage';
 import FAQsPage from './pages/FAQsPage';
 import SupportPage from './pages/SupportPage';
+// Import blog pages
+import BlogPage from './pages/BlogPage';
+import BlogZodiacArchetypesPage from './pages/BlogZodiacArchetypesPage';
+import BlogAIMythicalJourneysPage from './pages/BlogAIMythicalJourneysPage';
+// Import backlink strategy page
+import BacklinkStrategyPage from './pages/BacklinkStrategyPage';
 import { NotificationProvider, useNotification } from './context/NotificationContext';
 import ApiErrorHandler from './components/ApiErrorHandler';
 
@@ -188,6 +194,14 @@ function App() {
                   <Route path="/nft-basics" element={<NFTBasicsPage />} />
                   <Route path="/faqs" element={<FAQsPage />} />
                   <Route path="/support" element={<SupportPage />} />
+                  
+                  {/* Blog routes */}
+                  <Route path="/blog" element={<BlogPage />} />
+                  <Route path="/blog/zodiac-hero-archetypes" element={<BlogZodiacArchetypesPage />} />
+                  <Route path="/blog/ai-mythical-journeys" element={<BlogAIMythicalJourneysPage />} />
+                  
+                  {/* Marketing strategy */}
+                  <Route path="/backlink-strategy" element={<BacklinkStrategyPage />} />
 
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>

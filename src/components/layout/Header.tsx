@@ -61,6 +61,10 @@ const Header: React.FC = () => {
             Home
           </NavLink>
           
+          <NavLink to="/blog" isActive={location.pathname.startsWith('/blog')}>
+            Blog
+          </NavLink>
+          
           {isAuthenticated && (
             <>
               <NavLink to="/heroes" isActive={location.pathname === '/heroes'}>
@@ -129,6 +133,14 @@ const Header: React.FC = () => {
               isMobile={true}
             >
               Home
+            </NavLink>
+            
+            <NavLink
+              to="/blog"
+              isActive={location.pathname.startsWith('/blog')}
+              isMobile={true}
+            >
+              Blog
             </NavLink>
             
             {isAuthenticated && (
