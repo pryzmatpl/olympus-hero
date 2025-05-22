@@ -11,6 +11,7 @@ import ZodiacInfo from '../components/hero/ZodiacInfo';
 import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
+import { formatLiteraryBackstory } from '../utils/literaryFormatter';
 import { useNotification } from '../context/NotificationContext';
 
 const HeroPage: React.FC = () => {
@@ -553,8 +554,8 @@ const HeroPage: React.FC = () => {
                 ) : !isPaid && safeBackstory.length > 300 ? (
                   <>
                     <div 
-                      className="markdown-content"
-                      dangerouslySetInnerHTML={{ __html: formatMarkdown(backstoryPreview) }}
+                      className="literary-content backstory-content"
+                      dangerouslySetInnerHTML={{ __html: formatLiteraryBackstory(backstoryPreview) }}
                     />
                     <div className="relative pt-10 mt-4">
                       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-mystic-800 flex items-end justify-center pb-4">
@@ -572,8 +573,8 @@ const HeroPage: React.FC = () => {
                   </>
                 ) : (
                   <div 
-                    className="markdown-content"
-                    dangerouslySetInnerHTML={{ __html: formatMarkdown(safeBackstory) }}
+                    className="literary-content backstory-content"
+                    dangerouslySetInnerHTML={{ __html: formatLiteraryBackstory(safeBackstory) }}
                   />
                 )}
               </div>

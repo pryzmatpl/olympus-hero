@@ -10,6 +10,7 @@ import PageTitle from '../components/ui/PageTitle';
 import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
+import { formatLiterarySharedStory } from '../utils/literaryFormatter';
 import { Plus, Send, Share2, User, Users, ArrowLeft, Copy, Sparkles, Sun, Moon, Star, Loader2 } from 'lucide-react';
 import { getSocketUrl } from '../utils/api';
 
@@ -956,9 +957,13 @@ const SharedStoryPage: React.FC = () => {
                         
                         <div 
                           className={`prose prose-sm prose-invert max-w-none ${
-                            msg.sender.id === 'system' ? 'prose-cosmic' : ''
+                            msg.sender.id === 'system' ? 'prose-cosmic shared-story-content' : ''
                           }`}
-                          dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }}
+                          dangerouslySetInnerHTML={{ 
+                            __html: msg.sender.id === 'system' 
+                              ? formatLiterarySharedStory(msg.content) 
+                              : formatMarkdown(msg.content)
+                          }}
                         />
                       </div>
                     </motion.div>

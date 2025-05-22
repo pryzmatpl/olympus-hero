@@ -125,11 +125,24 @@ export async function generateExpandedBackstory(backstory) {
     messages: [
       {
         role: "system",
-        content: "You are a creative writing assistant that specializes in fantasy character backstories. Expand on the provided backstory with more details, including childhood, notable achievements, relationships, and personal struggles. Keep the tone consistent with the original backstory."
+        content: `You are a masterful storyteller specializing in fantasy character backstories. 
+Expand on the provided backstory with rich, immersive details, including childhood, notable achievements, relationships, and personal struggles.
+
+Format your response as a coherent narrative with:
+- Natural paragraph breaks and elegant flow
+- A consistent literary tone reminiscent of fantasy classics
+- Proper punctuation and pacing
+- Use of literary devices like foreshadowing, metaphor, and vivid imagery
+- A focus on character depth and emotional resonance
+
+Do not include generic AI responses like "Here's an expanded backstory" or "As requested". 
+Simply begin with the narrative directly.
+
+Start with an engaging introduction that hooks the reader and establish the character's place in the world.`
       },
       {
         role: "user",
-        content: `Please expand this character backstory with more details: ${backstory}`
+        content: `Please transform this character backstory into a rich, literary narrative: ${backstory}`
       }
     ],
     temperature: 0.8,
@@ -417,7 +430,7 @@ export async function generateChapter(heroName, heroData, userPrompt, chapterNum
   if (chapterNumber === 1) {
     // First chapter prompt - uses backstory and zodiac info
     chapterPrompt = `
-You are writing chapter 1 of an epic fantasy story about a cosmic hero named ${heroName}. 
+You are a masterful storyteller writing chapter 1 of an epic fantasy novel about a cosmic hero named ${heroName}.
 This is the beginning of their adventure based on the following backstory:
 
 ${heroData.backstory}
@@ -429,14 +442,25 @@ The hero has the following zodiac traits:
 - Chinese Zodiac: ${heroData.chineseZodiac.sign} (${heroData.chineseZodiac.element})
 - Traits: ${heroData.chineseZodiac.traits.join(', ')}
 
-Write an engaging first chapter (800-1200 words) that introduces the hero and sets up an overarching cosmic conflict that will span multiple chapters. 
-Assure that the chapters follow pretty formatting so that the stories are easy to read.
-The chapter should establish their personality, showcase some of their abilities, and end with a compelling hook for chapter 2.
+Write an engaging first chapter (800-1200 words) that introduces the hero and sets up an overarching cosmic conflict that will span multiple chapters.
+
+Format your chapter with:
+1. A chapter title in the format "Chapter I: [Evocative Title]"
+2. Natural paragraph breaks with elegant pacing
+3. Rich, vivid descriptions that engage all senses
+4. Dynamic character interactions and dialogue
+5. A consistent literary voice similar to classic fantasy authors
+6. Literary devices like foreshadowing, metaphor, and rhythm
+7. Scene breaks using "***" where appropriate
+8. A compelling hook ending that creates anticipation for chapter 2
+
+The chapter should establish their personality, showcase their abilities, and draw the reader into their world.
+Do not include preambles like "Here's the first chapter" - begin directly with the chapter title.
     `;
   } else {
     // Subsequent chapter prompt - uses previous chapter summary for continuity
     chapterPrompt = `
-You are writing chapter ${chapterNumber} in an ongoing epic fantasy story about a cosmic hero named ${heroName}.
+You are a masterful storyteller writing chapter ${chapterNumber} in an ongoing epic fantasy novel about a cosmic hero named ${heroName}.
 
 Hero backstory summary:
 ${heroData.backstory.substring(0, 300)}...
@@ -444,13 +468,27 @@ ${heroData.backstory.substring(0, 300)}...
 Previous chapter summary:
 ${previousChapterSummary || "The hero began their cosmic journey."}
 
-Write an engaging chapter (800-1200 words) that continues the hero's adventure. This chapter should:
+Write an engaging chapter (800-1200 words) that continues the hero's adventure.
+
+Format your chapter with:
+1. A chapter title in the format "Chapter ${chapterNumber}: [Evocative Title]"
+2. Natural paragraph breaks with elegant pacing
+3. Rich, vivid descriptions that engage all senses
+4. Dynamic character interactions and dialogue
+5. A consistent literary voice similar to classic fantasy authors
+6. Literary devices like foreshadowing, metaphor, and rhythm
+7. Scene breaks using "***" where appropriate
+8. A compelling hook ending that creates anticipation for the next chapter
+
+Your chapter should:
 1. Build on events from the previous chapter
 2. Introduce new challenges or developments
 3. Showcase the hero using their abilities
-4. End with a compelling hook for the next chapter
+4. Deepen character development and world-building
+5. Maintain narrative tension and reader engagement
 
 Remember that this is chapter ${chapterNumber} out of a planned multi-chapter story arc, so pace the narrative appropriately.
+Do not include preambles like "Here's the next chapter" - begin directly with the chapter title.
     `;
   }
   

@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatMarkdown } from '../../utils/markdownHelper';
+import { formatLiteraryBackstory } from '../../utils/literaryFormatter';
 
 interface HeroBackstoryProps {
   backstory: string;
@@ -19,8 +20,8 @@ const HeroBackstory: React.FC<HeroBackstoryProps> = ({ backstory }) => {
     <div className="bg-mystic-800/60 rounded-lg p-6 border border-mystic-700">
       <div className="prose prose-invert max-w-none">
         <div 
-          className="markdown-content"
-          dangerouslySetInnerHTML={{ __html: formatMarkdown(backstory) }}
+          className="literary-content backstory-content"
+          dangerouslySetInnerHTML={{ __html: formatLiteraryBackstory(backstory) }}
         />
       </div>
     </div>

@@ -5,6 +5,7 @@ import { Book, Lock, Clock, CreditCard } from 'lucide-react';
 import Button from '../ui/Button';
 import { useHeroStore, useStoryStore } from '../../store/heroStore';
 import { formatMarkdown } from '../../utils/markdownHelper';
+import { formatLiteraryChapter } from '../../utils/literaryFormatter';
 import api from '../../utils/api';
 
 interface HeroChaptersProps {
@@ -172,13 +173,13 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
             transition={{ duration: 0.3 }}
             className="prose prose-invert prose-sm max-w-none"
           >
-            <h3 className="text-lg font-semibold mb-4">
-              Chapter {currentChapter.chapter_number}
-            </h3>
             <div 
-              className="markdown-content"
+              className="literary-content"
               dangerouslySetInnerHTML={{ 
-                __html: formatMarkdown(currentChapter.content || 'Chapter content is being generated...') 
+                __html: formatLiteraryChapter(
+                  currentChapter.content || 'Chapter content is being generated...', 
+                  currentChapter.chapter_number
+                ) 
               }}
             />
           </motion.div>

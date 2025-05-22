@@ -1,0 +1,118 @@
+/* Literary Styles for MythicalHero.me
+ * These styles create a book-like appearance for narrative content
+ */
+
+/* Base literary container */
+.literary-content {
+  font-family: 'Palatino', 'Georgia', serif;
+  line-height: 1.8;
+  color: #e2e8f0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Chapter styling */
+.chapter {
+  margin-bottom: 3rem;
+  position: relative;
+}
+
+.chapter h2 {
+  font-family: 'Cinzel', 'Times New Roman', serif;
+  font-size: 1.75rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 2.5rem 0 1.5rem;
+  letter-spacing: 0.05em;
+  color: #a78bfa;
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
+}
+
+.chapter h3 {
+  font-family: 'Cinzel', 'Times New Roman', serif;
+  font-size: 1.4rem;
+  margin: 2rem 0 1rem;
+  color: #c4b5fd;
+}
+
+/* Literary paragraphs */
+.literary-paragraph {
+  margin-bottom: 1.5rem;
+  text-indent: 1.5rem;
+  hyphens: auto;
+}
+
+.literary-paragraph:first-of-type:first-letter {
+  font-size: 2.5rem;
+  font-family: 'Cinzel', 'Times New Roman', serif;
+  float: left;
+  line-height: 1;
+  padding-right: 0.5rem;
+  color: #a78bfa;
+}
+
+/* Scene breaks */
+.scene-break {
+  text-align: center;
+  border: none;
+  margin: 2rem auto;
+  height: 1.5rem;
+  position: relative;
+  background: none;
+}
+
+.scene-break::before {
+  content: "⁂";
+  font-size: 1.5rem;
+  color: #a78bfa;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Dialogue styling */
+.literary-content blockquote {
+  font-style: italic;
+  border-left: 3px solid #a78bfa;
+  padding-left: 1rem;
+  margin-left: 0.5rem;
+}
+
+/* Backstory specific styles */
+.backstory-content {
+  padding: 1.5rem;
+  background-color: rgba(31, 30, 61, 0.4);
+  border-radius: 0.5rem;
+  border-left: 3px solid #a78bfa;
+}
+
+.backstory-content h2 {
+  margin-top: 0;
+  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+  padding-bottom: 0.5rem;
+}
+
+/* Shared story specific styles */
+.shared-story-content {
+  position: relative;
+  background-color: rgba(31, 30, 61, 0.2);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.shared-story-content::before {
+  content: """;
+  font-family: 'Georgia', serif;
+  font-size: 6rem;
+  position: absolute;
+  top: -1.5rem;
+  left: -1rem;
+  color: rgba(167, 139, 250, 0.1);
+  z-index: 0;
+}
+
+/* First paragraph in shared story with no indentation */
+.shared-story-content p:first-of-type {
+  text-indent: 0;
+} 

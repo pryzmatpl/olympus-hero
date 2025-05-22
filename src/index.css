@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import literary styles */
+@import './styles/literaryStyles.css';
+
 /* Markdown Content Styling */
 .markdown-content {
   color: #e2e8f0;
