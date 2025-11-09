@@ -38,12 +38,23 @@ dotenv.config();
 
 // Global error handlers to prevent crashes
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('=== UNHANDLED REJECTION ===');
+  console.error('Promise:', promise);
+  console.error('Reason:', reason);
+  if (reason instanceof Error) {
+    console.error('Error message:', reason.message);
+    console.error('Error stack:', reason.stack);
+  }
+  console.error('===========================');
   // Don't exit the process, just log the error
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  console.error('=== UNCAUGHT EXCEPTION ===');
+  console.error('Error:', error);
+  console.error('Error message:', error.message);
+  console.error('Error stack:', error.stack);
+  console.error('===========================');
   // Don't exit the process, just log the error
 });
 

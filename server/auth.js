@@ -10,7 +10,19 @@ const SALT_ROUNDS = 10;
  * Hash a password using bcrypt
  */
 const hashPassword = async (password) => {
-  return bcrypt.hash(password, SALT_ROUNDS);
+  try {
+    console.log('hashPassword: Starting hash...');
+    if (!password || typeof password !== 'string') {
+      throw new Error('Password must be a non-empty string');
+    }
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    console.log('hashPassword: Hash completed successfully');
+    return hash;
+  } catch (error) {
+    console.error('hashPassword error:', error);
+    console.error('hashPassword error stack:', error.stack);
+    throw error;
+  }
 };
 
 /**
@@ -34,8 +46,13 @@ export const registerUser = async (email, password, name) => {
     }
 
     console.log('registerUser: Hashing password...');
+    console.log('registerUser: Password type:', typeof password, 'length:', password?.length);
     // Hash the password
+    if (!password || typeof password !== 'string' || password.length === 0) {
+      throw new Error('Password is required and must be a non-empty string');
+    }
     const hashedPassword = await hashPassword(password);
+    console.log('registerUser: Password hashed, length:', hashedPassword?.length);
 
     console.log('registerUser: Creating user object...');
     // Create a new user
