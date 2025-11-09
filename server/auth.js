@@ -1,12 +1,29 @@
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { userDb } from './db.js';
-import bcrypt from 'bcrypt';
-import { promisify } from 'util';
 
-// Use promisify to convert callback-based bcrypt to promise-based (more stable)
-const bcryptHash = promisify(bcrypt.hash.bind(bcrypt));
-const bcryptCompare = promisify(bcrypt.compare.bind(bcrypt));
+// Use bcryptjs (pure JS) instead of bcrypt to avoid native binding crashes
+// bcryptjs is slower but more stable and doesn't require native compilation
+// It's API-compatible with bcrypt, so existing hashes will work
+let bcryptjs = null;
+const getBcryptjs = async () => {
+  if (!bcryptjs) {
+    try {
+      const bcryptjsModule = await import('bcryptjs');
+      bcryptjs = bcryptjsModule.default || bcryptjsModule;
+      console.log('Using bcryptjs (pure JS) for password hashing - more stable, no native bindings');
+    } catch (error) {
+      console.error('Failed to load bcryptjs:', error.message);
+      throw new Error('bcryptjs is required but failed to load. Please install: npm install bcryptjs');
+    }
+  }
+  return bcryptjs;
+};
+
+// Initialize bcryptjs on module load
+getBcryptjs().catch(err => {
+  console.error('Critical: Failed to initialize bcryptjs:', err);
+});
 
 // Number of salt rounds for bcrypt
 const SALT_ROUNDS = 10;
@@ -16,14 +33,18 @@ const SALT_ROUNDS = 10;
  */
 const hashPassword = async (password) => {
   try {
-    console.log('hashPassword: Starting hash...');
+    console.log('hashPassword: Starting hash with bcryptjs...');
     if (!password || typeof password !== 'string') {
       throw new Error('Password must be a non-empty string');
     }
-    console.log('hashPassword: Using promisified bcrypt.hash with rounds:', SALT_ROUNDS);
     
-    // Use promisified version which wraps the callback API (more stable)
-    const hash = await bcryptHash(password, SALT_ROUNDS);
+    // Ensure bcryptjs is loaded
+    const bcrypt = await getBcryptjs();
+    console.log('hashPassword: Using bcryptjs.hashSync with rounds:', SALT_ROUNDS);
+    
+    // Use bcryptjs (pure JS) - synchronous but we wrap in Promise for async interface
+    // This avoids native binding crashes
+    const hash = await Promise.resolve(bcrypt.hashSync(password, SALT_ROUNDS));
     console.log('hashPassword: Hash completed successfully, length:', hash?.length);
     return hash;
   } catch (error) {
@@ -42,7 +63,10 @@ const hashPassword = async (password) => {
  * Compare a password with a hash
  */
 const comparePassword = async (password, hash) => {
-  return bcryptCompare(password, hash);
+  // Ensure bcryptjs is loaded
+  const bcrypt = await getBcryptjs();
+  // Use bcryptjs (pure JS) - synchronous but we wrap in Promise for async interface
+  return Promise.resolve(bcrypt.compareSync(password, hash));
 };
 
 /**
