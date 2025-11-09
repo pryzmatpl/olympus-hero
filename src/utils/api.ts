@@ -55,6 +55,12 @@ export const getSocketUrl = (): string => {
   if (isProduction) {
     // In production, use the same host with HTTPS protocol
     const host = window.location.host;
+    // Safety check: if host is localhost, something is wrong with the build
+    if (host.includes('localhost')) {
+      console.warn('Warning: Production build detected localhost host. This should not happen in production.');
+      // Fallback to production domain
+      return 'https://mythicalhero.me';
+    }
     return `https://${host}`;
   } else {
     // In development, use the same base URL as the API
