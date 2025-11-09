@@ -36,7 +36,7 @@ import stripe from 'stripe';
 // Load environment variables
 dotenv.config();
 
-// Global error handlers to prevent crashes
+// Global error handlers to prevent crashes - set up FIRST before anything else
 process.on('unhandledRejection', (reason, promise) => {
   console.error('=== UNHANDLED REJECTION ===');
   console.error('Promise:', promise);
@@ -44,6 +44,9 @@ process.on('unhandledRejection', (reason, promise) => {
   if (reason instanceof Error) {
     console.error('Error message:', reason.message);
     console.error('Error stack:', reason.stack);
+  } else {
+    console.error('Reason type:', typeof reason);
+    console.error('Reason value:', reason);
   }
   console.error('===========================');
   // Don't exit the process, just log the error
@@ -54,8 +57,26 @@ process.on('uncaughtException', (error) => {
   console.error('Error:', error);
   console.error('Error message:', error.message);
   console.error('Error stack:', error.stack);
+  console.error('Error name:', error.name);
+  if (error.code) {
+    console.error('Error code:', error.code);
+  }
   console.error('===========================');
   // Don't exit the process, just log the error
+});
+
+process.on('exit', (code) => {
+  console.error('=== PROCESS EXITING ===');
+  console.error('Exit code:', code);
+  console.error('===========================');
+});
+
+process.on('SIGTERM', () => {
+  console.error('=== SIGTERM RECEIVED ===');
+});
+
+process.on('SIGINT', () => {
+  console.error('=== SIGINT RECEIVED ===');
 });
 
 // Safe import of OpenAI-related modules

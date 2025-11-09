@@ -15,12 +15,24 @@ const hashPassword = async (password) => {
     if (!password || typeof password !== 'string') {
       throw new Error('Password must be a non-empty string');
     }
-    const hash = await bcrypt.hash(password, SALT_ROUNDS);
-    console.log('hashPassword: Hash completed successfully');
+    console.log('hashPassword: Calling bcrypt.hash with rounds:', SALT_ROUNDS);
+    console.log('hashPassword: bcrypt type:', typeof bcrypt, 'hash type:', typeof bcrypt.hash);
+    
+    // Wrap in Promise.resolve to ensure it's a proper promise
+    const hashPromise = Promise.resolve(bcrypt.hash(password, SALT_ROUNDS));
+    console.log('hashPassword: Promise created, awaiting...');
+    
+    const hash = await hashPromise;
+    console.log('hashPassword: Hash completed successfully, length:', hash?.length);
     return hash;
   } catch (error) {
     console.error('hashPassword error:', error);
-    console.error('hashPassword error stack:', error.stack);
+    console.error('hashPassword error message:', error?.message);
+    console.error('hashPassword error name:', error?.name);
+    console.error('hashPassword error stack:', error?.stack);
+    if (error.code) {
+      console.error('hashPassword error code:', error.code);
+    }
     throw error;
   }
 };
@@ -51,8 +63,18 @@ export const registerUser = async (email, password, name) => {
     if (!password || typeof password !== 'string' || password.length === 0) {
       throw new Error('Password is required and must be a non-empty string');
     }
-    const hashedPassword = await hashPassword(password);
-    console.log('registerUser: Password hashed, length:', hashedPassword?.length);
+    
+    let hashedPassword;
+    try {
+      console.log('registerUser: About to call hashPassword...');
+      hashedPassword = await hashPassword(password);
+      console.log('registerUser: Password hashed, length:', hashedPassword?.length);
+    } catch (hashError) {
+      console.error('registerUser: Error during password hashing:', hashError);
+      console.error('registerUser: Hash error message:', hashError?.message);
+      console.error('registerUser: Hash error stack:', hashError?.stack);
+      throw new Error(`Password hashing failed: ${hashError?.message || 'Unknown error'}`);
+    }
 
     console.log('registerUser: Creating user object...');
     // Create a new user
