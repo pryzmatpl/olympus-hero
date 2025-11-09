@@ -36,6 +36,17 @@ import stripe from 'stripe';
 // Load environment variables
 dotenv.config();
 
+// Global error handlers to prevent crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit the process, just log the error
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit the process, just log the error
+});
+
 // Safe import of OpenAI-related modules
 const safeRequireOpenAI = () => {
   try {
@@ -478,10 +489,11 @@ async function startServer() {
         }
         
         const user = await registerUser(email, password, name);
-        return res.status(201).json({ user });
+        res.status(201).json({ user });
       } catch (error) {
         console.error('Error registering user:', error);
-        return res.status(400).json({ error: error.message });
+        const statusCode = error.message.includes('already exists') ? 409 : 400;
+        res.status(statusCode).json({ error: error.message || 'Registration failed' });
       }
     });
 
