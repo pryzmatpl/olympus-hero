@@ -2,6 +2,11 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { userDb } from './db.js';
 import bcrypt from 'bcrypt';
+import { promisify } from 'util';
+
+// Use promisify to convert callback-based bcrypt to promise-based (more stable)
+const bcryptHash = promisify(bcrypt.hash.bind(bcrypt));
+const bcryptCompare = promisify(bcrypt.compare.bind(bcrypt));
 
 // Number of salt rounds for bcrypt
 const SALT_ROUNDS = 10;
@@ -15,14 +20,10 @@ const hashPassword = async (password) => {
     if (!password || typeof password !== 'string') {
       throw new Error('Password must be a non-empty string');
     }
-    console.log('hashPassword: Calling bcrypt.hash with rounds:', SALT_ROUNDS);
-    console.log('hashPassword: bcrypt type:', typeof bcrypt, 'hash type:', typeof bcrypt.hash);
+    console.log('hashPassword: Using promisified bcrypt.hash with rounds:', SALT_ROUNDS);
     
-    // Wrap in Promise.resolve to ensure it's a proper promise
-    const hashPromise = Promise.resolve(bcrypt.hash(password, SALT_ROUNDS));
-    console.log('hashPassword: Promise created, awaiting...');
-    
-    const hash = await hashPromise;
+    // Use promisified version which wraps the callback API (more stable)
+    const hash = await bcryptHash(password, SALT_ROUNDS);
     console.log('hashPassword: Hash completed successfully, length:', hash?.length);
     return hash;
   } catch (error) {
@@ -41,7 +42,7 @@ const hashPassword = async (password) => {
  * Compare a password with a hash
  */
 const comparePassword = async (password, hash) => {
-  return bcrypt.compare(password, hash);
+  return bcryptCompare(password, hash);
 };
 
 /**
