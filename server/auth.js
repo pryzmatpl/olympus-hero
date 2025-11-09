@@ -24,29 +24,41 @@ const comparePassword = async (password, hash) => {
  * Register a new user
  */
 export const registerUser = async (email, password, name) => {
-  // Check if user already exists
-  const existingUser = await userDb.findUserByEmail(email);
-  if (existingUser) {
-    throw new Error('User with this email already exists');
+  try {
+    console.log('registerUser: Checking if user exists...');
+    // Check if user already exists
+    const existingUser = await userDb.findUserByEmail(email);
+    if (existingUser) {
+      console.log('registerUser: User already exists');
+      throw new Error('User with this email already exists');
+    }
+
+    console.log('registerUser: Hashing password...');
+    // Hash the password
+    const hashedPassword = await hashPassword(password);
+
+    console.log('registerUser: Creating user object...');
+    // Create a new user
+    const userId = uuidv4();
+    const user = {
+      id: userId,
+      email,
+      password: hashedPassword,
+      name,
+      heroes: [],
+      created: new Date()
+    };
+
+    console.log('registerUser: Storing user in database...');
+    // Store the user
+    await userDb.createUser(user);
+    console.log('registerUser: User created successfully:', userId);
+    return { userId, email, name };
+  } catch (error) {
+    console.error('registerUser error:', error);
+    console.error('registerUser error stack:', error.stack);
+    throw error;
   }
-
-  // Hash the password
-  const hashedPassword = await hashPassword(password);
-
-  // Create a new user
-  const userId = uuidv4();
-  const user = {
-    id: userId,
-    email,
-    password: hashedPassword,
-    name,
-    heroes: [],
-    created: new Date()
-  };
-
-  // Store the user
-  await userDb.createUser(user);
-  return { userId, email, name };
 };
 
 /**

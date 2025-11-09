@@ -50,10 +50,18 @@ export const closeDB = async () => {
 export const userDb = {
   // Create a new user
   async createUser(user) {
-    const db = await connectDB();
-
-    await db.collection('users').insertOne(user);
-    return user;
+    try {
+      console.log('userDb.createUser: Connecting to DB...');
+      const db = await connectDB();
+      console.log('userDb.createUser: Inserting user...');
+      await db.collection('users').insertOne(user);
+      console.log('userDb.createUser: User inserted successfully');
+      return user;
+    } catch (error) {
+      console.error('userDb.createUser error:', error);
+      console.error('userDb.createUser error stack:', error.stack);
+      throw error;
+    }
   },
 
   // Find a user by email

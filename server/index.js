@@ -482,18 +482,25 @@ async function startServer() {
     // Authentication Routes
     app.post('/api/auth/register', async (req, res) => {
       try {
+        console.log('Registration request received:', { email: req.body?.email, name: req.body?.name });
         const { email, password, name } = req.body;
         
         if (!email || !password || !name) {
+          console.log('Missing required fields');
           return res.status(400).json({ error: 'Email, password, and name are required' });
         }
         
+        console.log('Calling registerUser...');
         const user = await registerUser(email, password, name);
+        console.log('User registered successfully:', user.userId);
         res.status(201).json({ user });
       } catch (error) {
         console.error('Error registering user:', error);
+        console.error('Error stack:', error.stack);
         const statusCode = error.message.includes('already exists') ? 409 : 400;
-        res.status(statusCode).json({ error: error.message || 'Registration failed' });
+        if (!res.headersSent) {
+          res.status(statusCode).json({ error: error.message || 'Registration failed' });
+        }
       }
     });
 
