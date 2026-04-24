@@ -4,7 +4,7 @@
 help:
 	@echo "Available targets:"
 	@echo "  dev    - Start the application in development mode with live reloading"
-	@echloo "  prod   - Start the application in production mode"
+	@echo "  prod   - Start the application in production mode"
 	@echo "  clean  - Stop and remove containers, networks, and volumes"
 	@echo "  build  - Build Docker images for the application"
 	@echo "  help   - Show this help message"
