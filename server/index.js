@@ -647,14 +647,44 @@ async function startServer() {
     // Hero Routes (now protected by authentication)
     app.post('/api/heroes', authMiddleware, async (req, res) => {
       try {
-        const reqBody = req.body;
         const user = req.user;
-        const data = JSON.parse(reqBody.body);
-        
-        if (!data.birthdate || !data.heroName) {
-          return res.status(400).json({ error: 'Birth date and hero name are required' });
+        /** Supports flat JSON, legacy { body: "<json string>" }, or legacy { body: { ... } } */
+        let data;
+        const raw = req.body;
+        if (!raw || typeof raw !== 'object') {
+          return res.status(400).json({ error: 'Request body is required' });
         }
-        
+        if (typeof raw.body === 'string') {
+          try {
+            data = JSON.parse(raw.body);
+          } catch (e) {
+            console.error('Hero create: invalid legacy body string', e);
+            return res.status(400).json({ error: 'Invalid hero payload (legacy body string)' });
+          }
+        } else if (raw.body && typeof raw.body === 'object') {
+          data = raw.body;
+        } else if (raw.heroName && raw.birthdate && raw.heroId) {
+          data = {
+            heroName: raw.heroName,
+            birthdate: raw.birthdate,
+            heroId: raw.heroId,
+          };
+        } else {
+          return res.status(400).json({
+            error: 'Birth date, hero name, and hero id are required',
+          });
+        }
+
+        if (!data.birthdate || !data.heroName || !data.heroId) {
+          return res.status(400).json({ error: 'Birth date, hero name, and hero id are required' });
+        }
+
+        const heroNameClean = String(data.heroName).trim();
+        const heroIdClean = String(data.heroId).trim();
+        if (!heroNameClean || !heroIdClean) {
+          return res.status(400).json({ error: 'Hero name and hero id must be non-empty' });
+        }
+
         // Check if user already has a non-premium hero
         const existingHeroes = await heroDb.getHeroesByUserId(user.userId);
         const hasNonPremiumHero = existingHeroes.some(hero => hero.paymentStatus !== 'paid');
@@ -668,6 +698,9 @@ async function startServer() {
         
         // Parse the birthdate
         const dob = new Date(data.birthdate);
+        if (Number.isNaN(dob.getTime())) {
+          return res.status(400).json({ error: 'Invalid birth date' });
+        }
 
         // Calculate zodiac signs
         const westernZodiac = calculate_western_zodiac(dob);
@@ -675,9 +708,9 @@ async function startServer() {
         
         // Create hero object
         const hero = {
-          id: data.heroId,
+          id: heroIdClean,
           userid: user.userId,
-          name: data.heroName,
+          name: heroNameClean,
           birthdate: dob,
           westernZodiac,
           chineseZodiac,
@@ -693,7 +726,7 @@ async function startServer() {
         await heroDb.createHero(hero);
         
         // Associate hero with user
-        await addHeroToUser(user.userId, data.heroId);
+        await addHeroToUser(user.userId, heroIdClean);
         
         // Return the hero ID
         return res.status(201).json({ 

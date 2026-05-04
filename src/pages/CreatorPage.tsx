@@ -94,12 +94,11 @@ const CreatorPage: React.FC = () => {
       if (!birthdate) {
         throw new Error('Birth date is required');
       }
-      const payload = JSON.stringify({
+      const createRes = await api.post(`/api/heroes`, {
         heroName: heroName.trim(),
         birthdate: birthdate.toISOString(),
         heroId,
       });
-      const createRes = await api.post(`/api/heroes`, { body: payload });
       const created = createRes.data?.hero;
       if (!created) {
         throw new Error('Failed to create hero');
@@ -124,7 +123,9 @@ const CreatorPage: React.FC = () => {
         showNotification(
           'error',
           'Could not create hero',
-          err.response?.data?.error ?? 'Something went wrong. Please try again.',
+          err.response?.data?.message ||
+            err.response?.data?.error ||
+            'Something went wrong. Please try again.',
           true,
           5000
         );
