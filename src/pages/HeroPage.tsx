@@ -369,22 +369,34 @@ const HeroPage: React.FC = () => {
         className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
       >
         <div className="text-center max-w-md w-full bg-mystic-900/80 border border-cosmic-600/30 p-6 rounded-xl shadow-lg">
-          {/* Cosmic animation container */}
-          <div className="relative h-32 mb-6">
+          {/* Cosmic animation — spin must be on a child: animate-spin overwrites transform, so mixing translate centering + rotate on one node breaks orbits */}
+          <div className="relative mx-auto mb-6 flex min-h-[16rem] w-full max-w-xs items-center justify-center">
             {/* Central sun/star */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-yellow-300 rounded-full animate-pulse shadow-glow"></div>
-            
-            {/* Orbiting planets */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-dashed border-cosmic-500/30 animate-spin" style={{ animationDuration: '8s' }}>
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-cosmic-500 rounded-full"></div>
+            <div className="absolute top-1/2 left-1/2 z-10 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-300 shadow-glow animate-pulse" />
+
+            {/* Orbiting planets: outer wrapper = center in scene; inner = rotate only */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div className="h-24 w-24 animate-spin" style={{ animationDuration: '8s' }}>
+                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-500/30">
+                  <div className="absolute top-0 left-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cosmic-500" />
+                </div>
+              </div>
             </div>
-            
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-dashed border-cosmic-400/20 animate-spin" style={{ animationDuration: '15s' }}>
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-purple-500 rounded-full"></div>
+
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div className="h-48 w-48 animate-spin" style={{ animationDuration: '15s' }}>
+                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-400/20">
+                  <div className="absolute top-0 left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-500" />
+                </div>
+              </div>
             </div>
-            
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border border-dashed border-cosmic-300/10 animate-spin" style={{ animationDuration: '20s' }}>
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-blue-500 rounded-full"></div>
+
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div className="h-64 w-64 animate-spin" style={{ animationDuration: '20s' }}>
+                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-300/10">
+                  <div className="absolute top-0 left-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500" />
+                </div>
+              </div>
             </div>
           </div>
 
