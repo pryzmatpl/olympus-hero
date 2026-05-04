@@ -13,12 +13,14 @@ import { marked } from 'marked';
  * @param text Raw text from AI generation
  * @returns Formatted HTML with proper literary styling
  */
-export const formatLiteraryText = (text: string): string => {
+export const formatLiteraryText = (
+  text: string,
+  options?: { chapter?: boolean }
+): string => {
   if (!text) return '';
   
   try {
-    // Pre-process the text to add literary formatting
-    let processedText = enhanceTextStructure(text);
+    let processedText = enhanceTextStructure(text, options);
     
     // Convert to HTML using marked
     const rawHtml = marked.parse(processedText);
@@ -49,29 +51,87 @@ export const formatLiteraryText = (text: string): string => {
  * @param text Raw AI-generated text
  * @returns Enhanced text with proper structure
  */
-const enhanceTextStructure = (text: string): string => {
-  // Remove AI-generation artifacts
+const enhanceTextStructure = (
+  text: string,
+  options?: { chapter?: boolean }
+): string => {
   let enhancedText = text
     .replace(/^(As an AI language model|I'd be happy to|Sure!|Here's|Let me).*?\n/i, '')
     .replace(/^Rendered for MythicalHero\.me\s*/i, '');
-  
-  // Make sure chapter headings are properly formatted
+
   enhancedText = enhancedText.replace(
     /^(Chapter \w+:?.*)$/im,
     '## $1'
   );
-  
-  // Ensure scene breaks use consistent formatting
+
   enhancedText = enhancedText
     .replace(/^\s*\*\*\*\s*$/gm, '\n\n---\n\n')
     .replace(/^\s*[~\-]{3,}\s*$/gm, '\n\n---\n\n');
-  
-  // Add proper emphasis for important phrases
-  enhancedText = enhancedText
-    .replace(/\b([A-Z]{2,})\b/g, '**$1**'); // Capitalize important words
-  
+
+  // Chapter prose: avoid bolding every ALL-CAPS token — hurts book-like typography
+  if (!options?.chapter) {
+    enhancedText = enhancedText.replace(/\b([A-Z]{2,})\b/g, '**$1**');
+  }
+
   return enhancedText;
 };
+
+/** Split very long blocks (single paragraph walls) into readable book paragraphs */
+function splitDenseProseIntoParagraphs(markdown: string): string {
+  return markdown
+    .split(/\n\n+/)
+    .map((para) => {
+      const p = para.trim();
+      if (!p || p.startsWith('#') || p.startsWith('>') || /^[-*]\s/.test(p)) {
+        return para;
+      }
+      if (p.length < 480) {
+        return para;
+      }
+      const oneLine = p.replace(/\s+/g, ' ');
+      const sentences = oneLine
+        .split(/(?<=[.!?]"?)\s+(?=[A-Z"'(])/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (sentences.length <= 4) {
+        return para;
+      }
+      const chunks: string[] = [];
+      const chunkSize = 4;
+      for (let i = 0; i < sentences.length; i += chunkSize) {
+        chunks.push(sentences.slice(i, i + chunkSize).join(' '));
+      }
+      return chunks.join('\n\n');
+    })
+    .join('\n\n');
+}
+
+/** Remove duplicate fallback title when the model already supplied a chapter heading */
+function dedupeLegacyChapterTitles(text: string, chapterNumber: number): string {
+  let trimmed = text.trim();
+
+  const plainDouble = new RegExp(
+    `^Chapter\\s*${chapterNumber}:\\s*The Journey Continues\\s*\\n+(?=Chapter\\s+[IVXLCDM])`,
+    'i'
+  );
+  if (plainDouble.test(trimmed)) {
+    trimmed = trimmed.replace(plainDouble, '').trim();
+  }
+
+  const genericMd = new RegExp(
+    `^##\\s*Chapter\\s*${chapterNumber}:\\s*The Journey Continues\\s*\\n+`,
+    'i'
+  );
+  if (!genericMd.test(trimmed)) {
+    return trimmed;
+  }
+  const without = trimmed.replace(genericMd, '').trim();
+  const nextFirst = without.split('\n').find((l) => l.trim())?.trim() ?? '';
+  if (/^Chapter\s+[IVXLCDM]+/i.test(nextFirst) || /^Chapter\s*\d+/i.test(nextFirst)) {
+    return without;
+  }
+  return trimmed;
+}
 
 /**
  * Add literary structure to HTML content
@@ -79,10 +139,10 @@ const enhanceTextStructure = (text: string): string => {
  * @returns HTML with literary structure
  */
 const addLiteraryStructure = (html: string): string => {
-  // Wrap chapters in section tags if they're not already
+  // Wrap chapter headings (handles marked-generated attributes on h2)
   let structuredHtml = html.replace(
-    /<h2>(Chapter .+?)<\/h2>/g,
-    '<section class="chapter"><h2>$1</h2>'
+    /<h2([^>]*)>([\s\S]*?Chapter[\s\S]*?)<\/h2>/gi,
+    '<section class="chapter"><h2$1>$2</h2>'
   );
   
   // Close any open sections at the end
@@ -113,7 +173,7 @@ export const formatLiteraryBackstory = (text: string): string => {
     processedText = `## Origin Story\n\n${text}`;
   }
   
-  return formatLiteraryText(processedText);
+  return formatLiteraryText(processedText, {});
 };
 
 /**
@@ -124,14 +184,27 @@ export const formatLiteraryBackstory = (text: string): string => {
  */
 export const formatLiteraryChapter = (text: string, chapterNumber: number): string => {
   if (!text) return '';
-  
-  // If no chapter title is found, add a generic one
-  let processedText = text;
-  if (!text.trim().match(/^#+\s*Chapter/i)) {
-    processedText = `## Chapter ${chapterNumber}: The Journey Continues\n\n${text}`;
+
+  let processedText = dedupeLegacyChapterTitles(text, chapterNumber);
+
+  const hasMdHeading = /^#+\s*Chapter/i.test(processedText);
+  const firstLine =
+    processedText.split('\n').find((l) => l.trim())?.trim() ?? '';
+
+  if (!hasMdHeading) {
+    if (/^Chapter\s+[IVXLCDM\d]/i.test(firstLine)) {
+      const rest = processedText
+        .slice(processedText.indexOf(firstLine) + firstLine.length)
+        .trim();
+      processedText = `## ${firstLine}\n\n${rest}`;
+    } else {
+      processedText = `## Chapter ${chapterNumber}: The Journey Continues\n\n${processedText}`;
+    }
   }
-  
-  return formatLiteraryText(processedText);
+
+  processedText = splitDenseProseIntoParagraphs(processedText);
+
+  return formatLiteraryText(processedText, { chapter: true });
 };
 
 /**
@@ -152,5 +225,5 @@ export const formatLiterarySharedStory = (text: string): string => {
     // Ensure proper paragraph breaks
     .replace(/\n{3,}/g, '\n\n');
   
-  return formatLiteraryText(processedText);
+  return formatLiteraryText(processedText, {});
 }; 
