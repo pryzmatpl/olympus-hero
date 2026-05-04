@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { motion } from 'framer-motion';
-// @ts-ignore
 import api from '../utils/api.ts';
 import { AuthContext } from '../App';
 
@@ -21,6 +21,9 @@ const RegisterPage = () => {
   
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectAfterRegister =
+    (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/create';
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,11 +62,13 @@ const RegisterPage = () => {
       // Store the token and user data
       login(token, user);
       
-      // Redirect to home
-      navigate('/');
-    } catch (err: any) {
+      navigate(redirectAfterRegister, { replace: true });
+    } catch (err: unknown) {
       console.error('Registration error:', err);
-      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+      const message = isAxiosError(err)
+        ? String(err.response?.data?.error ?? err.message)
+        : 'Registration failed. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -157,7 +162,11 @@ const RegisterPage = () => {
           <div className="mt-6 text-center">
             <p className="text-cosmic-400">
               Already have an account?{' '}
-              <Link to="/login" className="text-cosmic-300 hover:text-cosmic-200">
+              <Link
+                to="/login"
+                state={location.state}
+                className="text-cosmic-300 hover:text-cosmic-200"
+              >
                 Log In
               </Link>
             </p>

@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../utils/api';
+import { isAxiosError } from 'axios';
 import { AuthContext } from '../App';
 import PageTitle from '../components/ui/PageTitle';
 import { useNotification } from '../context/NotificationContext';
@@ -66,27 +67,23 @@ const LoginPage = () => {
       // Redirect to home or intended page
       const from = location.state?.from?.pathname || '/';
       navigate(from, { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err);
       
       // Clear any previous error
       setError(null);
       
-      // Handle different error scenarios
-      if (err.response) {
-        // The request was made and the server responded with an error status
-        if (err.response.status === 401) {
+      if (isAxiosError(err)) {
+        if (err.response?.status === 401) {
           setError('Invalid email or password. Please try again.');
-        } else if (err.response.data?.error) {
-          setError(err.response.data.error);
+        } else if (err.response?.data?.error) {
+          setError(String(err.response.data.error));
+        } else if (err.request) {
+          setError('No response from server. Please check your connection and try again.');
         } else {
           setError('Login failed. Please try again.');
         }
-      } else if (err.request) {
-        // The request was made but no response was received
-        setError('No response from server. Please check your connection and try again.');
       } else {
-        // Something happened in setting up the request
         setError('Login request failed. Please try again.');
       }
     } finally {
@@ -155,7 +152,11 @@ const LoginPage = () => {
           <div className="mt-6 text-center">
             <p className="text-cosmic-400">
               Don't have an account?{' '}
-              <Link to="/register" className="text-cosmic-300 hover:text-cosmic-200">
+              <Link
+                to="/register"
+                state={location.state}
+                className="text-cosmic-300 hover:text-cosmic-200"
+              >
                 Register
               </Link>
             </p>
