@@ -96,6 +96,9 @@ export const userDb = {
       { $push: { heroes: heroId } }
     );
     const user = await this.findUserById(userId);
+    if (!user || !Array.isArray(user.heroes)) {
+      throw new Error('USER_ACCOUNT_MISSING');
+    }
     return user.heroes;
   },
 

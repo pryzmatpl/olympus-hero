@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronRight, Calendar, SparkleIcon } from 'lucide-react';
@@ -21,6 +21,7 @@ const CreatorPage: React.FC = () => {
   const creatorLimitVariant = getCreatorLimitHintVariant();
   const [step, setStep] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
+  const createHeroInFlight = useRef(false);
   
   // Get heroStore actions
   const { 
@@ -83,6 +84,8 @@ const CreatorPage: React.FC = () => {
   
   // Function to create the hero
   const handleCreateHero = async () => {
+    if (createHeroInFlight.current) return;
+    createHeroInFlight.current = true;
     setLoading(true);
     setStatus('generating');
     let heroId = Guid.create().toString();
@@ -118,6 +121,26 @@ const CreatorPage: React.FC = () => {
         setStatus('limit_reached');
         showNotification('warning', 'Hero limit', err.response.data.message ?? 'Upgrade an existing hero first.', true, 6000);
         navigate('/heroes');
+      } else if (err.response?.status === 403) {
+        setStatus('error');
+        showNotification(
+          'warning',
+          'Cannot create hero',
+          err.response?.data?.message ||
+            err.response?.data?.error ||
+            'You may need to upgrade an existing hero first.',
+          true,
+          6000
+        );
+      } else if (err.response?.data?.error === 'hero_id_conflict' || err.response?.status === 409) {
+        setStatus('error');
+        showNotification(
+          'warning',
+          'Please try again',
+          err.response?.data?.message ?? 'Tap Generate again to use a new id.',
+          true,
+          5000
+        );
       } else {
         setStatus('error');
         showNotification(
@@ -131,6 +154,7 @@ const CreatorPage: React.FC = () => {
         );
       }
     } finally {
+      createHeroInFlight.current = false;
       setLoading(false);
     }
   };

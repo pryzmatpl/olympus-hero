@@ -207,9 +207,5 @@ export const getUserById = async (userId) => {
  * Associate a hero with a user
  */
 export const addHeroToUser = async (userId, heroId) => {
-  try {
-    return await userDb.addHeroToUser(userId, heroId);
-  } catch (error) {
-    throw new Error('User not found');
-  }
+  return userDb.addHeroToUser(userId, heroId);
 }; 

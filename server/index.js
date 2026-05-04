@@ -648,6 +648,13 @@ async function startServer() {
     app.post('/api/heroes', authMiddleware, async (req, res) => {
       try {
         const user = req.user;
+        const account = await getUserById(user.userId);
+        if (!account) {
+          return res.status(401).json({
+            error: 'Session invalid',
+            message: 'Your account was not found. Please sign out and sign in again.',
+          });
+        }
         /** Supports flat JSON, legacy { body: "<json string>" }, or legacy { body: { ... } } */
         let data;
         const raw = req.body;
@@ -735,6 +742,18 @@ async function startServer() {
         });
       } catch (error) {
         console.error('Error creating hero:', error);
+        if (error?.message === 'USER_ACCOUNT_MISSING') {
+          return res.status(401).json({
+            error: 'Session invalid',
+            message: 'Your account was not found. Please sign out and sign in again.',
+          });
+        }
+        if (error?.code === 11000) {
+          return res.status(409).json({
+            error: 'hero_id_conflict',
+            message: 'This hero id is already in use. Please try generating again.',
+          });
+        }
         return res.status(500).json({ error: 'Failed to create hero' });
       }
     });
