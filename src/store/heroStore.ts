@@ -196,26 +196,37 @@ export const useHeroStore = create<HeroState>((set) => ({
     chapters: [],
     isLoadingChapters: false
   }),
-  loadHeroFromAPI: (heroData) => set({
-    heroId: heroData.id || null,
-    heroName: heroData.name || '',
-    birthdate: heroData.birthdate ? new Date(heroData.birthdate) : null,
-    zodiacInfo: heroData.westernZodiac && heroData.chineseZodiac 
-      ? {
-          western: heroData.westernZodiac,
-          chinese: heroData.chineseZodiac
-        }
-      : null,
-    images: heroData.images && heroData.images.length > 0 
-      ? heroData.images.map((img: any) => ({
-          angle: img.angle || 'front',
-          url: img.url,
-          prompt: img.prompt || ''
-        }))
-      : [],
-    backstory: heroData.backstory || '',
-    status: 'complete',
-    paymentStatus: heroData.paymentStatus || 'unpaid',
-    nftId: heroData.nftId || null
-  })
+  loadHeroFromAPI: (heroData) => {
+    const rawStatus = heroData.status as string | undefined;
+    const mappedStatus: HeroState['status'] =
+      rawStatus === 'error'
+        ? 'error'
+        : rawStatus === 'processing' || rawStatus === 'pending'
+          ? 'generating'
+          : 'complete';
+    return set({
+      heroId: heroData.id || null,
+      heroName: heroData.name || '',
+      birthdate: heroData.birthdate ? new Date(heroData.birthdate) : null,
+      zodiacInfo:
+        heroData.westernZodiac && heroData.chineseZodiac
+          ? {
+              western: heroData.westernZodiac,
+              chinese: heroData.chineseZodiac,
+            }
+          : null,
+      images:
+        heroData.images && heroData.images.length > 0
+          ? heroData.images.map((img: any) => ({
+              angle: img.angle || 'front',
+              url: img.url,
+              prompt: img.prompt || '',
+            }))
+          : [],
+      backstory: heroData.backstory || '',
+      status: mappedStatus,
+      paymentStatus: heroData.paymentStatus || 'unpaid',
+      nftId: heroData.nftId || null,
+    });
+  }
 }));

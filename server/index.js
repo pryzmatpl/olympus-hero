@@ -26,7 +26,8 @@ import {
   getStoryBookChapters,
   unlockChapters,
   checkAndUnlockDailyChapters,
-  fixStoryBookChapters
+  fixStoryBookChapters,
+  ensureHeroStorybookChapterOne
 } from './storybook.js';
 import path from 'path';
 import fs from 'fs';
@@ -745,6 +746,12 @@ async function startServer() {
           backstory,
           status: 'completed',
         });
+
+        try {
+          await ensureHeroStorybookChapterOne(id);
+        } catch (syncErr) {
+          console.error('Storybook chapter sync after hero generation failed:', syncErr);
+        }
 
         // Get the updated hero
         const updatedHero = await heroDb.findHeroById(id);

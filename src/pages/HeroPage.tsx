@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users } from 'lucide-react';
+import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users, RefreshCw } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useHeroStore } from '../store/heroStore';
 import HeroPortrait from '../components/hero/HeroPortrait';
@@ -19,6 +19,7 @@ const HeroPage: React.FC = () => {
   const [activeImage, setActiveImage] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [regeneratingHero, setRegeneratingHero] = useState<boolean>(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { showNotification } = useNotification();
@@ -37,7 +38,8 @@ const HeroPage: React.FC = () => {
     setStoryBook,
     setChapters,
     setIsLoadingChapters,
-    isLoadingChapters
+    isLoadingChapters,
+    chapters,
   } = useHeroStore();
   
   // Check for payment success and chapter purchase
@@ -197,6 +199,55 @@ const HeroPage: React.FC = () => {
   
   // Ensure backstory is a string
   const safeBackstory = typeof backstory === 'string' ? backstory : '';
+
+  const missingStoryChapters =
+    !isPreview &&
+    heroId &&
+    !isLoadingChapters &&
+    Array.isArray(chapters) &&
+    chapters.length === 0;
+
+  const showRegenerateHeroContent =
+    !isPreview &&
+    heroId &&
+    status !== 'generating' &&
+    (status === 'error' ||
+      !safeBackstory.trim() ||
+      (status === 'complete' && missingStoryChapters));
+
+  const handleRegenerateHeroContent = async () => {
+    const rawId = id?.replace('preview-', '');
+    if (!rawId || !heroId) return;
+    setRegeneratingHero(true);
+    try {
+      const response = await api.post(`/api/heroes/generate/${rawId}`, {});
+      const heroPayload = response.data?.hero;
+      if (heroPayload) {
+        loadHeroFromAPI(heroPayload);
+      }
+      try {
+        const sbRes = await api.get(`/api/heroes/${rawId}/storybook`);
+        setStoryBook(sbRes.data.storyBook);
+        setChapters(sbRes.data.chapters ?? []);
+      } catch {
+        /* storybook refetch optional */
+      }
+      showNotification(
+        'success',
+        'Content updated',
+        'Images, backstory, and story chapters were refreshed.'
+      );
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string; error?: string } } };
+      const msg =
+        ax.response?.data?.message ||
+        ax.response?.data?.error ||
+        'Regeneration failed. Try again in a moment.';
+      showNotification('error', 'Regeneration failed', msg);
+    } finally {
+      setRegeneratingHero(false);
+    }
+  };
   
   // Format backstory preview for unpaid users
   const backstoryPreview = safeBackstory && safeBackstory.length > 300
@@ -548,9 +599,36 @@ const HeroPage: React.FC = () => {
             
             <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
               <h2 className="text-xl font-display font-semibold mb-4">Backstory</h2>
+
+              {showRegenerateHeroContent && (
+                <div className="mb-4 p-3 rounded-lg bg-amber-900/25 border border-amber-700/40">
+                  <p className="text-amber-100/90 text-sm mb-3">
+                    {status === 'error'
+                      ? 'Generation failed or was interrupted.'
+                      : !safeBackstory.trim()
+                        ? 'Backstory is missing.'
+                        : 'Your first story chapter has not been created yet.'}{' '}
+                    Regenerate to rebuild portraits, backstory, and the opening chapter (uses AI credits).
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    icon={<RefreshCw size={16} />}
+                    isLoading={regeneratingHero}
+                    disabled={regeneratingHero}
+                    onClick={handleRegenerateHeroContent}
+                  >
+                    Regenerate backstory &amp; images
+                  </Button>
+                </div>
+              )}
+
               <div className="prose prose-invert prose-sm max-w-none">
-                {!safeBackstory ? (
+                {!safeBackstory && status !== 'error' && !showRegenerateHeroContent ? (
                   <p className="text-cosmic-400">Backstory is being generated...</p>
+                ) : !safeBackstory && showRegenerateHeroContent ? (
+                  <p className="text-cosmic-400 text-sm">Use the button above to generate your backstory.</p>
                 ) : !isPaid && safeBackstory.length > 300 ? (
                   <>
                     <div 
