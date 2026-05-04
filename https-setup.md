@@ -8,14 +8,18 @@ Architecture: 3-tier Docker deployment
 ## Container Configuration
 
 ### 1. MongoDB
+**Do not publish `27017` to the public internet.** The app container connects on the internal Docker network only (`mongodb:27017`). Exposed Mongo without auth and firewall is how automated “READ_ME_TO_RECOVER” ransom/wipe attacks happen.
+
 ```yaml
 image: mongo:6.0
-ports: 27017
+# (no host ports in production compose)
 volumes: mongodb-data:/data/db
 restart: always
 environment:
   - MONGO_INITDB_DATABASE=olympus-hero
 ```
+
+Admin access: `docker compose exec mongodb mongosh "mongodb://127.0.0.1:27017/olympus-hero"`. For production, add MongoDB users and set `MONGO_URI` with credentials in `.env` (see `.env.example`).
 
 ### 2. Server (Express API)
 ```yaml
@@ -26,7 +30,7 @@ environment:
   - NODE_ENV=production
   - PORT=9002
   - JWT_SECRET=dev_jwt_secret
-  - MONGO_URI=mongodb://mongodb:27017/olympus-hero
+  - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/olympus-hero}
   - OPENAI_API_KEY=<secret>
 volumes:
   - ./storage:/app/storage
@@ -116,6 +120,7 @@ NODE_ENV=production
 PORT=9002
 JWT_SECRET=<set_your_own>
 MONGO_URI=mongodb://mongodb:27017/olympus-hero
+# With Mongo auth (recommended off localhost): set user/pass and authSource in the URI.
 OPENAI_API_KEY=<your_key>
 ```
 
@@ -152,8 +157,6 @@ services:
 
   mongodb:
     image: mongo:6.0
-    ports:
-      - "27017:27017"
     volumes:
       - mongodb-data:/data/db
     restart: always
@@ -182,7 +185,7 @@ docker-compose up -d --build
 ## Production External Ports
 - UI: 9001 -> nginx:80
 - Server: 9002 -> express:9002
-- MongoDB: 27017
+- MongoDB: **not** exposed on the host (internal Docker network only)
 
 ## External Proxy (Reverse Proxy to HTTPS)
 Add this to your main nginx HTTPS config:

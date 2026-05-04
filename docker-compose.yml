@@ -23,7 +23,8 @@ services:
       - NODE_ENV=production
       - PORT=9002
       - JWT_SECRET=dev_jwt_secret
-      - MONGO_URI=mongodb://mongodb:27017/olympus-hero
+      # Prefer MONGO_URI from .env (required if Mongo uses auth). Never publish Mongo to the host without a firewall + auth.
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/olympus-hero}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./:/app
@@ -36,10 +37,9 @@ services:
     depends_on:
       - mongodb
 
+  # MongoDB is NOT published to the host. It is only reachable on the Docker network (e.g. hostname "mongodb" for the server service). This blocks internet-wide scanning and opportunistic ransom/wipe attacks. To open a local admin shell: docker compose exec mongodb mongosh "mongodb://127.0.0.1:27017/olympus-hero"
   mongodb:
     image: mongo:6.0
-    ports:
-      - "27017:27017"
     volumes:
       - mongodb-data:/data/db
     restart: always
