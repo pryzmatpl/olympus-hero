@@ -36,7 +36,7 @@ interface StoryState {
   setCreatedAt: (date: string) => void;
   setUpdatedAt: (date: string) => void;
   resetStory: () => void;
-  loadStoryFromAPI: (storyData: any) => void;
+  loadStoryFromAPI: (storyData: Record<string, unknown>) => void;
   fetchStorybook: (heroId: string) => Promise<void>;
 }
 
@@ -72,18 +72,19 @@ export const useStoryStore = create<StoryState>((set) => ({
   resetStory: () => set({
     storyBook: null,
   }),
-  loadStoryFromAPI: (storyData) => set({
-    storyBook: {
-      id: storyData.id || '',
-      heroId: storyData.heroId || '',
-      is_premium: storyData.isPremium || false,
-      chapters_total_count: storyData.chaptersTotalCount || 0,
-      chapters_unlocked_count: storyData.chaptersUnlockedCount || 0,
-      initial_chapter_generated_at: storyData.initialChapterGeneratedAt || '',
-      created_at: storyData.createdAt || '',
-      updated_at: storyData.updatedAt || '',
-    },
-  }),
+  loadStoryFromAPI: (storyData) =>
+    set({
+      storyBook: {
+        id: String(storyData.id ?? ''),
+        heroId: String(storyData.heroId ?? ''),
+        is_premium: Boolean(storyData.isPremium),
+        chapters_total_count: Number(storyData.chaptersTotalCount ?? 0),
+        chapters_unlocked_count: Number(storyData.chaptersUnlockedCount ?? 0),
+        initial_chapter_generated_at: String(storyData.initialChapterGeneratedAt ?? ''),
+        created_at: String(storyData.createdAt ?? ''),
+        updated_at: String(storyData.updatedAt ?? ''),
+      },
+    }),
   fetchStorybook: async (heroId) => {
     if (!heroId || heroId.startsWith('preview-')) return;
     
@@ -92,8 +93,8 @@ export const useStoryStore = create<StoryState>((set) => ({
       const response = await api.get(`/api/heroes/${heroId}/storybook`);
       
       // Set storyBook in the StoryStore
-      set(state => ({
-        storyBook: response.data.storyBook || null
+      set(() => ({
+        storyBook: response.data.storyBook || null,
       }));
       
       // Update the chapters in the HeroStore using setTimeout to avoid circular dependency
@@ -134,6 +135,10 @@ interface HeroState {
   status: 'idle' | 'generating' | 'complete' | 'error';
   paymentStatus: 'unpaid' | 'processing' | 'paid';
   nftId: string | null;
+  level: number;
+  xp: number;
+  xpToNextLevel: number;
+  avatarVersion: number;
   storyBook: StoryBook | null;
   chapters: Chapter[];
   isLoadingChapters: boolean;
@@ -148,11 +153,15 @@ interface HeroState {
   setStatus: (status: 'idle' | 'generating' | 'complete' | 'error') => void;
   setPaymentStatus: (status: 'unpaid' | 'processing' | 'paid') => void;
   setNftId: (id: string | null) => void;
+  setLevel: (n: number) => void;
+  setXp: (n: number) => void;
+  setXpToNextLevel: (n: number) => void;
+  setAvatarVersion: (n: number) => void;
   setStoryBook: (storyBook: StoryBook | null) => void;
   setChapters: (chapters: Chapter[]) => void;
   setIsLoadingChapters: (isLoading: boolean) => void;
   resetHero: () => void;
-  loadHeroFromAPI: (heroData: any) => void;
+  loadHeroFromAPI: (heroData: Record<string, unknown>) => void;
 }
 
 export const useHeroStore = create<HeroState>((set) => ({
@@ -165,6 +174,10 @@ export const useHeroStore = create<HeroState>((set) => ({
   status: 'idle',
   paymentStatus: 'unpaid',
   nftId: null,
+  level: 1,
+  xp: 0,
+  xpToNextLevel: 100,
+  avatarVersion: 1,
   storyBook: null,
   chapters: [],
   isLoadingChapters: false,
@@ -179,6 +192,10 @@ export const useHeroStore = create<HeroState>((set) => ({
   setStatus: (status) => set({ status }),
   setPaymentStatus: (status) => set({ paymentStatus: status }),
   setNftId: (id) => set({ nftId: id }),
+  setLevel: (level) => set({ level }),
+  setXp: (xp) => set({ xp }),
+  setXpToNextLevel: (xpToNextLevel) => set({ xpToNextLevel }),
+  setAvatarVersion: (avatarVersion) => set({ avatarVersion }),
   setStoryBook: (storyBook) => set({ storyBook }),
   setChapters: (chapters) => set({ chapters }),
   setIsLoadingChapters: (isLoading) => set({ isLoadingChapters: isLoading }),
@@ -192,11 +209,15 @@ export const useHeroStore = create<HeroState>((set) => ({
     status: 'idle',
     paymentStatus: 'unpaid',
     nftId: null,
+    level: 1,
+    xp: 0,
+    xpToNextLevel: 100,
+    avatarVersion: 1,
     storyBook: null,
     chapters: [],
     isLoadingChapters: false
   }),
-  loadHeroFromAPI: (heroData) => {
+  loadHeroFromAPI: (heroData: Record<string, unknown>) => {
     const rawStatus = heroData.status as string | undefined;
     const mappedStatus: HeroState['status'] =
       rawStatus === 'error'
@@ -204,29 +225,45 @@ export const useHeroStore = create<HeroState>((set) => ({
         : rawStatus === 'processing' || rawStatus === 'pending'
           ? 'generating'
           : 'complete';
+    const western = heroData.westernZodiac as ZodiacInfo['western'] | undefined;
+    const chinese = heroData.chineseZodiac as ZodiacInfo['chinese'] | undefined;
+    const rawImages = heroData.images;
+    const imagesArr = Array.isArray(rawImages) ? rawImages : [];
     return set({
-      heroId: heroData.id || null,
-      heroName: heroData.name || '',
-      birthdate: heroData.birthdate ? new Date(heroData.birthdate) : null,
+      heroId: typeof heroData.id === 'string' ? heroData.id : null,
+      heroName: typeof heroData.name === 'string' ? heroData.name : '',
+      birthdate: heroData.birthdate ? new Date(String(heroData.birthdate)) : null,
       zodiacInfo:
-        heroData.westernZodiac && heroData.chineseZodiac
+        western && chinese
           ? {
-              western: heroData.westernZodiac,
-              chinese: heroData.chineseZodiac,
+              western,
+              chinese,
             }
           : null,
       images:
-        heroData.images && heroData.images.length > 0
-          ? heroData.images.map((img: any) => ({
-              angle: img.angle || 'front',
-              url: img.url,
-              prompt: img.prompt || '',
-            }))
+        imagesArr.length > 0
+          ? imagesArr.map((img) => {
+              const im = img as { angle?: string; url: string; prompt?: string };
+              return {
+                angle: im.angle || 'front',
+                url: im.url,
+                prompt: im.prompt || '',
+              };
+            })
           : [],
-      backstory: heroData.backstory || '',
+      backstory: typeof heroData.backstory === 'string' ? heroData.backstory : '',
       status: mappedStatus,
-      paymentStatus: heroData.paymentStatus || 'unpaid',
-      nftId: heroData.nftId || null,
+      paymentStatus:
+        heroData.paymentStatus === 'paid' ||
+        heroData.paymentStatus === 'unpaid' ||
+        heroData.paymentStatus === 'processing'
+          ? heroData.paymentStatus
+          : 'unpaid',
+      nftId: typeof heroData.nftId === 'string' ? heroData.nftId : null,
+      level: typeof heroData.level === 'number' ? heroData.level : 1,
+      xp: typeof heroData.xp === 'number' ? heroData.xp : 0,
+      xpToNextLevel: typeof heroData.xpToNextLevel === 'number' ? heroData.xpToNextLevel : 100,
+      avatarVersion: typeof heroData.avatarVersion === 'number' ? heroData.avatarVersion : 1,
     });
   }
 }));

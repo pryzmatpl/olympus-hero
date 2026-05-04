@@ -28,6 +28,7 @@ export const createStoryBook = async (heroId, isPremium = false, userPrompt = ''
     is_premium: isPremium,
     chapters_total_count: isPremium ? DEFAULT_CHAPTERS_TOTAL : 1,
     chapters_unlocked_count: 1, // Always start with 1 unlocked chapter
+    legendaryRank: 1,
     initial_chapter_generated_at: new Date(),
     created_at: new Date(),
     updated_at: new Date()

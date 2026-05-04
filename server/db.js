@@ -42,6 +42,11 @@ export const connectDB = async () => {
           idxErr.message
         );
       }
+      await db.collection('shared_story_rooms').createIndex({ id: 1 }, { unique: true });
+      await db.collection('agent_drive_tokens').createIndex({ id: 1 }, { unique: true });
+      await db.collection('agent_drive_tokens').createIndex({ heroId: 1 });
+      await db.collection('agent_drive_tokens').createIndex({ ownerUserId: 1 });
+      await db.collection('progress_events').createIndex({ heroId: 1, createdAt: -1 });
     }
     return db;
   } catch (error) {
@@ -340,6 +345,125 @@ export const shareDb = {
     );
     return result.modifiedCount > 0;
   }
+};
+
+/**
+ * Shared story / gameplay rooms (persisted)
+ */
+export const sharedStoryRoomDb = {
+  async insertRoom(room) {
+    const db = await connectDB();
+    const doc = {
+      ...room,
+      updated: room.updated || new Date(),
+      created: room.created || new Date(),
+    };
+    await db.collection('shared_story_rooms').insertOne(doc);
+    return doc;
+  },
+
+  async findById(roomId) {
+    const db = await connectDB();
+    return db.collection('shared_story_rooms').findOne({ id: roomId });
+  },
+
+  async saveRoom(room) {
+    const db = await connectDB();
+    const doc = {
+      ...room,
+      updated: new Date(),
+    };
+    await db.collection('shared_story_rooms').replaceOne({ id: room.id }, doc, { upsert: true });
+    return doc;
+  },
+
+  async deleteRoom(roomId) {
+    const db = await connectDB();
+    await db.collection('shared_story_rooms').deleteOne({ id: roomId });
+  },
+
+  async listSummaries() {
+    const db = await connectDB();
+    const docs = await db
+      .collection('shared_story_rooms')
+      .find({})
+      .project({
+        id: 1,
+        title: 1,
+        participants: 1,
+        spectators: 1,
+        created: 1,
+        updated: 1,
+        mode: 1,
+      })
+      .toArray();
+    return docs.map((d) => ({
+      id: d.id,
+      title: d.title,
+      participantCount: Array.isArray(d.participants) ? d.participants.length : 0,
+      spectatorCount: Array.isArray(d.spectators) ? d.spectators.length : 0,
+      created: d.created,
+      updated: d.updated,
+      mode: d.mode || 'shared_story',
+    }));
+  },
+};
+
+/**
+ * Agent Drive API tokens (secret stored hashed; lookup by token id prefix)
+ */
+export const agentDriveTokenDb = {
+  async insertToken(record) {
+    const db = await connectDB();
+    await db.collection('agent_drive_tokens').insertOne(record);
+    return record;
+  },
+
+  async findByTokenId(tokenId) {
+    const db = await connectDB();
+    return db.collection('agent_drive_tokens').findOne({ id: tokenId });
+  },
+
+  async listByHeroId(heroId) {
+    const db = await connectDB();
+    return db.collection('agent_drive_tokens').find({ heroId }).sort({ createdAt: -1 }).toArray();
+  },
+
+  async revokeToken(tokenId, ownerUserId) {
+    const db = await connectDB();
+    const r = await db.collection('agent_drive_tokens').updateOne(
+      { id: tokenId, ownerUserId },
+      { $set: { revokedAt: new Date() } }
+    );
+    return r.modifiedCount > 0;
+  },
+
+  async updateToken(tokenId, update) {
+    const db = await connectDB();
+    await db.collection('agent_drive_tokens').updateOne({ id: tokenId }, { $set: update });
+    return db.collection('agent_drive_tokens').findOne({ id: tokenId });
+  },
+};
+
+/**
+ * Progression audit log (hero level + book growth events)
+ */
+export const progressEventDb = {
+  async insert(event) {
+    const db = await connectDB();
+    await db.collection('progress_events').insertOne(event);
+    return event;
+  },
+
+  async listByHeroId(heroId, limit = 50) {
+    const db = await connectDB();
+    return db
+      .collection('progress_events')
+      .find({ heroId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+  },
 };
 
 /**

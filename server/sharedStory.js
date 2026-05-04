@@ -1,23 +1,83 @@
 import { v4 as uuidv4 } from 'uuid';
 import { generateChatCompletionWithOpenAI } from './openai.js';
+import { sharedStoryRoomDb } from './db.js';
 
-// In-memory storage for shared story rooms
-// In a production environment, this would be stored in a database
-const sharedStoryRooms = new Map();
+/** @typedef {'shared_story'|'skirmish'|'scripted_story'} SharedStoryMode */
+
+export const SCRIPTED_STORY_BEATS = ['intro', 'conflict', 'twist', 'climax', 'resolution'];
+
+/**
+ * Normalize Mongo-loaded room (dates, defaults).
+ * @param {object|null} doc
+ */
+export function normalizeSharedStoryRoom(doc) {
+  if (!doc) return null;
+  const room = { ...doc };
+  room.created = room.created ? new Date(room.created) : new Date();
+  room.updated = room.updated ? new Date(room.updated) : new Date();
+  if (!room.mode) room.mode = 'shared_story';
+  if (!Array.isArray(room.participants)) room.participants = [];
+  if (!Array.isArray(room.spectators)) room.spectators = [];
+  if (!Array.isArray(room.messages)) room.messages = [];
+  if (room.pendingAgentActions === undefined) room.pendingAgentActions = [];
+  if (room.agentDriveEnabled === undefined) room.agentDriveEnabled = false;
+  room.messages = room.messages.map((m) => ({
+    ...m,
+    timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+  }));
+  room.pendingAgentActions = (room.pendingAgentActions || []).map((p) => ({
+    ...p,
+    createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+  }));
+  return room;
+}
+
+async function loadRoom(roomId) {
+  const raw = await sharedStoryRoomDb.findById(roomId);
+  return normalizeSharedStoryRoom(raw);
+}
+
+async function persistRoom(room) {
+  await sharedStoryRoomDb.saveRoom(room);
+  return room;
+}
 
 /**
  * Create a new shared story room
  * @param {Object} hero - The hero object of the creator
- * @returns {string} - The ID of the created room
+ * @param {{ mode?: SharedStoryMode, scriptTemplateId?: string }} [options]
+ * @returns {Promise<string>} - The ID of the created room
  */
-export const createSharedStoryRoom = async (hero) => {
+export const createSharedStoryRoom = async (hero, options = {}) => {
   const roomId = uuidv4();
-  
-  // Format the hero's backstory for display
-  const formattedBackstory = hero.backstory ? 
-    formatBackstoryForDisplay(hero.backstory.substring(0, 300) + '...') : '';
-  
-  // Create the room object
+  const mode =
+    options.mode === 'skirmish' || options.mode === 'scripted_story'
+      ? options.mode
+      : 'shared_story';
+
+  const formattedBackstory = hero.backstory
+    ? formatBackstoryForDisplay(hero.backstory.substring(0, 300) + '...')
+    : '';
+
+  const scriptedState =
+    mode === 'scripted_story'
+      ? {
+          templateId: options.scriptTemplateId || 'generic_arc',
+          stepIndex: 0,
+          beats: [...SCRIPTED_STORY_BEATS],
+        }
+      : null;
+
+  const skirmishState =
+    mode === 'skirmish'
+      ? {
+          round: 1,
+          turnIndex: 0,
+          status: 'active',
+          participantsOrder: [hero.id],
+        }
+      : null;
+
   const room = {
     id: roomId,
     title: `${hero.name}'s Cosmic Adventure`,
@@ -27,29 +87,36 @@ export const createSharedStoryRoom = async (hero) => {
       name: hero.name,
       avatar: hero.images[0]?.url || null,
       backstory: hero.backstory,
-      isPremium: hero.paymentStatus === 'paid'
+      isPremium: hero.paymentStatus === 'paid',
     },
-    participants: [{
-      id: hero.id,
-      userId: hero.userid,
-      name: hero.name,
-      avatar: hero.images[0]?.url || null,
-      backstory: hero.backstory,
-      isPremium: hero.paymentStatus === 'paid'
-    }],
+    participants: [
+      {
+        id: hero.id,
+        userId: hero.userid,
+        name: hero.name,
+        avatar: hero.images[0]?.url || null,
+        backstory: hero.backstory,
+        isPremium: hero.paymentStatus === 'paid',
+      },
+    ],
     spectators: [],
     messages: [],
     created: new Date(),
-    updated: new Date()
+    updated: new Date(),
+    mode,
+    ownerUserId: hero.userid,
+    agentDriveEnabled: false,
+    pendingAgentActions: [],
+    scriptedState,
+    skirmishState,
   };
-  
-  // Add initial welcome message
+
   room.messages.push({
     id: uuidv4(),
     sender: {
       id: 'system',
       name: 'Cosmic Narrator',
-      avatar: "/storage/aries2.webp"
+      avatar: '/storage/aries2.webp',
     },
     content: `<div class="system-message welcome-message">
       <h3 class="welcome-heading">A New Cosmic Adventure Begins</h3>
@@ -57,156 +124,147 @@ export const createSharedStoryRoom = async (hero) => {
       <p class="welcome-text">Your story unfolds from your origins:</p>
       ${formattedBackstory}
     </div>`,
-    timestamp: new Date()
+    timestamp: new Date(),
   });
-  
-  // Generate initial story message
+
   const initialPrompt = await generateSharedStoryPrompt(room);
   const initialResponse = await generateSharedStoryResponse(initialPrompt);
-  
-  // Add the initial story message to the room
+
   room.messages.push({
     id: uuidv4(),
     sender: {
       id: 'system',
       name: 'Cosmic Narrator',
-      avatar: "/storage/aries2.webp"
+      avatar: '/storage/aries2.webp',
     },
     content: initialResponse,
-    timestamp: new Date()
+    timestamp: new Date(),
   });
-  
-  // Store the room
-  sharedStoryRooms.set(roomId, room);
-  
+
+  await sharedStoryRoomDb.insertRoom(room);
   return roomId;
 };
 
 /**
  * Join a shared story room
- * @param {string} roomId - The ID of the room to join
- * @param {Object} heroData - The hero data of the joining user
- * @returns {Object} - The room object
+ * @param {string} roomId
+ * @param {Object} heroData
+ * @returns {Promise<Object>}
  */
 export const joinSharedStoryRoom = async (roomId, heroData) => {
-  const room = sharedStoryRooms.get(roomId);
-  
+  const room = await loadRoom(roomId);
+
   if (!room) {
     throw new Error('Shared story room not found');
   }
-  
-  // Check if the hero is already in the room
-  const existingParticipant = room.participants.find(p => p.id === heroData.id);
-  const existingSpectator = room.spectators.find(s => s.id === heroData.id);
-  
+
+  const existingParticipant = room.participants.find((p) => p.id === heroData.id);
+  const existingSpectator = room.spectators.find((s) => s.id === heroData.id);
+
   if (existingParticipant || existingSpectator) {
-    // User is already in the room, just return the room
     return room;
   }
-  
-  // Add the hero to the room as participant or spectator
+
   if (heroData.isPremium) {
     room.participants.push(heroData);
-    
-    // Format the backstory for display
-    const formattedBackstory = heroData.backstory ? 
-      formatBackstoryForDisplay(heroData.backstory.substring(0, 200) + '...') : '';
-    
-    // Generate a welcome message for the new participant
+
+    const formattedBackstory = heroData.backstory
+      ? formatBackstoryForDisplay(heroData.backstory.substring(0, 200) + '...')
+      : '';
+
     const welcomeMessage = {
       id: uuidv4(),
       sender: {
         id: 'system',
         name: 'Cosmic Narrator',
-        avatar: "/storage/aries2.webp"
+        avatar: '/storage/aries2.webp',
       },
       content: `<p>${heroData.name} has joined the cosmic adventure!</p><p>Their backstory unfolds:</p><div class="hero-backstory">${formattedBackstory}</div>`,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
-    
+
     room.messages.push(welcomeMessage);
+    if (room.skirmishState && Array.isArray(room.skirmishState.participantsOrder)) {
+      room.skirmishState.participantsOrder.push(heroData.id);
+    }
   } else {
     room.spectators.push(heroData);
   }
-  
-  // Update the room's updated timestamp
+
   room.updated = new Date();
-  
+  await persistRoom(room);
   return room;
 };
 
 /**
  * Leave a shared story room
- * @param {string} roomId - The ID of the room to leave
- * @param {string} heroId - The ID of the hero leaving the room
- * @returns {boolean} - Whether the leave was successful
+ * @param {string} roomId
+ * @param {string} heroId
+ * @returns {Promise<boolean>}
  */
 export const leaveSharedStoryRoom = async (roomId, heroId) => {
-  const room = sharedStoryRooms.get(roomId);
-  
+  const room = await loadRoom(roomId);
+
   if (!room) {
     throw new Error('Shared story room not found');
   }
-  
-  // Find the hero that is leaving
-  const leavingHero = [...room.participants, ...room.spectators].find(p => p.id === heroId);
+
+  const leavingHero = [...room.participants, ...room.spectators].find((p) => p.id === heroId);
   const heroName = leavingHero ? leavingHero.name : 'A hero';
-  
-  // Remove the hero from participants or spectators
-  room.participants = room.participants.filter(p => p.id !== heroId);
-  room.spectators = room.spectators.filter(s => s.id !== heroId);
-  
-  // If there are no more participants, remove the room
+
+  room.participants = room.participants.filter((p) => p.id !== heroId);
+  room.spectators = room.spectators.filter((s) => s.id !== heroId);
+
   if (room.participants.length === 0) {
-    sharedStoryRooms.delete(roomId);
+    await sharedStoryRoomDb.deleteRoom(roomId);
     return true;
   }
-  
-  // Update the room's updated timestamp
+
   room.updated = new Date();
-  
-  // Add a message about the user leaving
   room.messages.push({
     id: uuidv4(),
     sender: {
       id: 'system',
       name: 'Cosmic Narrator',
-      avatar: "/storage/aries2.webp"
+      avatar: '/storage/aries2.webp',
     },
     content: `<p>${heroName} has departed from this cosmic journey.</p><p>The remaining heroes continue their quest...</p>`,
-    timestamp: new Date()
+    timestamp: new Date(),
   });
-  
+
+  if (room.skirmishState?.participantsOrder) {
+    room.skirmishState.participantsOrder = room.skirmishState.participantsOrder.filter(
+      (id) => id !== heroId
+    );
+  }
+
+  await persistRoom(room);
   return true;
 };
 
 /**
- * Get a shared story room
- * @param {string} roomId - The ID of the room
- * @returns {Object|null} - The room object, or null if not found
+ * @param {string} roomId
+ * @returns {Promise<Object|null>}
  */
 export const getSharedStoryRoom = async (roomId) => {
-  return sharedStoryRooms.get(roomId) || null;
+  return loadRoom(roomId);
 };
 
 /**
- * Generate a prompt for the shared story based on room data
- * @param {Object} room - The room object
- * @returns {string} - The generated prompt
+ * @param {Object} room
+ * @returns {Promise<string>}
  */
 export const generateSharedStoryPrompt = async (room) => {
-  // Collect all participant backstories
   const backstories = room.participants
-    .filter(p => p.backstory)
-    .map(p => `${p.name}'s Backstory: ${p.backstory.substring(0, 500)}...`);
-  
-  // Create the system prompt
+    .filter((p) => p.backstory)
+    .map((p) => `${p.name}'s Backstory: ${p.backstory.substring(0, 500)}...`);
+
   const systemPrompt = `
 You are the Cosmic Narrator, a masterful storyteller guiding a group of heroes through an epic shared adventure. 
 Your task is to weave an engaging literary narrative that incorporates all the players and their unique backstories.
 
 The heroes in this cosmic adventure are:
-${room.participants.map(p => `- ${p.name}`).join('\n')}
+${room.participants.map((p) => `- ${p.name}`).join('\n')}
 
 Their backstories:
 ${backstories.join('\n\n')}
@@ -237,7 +295,10 @@ Guidelines for your narrative:
 Remember: You are creating a literary experience, not simply responding to users. Your narrative should read like excerpts from a published fantasy novel with professional typography and layout.
 
 Recent conversation context:
-${room.messages.slice(-5).map(m => `${m.sender.name}: ${m.content.replace(/<[^>]*>/g, '')}`).join('\n')}
+${room.messages
+  .slice(-5)
+  .map((m) => `${m.sender.name}: ${m.content.replace(/<[^>]*>/g, '')}`)
+  .join('\n')}
 
 Create an engaging, literary response that moves the shared story forward:
 `;
@@ -246,237 +307,192 @@ Create an engaging, literary response that moves the shared story forward:
 };
 
 /**
- * Generate a response for the shared story
- * @param {string} prompt - The prompt to use
- * @returns {string} - The generated response
+ * @param {string} prompt
+ * @returns {Promise<string>}
  */
 export const generateSharedStoryResponse = async (prompt) => {
   try {
     const response = await generateChatCompletionWithOpenAI([
       { role: 'system', content: prompt },
-      { role: 'user', content: 'Please continue the cosmic narrative for our heroes.' }
+      { role: 'user', content: 'Please continue the cosmic narrative for our heroes.' },
     ]);
-    
-    // Process the response to enhance formatting for web display
+
     return formatStoryContentForDisplay(response);
   } catch (error) {
     console.error('Error generating shared story response:', error);
-    return "<p>The cosmic energies are in flux. Our story will continue shortly...</p>";
+    return '<p>The cosmic energies are in flux. Our story will continue shortly...</p>';
   }
 };
 
-/**
- * Format story content for proper web display
- * @param {string} content - The raw story content
- * @returns {string} - Formatted HTML content
- */
 const formatStoryContentForDisplay = (content) => {
   if (!content) return '';
-  
-  // Process the text for web display
+
   let formatted = content
-    // Convert line breaks to HTML
     .replace(/\n\n/g, '</p><p class="story-paragraph">')
     .replace(/\n/g, '<br>')
-    
-    // Format scene breaks
     .replace(/\*\*\*/g, '<hr class="scene-break">')
-    
-    // Format italics
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    
-    // Format bold text
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    
-    // Format chapter/section headings (lines that are short and surrounded by blank lines)
     .replace(/(<p class="story-paragraph">)(.{1,60})(<\/p>)/g, (match, p1, text, p2) => {
-      // Only convert if it looks like a heading (short text, no punctuation at end)
       if (text.length < 60 && !text.match(/[.,:;!?]$/)) {
         return `<h3 class="chapter-heading">${text}</h3>`;
       }
       return match;
     })
-    
-    // Format em-dashes for better typography
     .replace(/--/g, '&mdash;')
-    
-    // Format dialogue for better readability
     .replace(/"([^"]+)"/g, '<span class="dialogue">"$1"</span>')
-    
-    // Add first-line indentation class to paragraphs that aren't headings or don't start with dialogue
-    .replace(/<p class="story-paragraph">(?!<span class="dialogue">)/g, '<p class="story-paragraph indented">');
-  
-  // Wrap in paragraph tags if not already wrapped
+    .replace(
+      /<p class="story-paragraph">(?!<span class="dialogue">)/g,
+      '<p class="story-paragraph indented">'
+    );
+
   if (!formatted.startsWith('<p')) {
     formatted = '<p class="story-paragraph">' + formatted;
   }
   if (!formatted.endsWith('</p>')) {
     formatted = formatted + '</p>';
   }
-  
-  // Wrap the entire content in a container for styling
+
   formatted = `<div class="story-content">${formatted}</div>`;
-  
+
   return formatted;
 };
 
-/**
- * Format backstory text for proper display
- * @param {string} backstory - The raw backstory text
- * @returns {string} - Formatted HTML content
- */
 const formatBackstoryForDisplay = (backstory) => {
   if (!backstory) return '';
-  
-  // Process the backstory for web display
+
   let formatted = backstory
-    // Convert line breaks to HTML
     .replace(/\n\n/g, '</p><p class="backstory-paragraph">')
     .replace(/\n/g, '<br>')
-    
-    // Format italics (text between asterisks)
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    
-    // Format bold text (text between double asterisks)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    
-    // Format em-dashes for better typography
     .replace(/--/g, '&mdash;')
-    
-    // Format dialogue
     .replace(/"([^"]+)"/g, '<span class="dialogue">"$1"</span>');
-  
-  // Wrap in paragraph tags if not already wrapped
+
   if (!formatted.startsWith('<p')) {
     formatted = '<p class="backstory-paragraph">' + formatted;
   }
   if (!formatted.endsWith('</p>')) {
     formatted = formatted + '</p>';
   }
-  
-  // Wrap the entire content in a container for styling
+
   formatted = `<div class="backstory-content">${formatted}</div>`;
-  
+
   return formatted;
 };
 
 /**
- * List all active shared story rooms
- * @returns {Array} - Array of room objects (without messages)
+ * @returns {Promise<Array>}
  */
 export const listSharedStoryRooms = async () => {
-  const rooms = [];
-  
-  for (const [id, room] of sharedStoryRooms.entries()) {
-    rooms.push({
-      id: room.id,
-      title: room.title,
-      participantCount: room.participants.length,
-      spectatorCount: room.spectators.length,
-      created: room.created,
-      updated: room.updated
-    });
-  }
-  
-  return rooms;
+  return sharedStoryRoomDb.listSummaries();
 };
 
-/**
- * Format user message content for display
- * @param {string} content - The raw user message content
- * @returns {string} - Formatted HTML content
- */
 export const formatUserMessageForDisplay = (content) => {
   if (!content) return '';
-  
-  // Process the user message for web display
+
   let formatted = content
-    // Convert line breaks to HTML
     .replace(/\n\n/g, '</p><p class="user-paragraph">')
     .replace(/\n/g, '<br>')
-    
-    // Format italics
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    
-    // Format bold text
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    
-    // Format em-dashes for better typography
     .replace(/--/g, '&mdash;')
-    
-    // Format dialogue for better readability
     .replace(/"([^"]+)"/g, '<span class="dialogue">"$1"</span>');
-  
-  // Wrap in paragraph tags if not already wrapped
+
   if (!formatted.startsWith('<p')) {
     formatted = '<p class="user-paragraph">' + formatted;
   }
   if (!formatted.endsWith('</p>')) {
     formatted = formatted + '</p>';
   }
-  
-  // Wrap the entire content in a container for styling
+
   formatted = `<div class="user-content">${formatted}</div>`;
-  
+
   return formatted;
 };
 
 /**
- * Add a user message to a shared story room
- * @param {string} roomId - The ID of the room
- * @param {Object} heroData - The hero data of the user
- * @param {string} content - The message content
- * @returns {Object} - The updated room object
+ * @param {string} roomId
+ * @param {Object} heroData
+ * @param {string} content
+ * @returns {Promise<Object>}
  */
 export const addUserMessageToRoom = async (roomId, heroData, content) => {
-  const room = sharedStoryRooms.get(roomId);
-  
+  const room = await loadRoom(roomId);
+
   if (!room) {
     throw new Error('Shared story room not found');
   }
-  
-  // Check if the hero is a participant in the room
-  const isParticipant = room.participants.some(p => p.id === heroData.id);
-  
+
+  const isParticipant = room.participants.some((p) => p.id === heroData.id);
+
   if (!isParticipant) {
     throw new Error('Only participants can send messages');
   }
-  
-  // Format the user message content
+
   const formattedContent = formatUserMessageForDisplay(content);
-  
-  // Add the user message
+
   const userMessage = {
     id: uuidv4(),
     sender: {
       id: heroData.id,
       name: heroData.name,
-      avatar: heroData.avatar || null
+      avatar: heroData.avatar || null,
     },
     content: formattedContent,
-    timestamp: new Date()
+    timestamp: new Date(),
   };
-  
+
   room.messages.push(userMessage);
-  
-  // Generate narrator response
+
   const narratorPrompt = await generateSharedStoryPrompt(room);
   const narratorResponse = await generateSharedStoryResponse(narratorPrompt);
-  
-  // Add the narrator response
+
   room.messages.push({
     id: uuidv4(),
     sender: {
       id: 'system',
       name: 'Cosmic Narrator',
-      avatar: "/storage/aries2.webp"
+      avatar: '/storage/aries2.webp',
     },
     content: narratorResponse,
-    timestamp: new Date()
+    timestamp: new Date(),
   });
-  
-  // Update the room's updated timestamp
+
   room.updated = new Date();
-  
+  await persistRoom(room);
   return room;
-}; 
+};
+
+/**
+ * Append messages and persist (used by socket layer for AI + user messages).
+ * @param {string} roomId
+ * @param {object[]} messages
+ */
+export const appendMessagesAndSave = async (roomId, messages) => {
+  const room = await loadRoom(roomId);
+  if (!room) throw new Error('Shared story room not found');
+  for (const m of messages) {
+    room.messages.push({
+      ...m,
+      timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+    });
+  }
+  room.updated = new Date();
+  await persistRoom(room);
+  return room;
+};
+
+/**
+ * Update room fields and persist.
+ * @param {string} roomId
+ * @param {(room: object) => void} mutator
+ */
+export const mutateSharedStoryRoom = async (roomId, mutator) => {
+  const room = await loadRoom(roomId);
+  if (!room) throw new Error('Shared story room not found');
+  mutator(room);
+  room.updated = new Date();
+  await persistRoom(room);
+  return room;
+};

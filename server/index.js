@@ -9,17 +9,25 @@ import { generateOpenAIImages, generateBackstory, isOpenAIQuotaError, isOpenAIAu
 import { registerUser, loginUser, authMiddleware, getUserById, addHeroToUser } from './auth.js';
 import { processPaymentAndCreateNFT, getNFTById, getNFTsByHeroId } from './stripe.js';
 import { createSharedLink, accessSharedHero, getSharedLinksByUser, deactivateSharedLink } from './share.js';
-import { initializeDB, heroDb, storyBookDb } from './db.js';
+import { initializeDB, heroDb, storyBookDb, userDb } from './db.js';
+import {
+  issueAgentDriveToken,
+  revokeAgentDriveToken,
+  listAgentDriveTokensForHero,
+  verifyAgentDriveToken,
+} from './agentAuth.js';
+import { applyProgressEvent } from './progression.js';
+import { moderateProposalText } from './moderation.js';
+import { appendUserMessageAndMaybeNarrator } from './sharedStoryNarrator.js';
 import { insertAnalyticsEvent, parseAnalyticsBody } from './analytics.js';
 import { ensureStorageDirectories, createHeroZip } from './utils.js';
-import { 
-  createSharedStoryRoom, 
-  joinSharedStoryRoom, 
-  leaveSharedStoryRoom, 
+import {
+  createSharedStoryRoom,
+  joinSharedStoryRoom,
+  leaveSharedStoryRoom,
   getSharedStoryRoom,
-  generateSharedStoryPrompt,
-  generateSharedStoryResponse,
-  listSharedStoryRooms
+  listSharedStoryRooms,
+  mutateSharedStoryRoom,
 } from './sharedStory.js';
 import {
   createStoryBook,
@@ -746,7 +754,12 @@ async function startServer() {
           images: [],
           backstory: '',
           paymentStatus: 'unpaid',
-          nftId: null
+          nftId: null,
+          level: 1,
+          xp: 0,
+          xpToNextLevel: 100,
+          avatarVersion: 1,
+          avatarHistory: [],
         };
         
         // Store the hero in database
@@ -1196,7 +1209,7 @@ async function startServer() {
     // Shared Story Routes
     app.post('/api/shared-story/create', authMiddleware, async (req, res) => {
       try {
-        const { heroId } = req.body;
+        const { heroId, mode, scriptTemplateId } = req.body;
         const userId = req.user.userId;
         
         if (!heroId) {
@@ -1219,8 +1232,10 @@ async function startServer() {
           return res.status(403).json({ error: 'Only premium heroes can create shared story rooms' });
         }
         
-        // Create a new shared story room
-        const roomId = await createSharedStoryRoom(hero);
+        const roomId = await createSharedStoryRoom(hero, {
+          mode,
+          scriptTemplateId,
+        });
         
         return res.status(201).json({ 
           roomId,
@@ -1246,10 +1261,12 @@ async function startServer() {
           return res.status(404).json({ error: 'Shared story room not found' });
         }
         
-        // Return basic room info (not including messages)
         return res.json({
           roomId: room.id,
           title: room.title,
+          mode: room.mode || 'shared_story',
+          agentDriveEnabled: !!room.agentDriveEnabled,
+          ownerUserId: room.ownerUserId,
           participants: room.participants.map(p => ({
             id: p.id,
             name: p.name,
@@ -1275,6 +1292,244 @@ async function startServer() {
       } catch (error) {
         console.error('Error listing shared story rooms:', error);
         return res.status(500).json({ error: 'Failed to list shared story rooms' });
+      }
+    });
+
+    const agentProposalRate = new Map();
+
+    app.post(
+      '/api/heroes/:id/agent-drive/tokens',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { id } = req.params;
+          const userId = req.user.userId;
+          const { roomId, label, expiresInDays } = req.body;
+          const hero = await heroDb.findHeroById(id);
+          if (!hero) return res.status(404).json({ error: 'Hero not found' });
+          if (hero.userid !== userId) {
+            return res.status(403).json({ error: 'You do not have permission' });
+          }
+          if (hero.paymentStatus !== 'paid') {
+            return res.status(403).json({ error: 'Premium hero required' });
+          }
+          const issued = await issueAgentDriveToken({
+            ownerUserId: userId,
+            heroId: id,
+            roomId: roomId || null,
+            label,
+            expiresInDays,
+          });
+          return res.status(201).json({
+            tokenId: issued.tokenId,
+            token: issued.plaintextToken,
+            expiresAt: issued.expiresAt,
+          });
+        } catch (e) {
+          console.error('agent-drive token create:', e);
+          return res.status(500).json({ error: 'Failed to create token' });
+        }
+      }
+    );
+
+    app.get('/api/heroes/:id/agent-drive/tokens', authMiddleware, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const userId = req.user.userId;
+        const hero = await heroDb.findHeroById(id);
+        if (!hero) return res.status(404).json({ error: 'Hero not found' });
+        if (hero.userid !== userId) {
+          return res.status(403).json({ error: 'You do not have permission' });
+        }
+        const tokens = await listAgentDriveTokensForHero(id);
+        return res.json({ tokens });
+      } catch (e) {
+        console.error('agent-drive token list:', e);
+        return res.status(500).json({ error: 'Failed to list tokens' });
+      }
+    });
+
+    app.post(
+      '/api/heroes/:id/agent-drive/tokens/:tokenId/revoke',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { id, tokenId } = req.params;
+          const userId = req.user.userId;
+          const hero = await heroDb.findHeroById(id);
+          if (!hero) return res.status(404).json({ error: 'Hero not found' });
+          if (hero.userid !== userId) {
+            return res.status(403).json({ error: 'You do not have permission' });
+          }
+          const ok = await revokeAgentDriveToken(tokenId, userId);
+          if (!ok) return res.status(404).json({ error: 'Token not found' });
+          return res.json({ message: 'Token revoked' });
+        } catch (e) {
+          console.error('agent-drive token revoke:', e);
+          return res.status(500).json({ error: 'Failed to revoke token' });
+        }
+      }
+    );
+
+    app.post(
+      '/api/shared-story/:roomId/agent-drive/enable',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { roomId } = req.params;
+          const userId = req.user.userId;
+          const room = await getSharedStoryRoom(roomId);
+          if (!room) return res.status(404).json({ error: 'Room not found' });
+          if (room.ownerUserId !== userId) {
+            return res.status(403).json({ error: 'Only the room owner can enable Agent Drive' });
+          }
+          await mutateSharedStoryRoom(roomId, (r) => {
+            r.agentDriveEnabled = true;
+          });
+          return res.json({ message: 'Agent Drive enabled', agentDriveEnabled: true });
+        } catch (e) {
+          console.error('agent-drive enable:', e);
+          return res.status(500).json({ error: 'Failed to enable Agent Drive' });
+        }
+      }
+    );
+
+    app.post(
+      '/api/shared-story/:roomId/agent-drive/disable',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { roomId } = req.params;
+          const userId = req.user.userId;
+          const room = await getSharedStoryRoom(roomId);
+          if (!room) return res.status(404).json({ error: 'Room not found' });
+          if (room.ownerUserId !== userId) {
+            return res.status(403).json({ error: 'Only the room owner can disable Agent Drive' });
+          }
+          await mutateSharedStoryRoom(roomId, (r) => {
+            r.agentDriveEnabled = false;
+          });
+          return res.json({ message: 'Agent Drive disabled', agentDriveEnabled: false });
+        } catch (e) {
+          console.error('agent-drive disable:', e);
+          return res.status(500).json({ error: 'Failed to disable Agent Drive' });
+        }
+      }
+    );
+
+    app.post(
+      '/api/shared-story/:roomId/skirmish/resolve',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { roomId } = req.params;
+          const { outcome } = req.body;
+          const userId = req.user.userId;
+          const room = await getSharedStoryRoom(roomId);
+          if (!room) return res.status(404).json({ error: 'Room not found' });
+          if (room.mode !== 'skirmish') {
+            return res.status(400).json({ error: 'Room is not a skirmish' });
+          }
+          const heroId = req.body.heroId;
+          if (!heroId) return res.status(400).json({ error: 'heroId required' });
+          const hero = await heroDb.findHeroById(heroId);
+          if (!hero || hero.userid !== userId) {
+            return res.status(403).json({ error: 'Invalid hero' });
+          }
+          const participant = room.participants.find((p) => p.id === heroId);
+          if (!participant) {
+            return res.status(403).json({ error: 'Hero not in this room' });
+          }
+          await mutateSharedStoryRoom(roomId, (r) => {
+            if (!r.skirmishState) {
+              r.skirmishState = { round: 1, status: 'active' };
+            }
+            r.skirmishState.status = outcome === 'win' ? 'won' : 'lost';
+            r.skirmishState.round = (r.skirmishState.round || 1) + 1;
+          });
+          let progression = null;
+          if (outcome === 'win') {
+            progression = await applyProgressEvent(heroId, 'skirmish_win', {
+              source: 'skirmish',
+              roomId,
+            });
+          }
+          return res.json({ ok: true, roomId, progression });
+        } catch (e) {
+          console.error('skirmish resolve:', e);
+          return res.status(500).json({ error: 'Failed to resolve skirmish' });
+        }
+      }
+    );
+
+    app.post(
+      '/api/shared-story/:roomId/scripted/advance',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { roomId } = req.params;
+          const userId = req.user.userId;
+          const { heroId } = req.body;
+          if (!heroId) return res.status(400).json({ error: 'heroId required' });
+          const room = await getSharedStoryRoom(roomId);
+          if (!room) return res.status(404).json({ error: 'Room not found' });
+          if (room.mode !== 'scripted_story') {
+            return res.status(400).json({ error: 'Room is not scripted' });
+          }
+          if (room.ownerUserId !== userId) {
+            return res.status(403).json({ error: 'Only the session owner can advance the script' });
+          }
+          const hero = await heroDb.findHeroById(heroId);
+          if (!hero || hero.userid !== userId) {
+            return res.status(403).json({ error: 'Invalid hero' });
+          }
+          let progression = null;
+          await mutateSharedStoryRoom(roomId, (r) => {
+            if (!r.scriptedState) {
+              r.scriptedState = { templateId: 'generic_arc', stepIndex: 0, beats: [] };
+            }
+            r.scriptedState.stepIndex = (r.scriptedState.stepIndex || 0) + 1;
+          });
+          progression = await applyProgressEvent(heroId, 'scripted_beat', {
+            source: 'scripted_story',
+            roomId,
+          });
+          return res.json({ ok: true, progression });
+        } catch (e) {
+          console.error('scripted advance:', e);
+          return res.status(500).json({ error: 'Failed to advance script' });
+        }
+      }
+    );
+
+    app.get('/api/heroes/:id/progression', authMiddleware, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const userId = req.user.userId;
+        const hero = await heroDb.findHeroById(id);
+        if (!hero) return res.status(404).json({ error: 'Hero not found' });
+        if (hero.userid !== userId) {
+          return res.status(403).json({ error: 'You do not have permission' });
+        }
+        const storyBook = await storyBookDb.findStoryBookByHeroId(id);
+        return res.json({
+          heroId: id,
+          level: hero.level ?? 1,
+          xp: hero.xp ?? 0,
+          xpToNextLevel: hero.xpToNextLevel ?? 100,
+          avatarVersion: hero.avatarVersion ?? 1,
+          storyBook: storyBook
+            ? {
+                id: storyBook.id,
+                legendaryRank: storyBook.legendaryRank ?? storyBook.chapters_unlocked_count,
+                chapters_unlocked_count: storyBook.chapters_unlocked_count,
+                chapters_total_count: storyBook.chapters_total_count,
+              }
+            : null,
+        });
+      } catch (e) {
+        console.error('progression get:', e);
+        return res.status(500).json({ error: 'Failed to load progression' });
       }
     });
 
@@ -1597,6 +1852,7 @@ async function startServer() {
           socket.userId = userId;
           socket.heroId = heroId;
           socket.isPremium = hero ? hero.paymentStatus === 'paid' : false;
+          socket.join(`user:${userId}`);
           
           // Notify client of successful authentication
           socket.emit('authenticated', { userId, heroId });
@@ -1605,13 +1861,47 @@ async function startServer() {
           socket.emit('authentication_error', { message: 'Authentication failed' });
         }
       });
+
+      socket.on('authenticate_agent', async (data) => {
+        try {
+          const tokenStr = data?.token;
+          const v = await verifyAgentDriveToken(tokenStr);
+          if (!v) {
+            socket.emit('authentication_error', { message: 'Invalid agent token' });
+            return;
+          }
+          const hero = await heroDb.findHeroById(v.heroId);
+          if (!hero) {
+            socket.emit('authentication_error', { message: 'Hero not found' });
+            return;
+          }
+          socket.isAgentConnection = true;
+          socket.agentHeroId = v.heroId;
+          socket.agentTokenId = v.tokenRecord.id;
+          socket.agentOwnerUserId = v.ownerUserId;
+          socket.heroId = v.heroId;
+          socket.isPremium = hero.paymentStatus === 'paid';
+          socket.join(`user:${v.ownerUserId}`);
+          socket.emit('authenticated_agent', {
+            heroId: v.heroId,
+            ownerUserId: v.ownerUserId,
+          });
+        } catch (error) {
+          console.error('Socket agent authentication error:', error);
+          socket.emit('authentication_error', { message: 'Agent authentication failed' });
+        }
+      });
       
       // Join a shared story room
       socket.on('join_room', async (data) => {
         try {
           const { roomId } = data;
           
-          if (!socket.userId || !socket.heroId) {
+          if (!socket.heroId) {
+            socket.emit('error', { message: 'You must authenticate before joining a room' });
+            return;
+          }
+          if (!socket.userId && !socket.isAgentConnection) {
             socket.emit('error', { message: 'You must authenticate before joining a room' });
             return;
           }
@@ -1622,11 +1912,18 @@ async function startServer() {
             socket.emit('error', { message: 'Hero not found' });
             return;
           }
+
+          if (socket.isAgentConnection && socket.agentHeroId !== socket.heroId) {
+            socket.emit('error', { message: 'Agent token does not match hero' });
+            return;
+          }
+
+          socket.isPremium = hero.paymentStatus === 'paid';
           
           // Join the room (as participant if premium, spectator if not)
           const result = await joinSharedStoryRoom(roomId, {
             id: socket.heroId,
-            userId: socket.userId,
+            userId: hero.userid,
             name: hero.name,
             avatar: hero.images[0]?.url || null,
             backstory: hero.backstory,
@@ -1642,7 +1939,9 @@ async function startServer() {
             roomId,
             isPremium: socket.isPremium,
             role: socket.isPremium ? 'participant' : 'spectator',
-            messages: result.messages
+            messages: result.messages,
+            mode: result.mode || 'shared_story',
+            agentDriveEnabled: !!result.agentDriveEnabled,
           });
           
           // Notify other users in the room
@@ -1658,11 +1957,146 @@ async function startServer() {
           socket.emit('error', { message: 'Failed to join room' });
         }
       });
+
+      socket.on('agent_action_proposed', async (data) => {
+        try {
+          if (!socket.isAgentConnection || !socket.agentHeroId) {
+            socket.emit('error', { message: 'Agent authentication required' });
+            return;
+          }
+          const roomId = data?.roomId || socket.roomId;
+          const actionText = data?.actionText;
+          const mod = moderateProposalText(typeof actionText === 'string' ? actionText : '');
+          if (!mod.ok) {
+            socket.emit('error', { message: `Invalid proposal: ${mod.reason}` });
+            return;
+          }
+          const room = await getSharedStoryRoom(roomId);
+          if (!room) {
+            socket.emit('error', { message: 'Room not found' });
+            return;
+          }
+          if (!room.agentDriveEnabled) {
+            socket.emit('error', { message: 'Agent Drive is not enabled for this room' });
+            return;
+          }
+          const allowed = room.participants.some((p) => p.id === socket.agentHeroId);
+          if (!allowed) {
+            socket.emit('error', { message: 'Hero is not a participant in this room' });
+            return;
+          }
+          const rateKey = `${socket.agentTokenId}:${roomId}`;
+          const last = agentProposalRate.get(rateKey) || 0;
+          if (Date.now() - last < 1500) {
+            socket.emit('error', { message: 'Rate limited; wait before another proposal' });
+            return;
+          }
+          agentProposalRate.set(rateKey, Date.now());
+
+          const proposalId = uuidv4();
+          await mutateSharedStoryRoom(roomId, (r) => {
+            if (!Array.isArray(r.pendingAgentActions)) r.pendingAgentActions = [];
+            r.pendingAgentActions.push({
+              id: proposalId,
+              heroId: socket.agentHeroId,
+              tokenId: socket.agentTokenId,
+              actionText: mod.text,
+              status: 'pending',
+              createdAt: new Date(),
+            });
+          });
+
+          io.to(`user:${room.ownerUserId}`).emit('agent_action_pending', {
+            roomId,
+            proposal: {
+              id: proposalId,
+              heroId: socket.agentHeroId,
+              actionText: mod.text,
+              createdAt: new Date(),
+            },
+          });
+        } catch (error) {
+          console.error('agent_action_proposed:', error);
+          socket.emit('error', { message: 'Failed to propose action' });
+        }
+      });
+
+      socket.on('agent_action_decision', async (data) => {
+        try {
+          if (!socket.userId || socket.isAgentConnection) {
+            socket.emit('error', { message: 'Only the human owner can decide' });
+            return;
+          }
+          const { roomId, proposalId, decision, reason } = data || {};
+          if (!roomId || !proposalId || !decision) {
+            socket.emit('error', { message: 'roomId, proposalId, and decision are required' });
+            return;
+          }
+          const room = await getSharedStoryRoom(roomId);
+          if (!room) {
+            socket.emit('error', { message: 'Room not found' });
+            return;
+          }
+          if (room.ownerUserId !== socket.userId) {
+            socket.emit('error', { message: 'Only the session owner can approve agent actions' });
+            return;
+          }
+          const proposal = (room.pendingAgentActions || []).find((p) => p.id === proposalId);
+          if (!proposal || proposal.status !== 'pending') {
+            socket.emit('error', { message: 'Proposal not found' });
+            return;
+          }
+
+          await mutateSharedStoryRoom(roomId, (r) => {
+            const p = (r.pendingAgentActions || []).find((x) => x.id === proposalId);
+            if (p) {
+              p.status = decision === 'approve' ? 'approved' : 'rejected';
+              p.decisionReason = typeof reason === 'string' ? reason.slice(0, 500) : '';
+              p.decidedAt = new Date();
+            }
+          });
+
+          io.to(roomId).emit('agent_action_resolved', {
+            proposalId,
+            decision,
+            reason: reason || '',
+          });
+
+          if (decision === 'approve') {
+            const hero = await heroDb.findHeroById(proposal.heroId);
+            if (!hero) return;
+            await appendUserMessageAndMaybeNarrator(
+              io,
+              roomId,
+              {
+                id: hero.id,
+                name: hero.name,
+                avatar: hero.images[0]?.url || null,
+              },
+              proposal.actionText,
+              {
+                meta: { source: 'agent_approved', proposalId },
+              },
+              proposal.heroId
+            );
+          }
+        } catch (error) {
+          console.error('agent_action_decision:', error);
+          socket.emit('error', { message: 'Failed to process decision' });
+        }
+      });
       
       // Send a message in a shared story room
       socket.on('send_message', async (data) => {
         try {
           const { message } = data;
+
+          if (socket.isAgentConnection) {
+            socket.emit('error', {
+              message: 'Agents must use agent_action_proposed',
+            });
+            return;
+          }
           
           if (!socket.userId || !socket.heroId || !socket.roomId) {
             socket.emit('error', { message: 'You must join a room before sending messages' });
@@ -1682,136 +2116,24 @@ async function startServer() {
             return;
           }
           
-          // Get the shared story room
           const room = await getSharedStoryRoom(socket.roomId);
           if (!room) {
             socket.emit('error', { message: 'Shared story room not found' });
             return;
           }
-          
-          // Add the message to the room
-          const newMessage = {
-            id: uuidv4(),
-            sender: {
-              id: socket.heroId,
+
+          await appendUserMessageAndMaybeNarrator(
+            io,
+            socket.roomId,
+            {
+              id: hero.id,
               name: hero.name,
-              avatar: hero.images[0]?.url || null
+              avatar: hero.images[0]?.url || null,
             },
-            content: message,
-            timestamp: new Date()
-          };
-          
-          room.messages.push(newMessage);
-          
-          // Broadcast the message to all users in the room
-          io.to(socket.roomId).emit('message', newMessage);
-          
-          // Generate AI response if needed
-          if (room.messages.filter(m => m.sender.id !== 'system').length % 3 === 0) {
-            // Check if OpenAI quota is exceeded before proceeding
-            if (checkOpenAIQuotaExceeded()) {
-              console.log('Skipping AI response generation due to OpenAI quota exceeded');
-              
-              // Directly send an error message
-              const errorMessage = {
-                id: uuidv4(),
-                sender: {
-                  id: 'system',
-                  name: 'System',
-                  avatar: null
-                },
-                content: "The Cosmic Narrator is taking a brief rest. Our cosmic energies (API quota) have been temporarily depleted. Please try again later.",
-                timestamp: new Date(),
-                isError: true
-              };
-              
-              room.messages.push(errorMessage);
-              io.to(socket.roomId).emit('message', errorMessage);
-              
-              // Also emit the specialized API error event
-              socket.emit('api_error', { 
-                errorType: 'quota_exceeded',
-                message: "OpenAI API quota exceeded. The Cosmic Narrator is unavailable at the moment. Please try again later."
-              });
-              
-              return;
-            }
-            
-            // Notify clients that the narrator is generating a response
-            io.to(socket.roomId).emit('narrator_typing');
-            
-            // Create the prompt based on room messages and participants
-            const prompt = await generateSharedStoryPrompt(room);
-            
-            // Start timing the response generation
-            const startTime = Date.now();
-            
-            try {
-              // Get AI response
-              const responseContent = await generateSharedStoryResponse(prompt);
-              
-              // Calculate how long the AI response took
-              const responseTime = Date.now() - startTime;
-              
-              // Ensure the narrator typing animation is shown for at least 3.5 seconds
-              // for a more dramatic effect
-              const MIN_TYPING_TIME = 3500; // milliseconds
-              
-              if (responseTime < MIN_TYPING_TIME) {
-                await new Promise(resolve => setTimeout(resolve, MIN_TYPING_TIME - responseTime));
-              }
-              
-              // Add the AI response to the room
-              const aiMessage = {
-                id: uuidv4(),
-                sender: {
-                  id: 'system',
-                  name: 'Cosmic Narrator',
-                  avatar: null
-                },
-                content: responseContent,
-                timestamp: new Date()
-              };
-              
-              room.messages.push(aiMessage);
-              
-              // Broadcast the AI message to all users in the room
-              io.to(socket.roomId).emit('message', aiMessage);
-            } catch (aiError) {
-              console.error('Error generating AI response:', aiError);
-              
-              // Check if this is a quota exceeded error
-              if (isOpenAIQuotaError(aiError)) {
-                // Set the global flag
-                setOpenAIQuotaExceeded(true);
-                
-                // Send a specialized error to the client
-                socket.emit('api_error', { 
-                  errorType: 'quota_exceeded',
-                  message: "OpenAI API quota exceeded. The Cosmic Narrator is unavailable at the moment. Please try again later."
-                });
-                
-                // Also send a system message to all users in the room
-                const errorMessage = {
-                  id: uuidv4(),
-                  sender: {
-                    id: 'system',
-                    name: 'System',
-                    avatar: null
-                  },
-                  content: "The Cosmic Narrator is taking a brief rest. Our cosmic energies (API quota) have been temporarily depleted. Please try again later.",
-                  timestamp: new Date(),
-                  isError: true
-                };
-                
-                room.messages.push(errorMessage);
-                io.to(socket.roomId).emit('message', errorMessage);
-              } else {
-                // Handle other errors
-                socket.emit('error', { message: 'Failed to generate AI response' });
-              }
-            }
-          }
+            typeof message === 'string' ? message.trim() : '',
+            {},
+            socket.heroId
+          );
         } catch (error) {
           console.error('Error sending message:', error);
           
