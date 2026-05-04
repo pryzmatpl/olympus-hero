@@ -1,4 +1,17 @@
-.PHONY: dev prod clean build help
+.PHONY: dev prod clean build help _compose_ok
+
+# Compose v1 (`docker-compose` 1.29.x) is incompatible with current Docker Engine (KeyError: ContainerConfig).
+# Do not fall back to v1 — install the v2 plugin: sudo apt-get install -y docker-compose-plugin
+DOCKER_COMPOSE := docker compose
+
+# Fails fast with install hint if the Docker Compose v2 plugin is missing.
+_compose_ok:
+	@$(DOCKER_COMPOSE) version >/dev/null 2>&1 || { \
+		echo "docker compose (Compose V2) is required. On Debian/Ubuntu:" >&2; \
+		echo "  sudo apt-get update && sudo apt-get install -y docker-compose-plugin" >&2; \
+		echo "Then run: docker compose version" >&2; \
+		exit 1; \
+	}
 
 # Default target
 help:
@@ -10,55 +23,55 @@ help:
 	@echo "  help   - Show this help message"
 
 
-server-dev:
+server-dev: _compose_ok
 	@echo "Starting development environment..."
-	docker-compose -f docker-compose.dev.yml up server
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up server
 
 # Development environment - with volume mounts for live code updates
-dev:
+dev: _compose_ok
 	@echo "Starting development environment..."
-	docker-compose -f docker-compose.dev.yml up
+	$(DOCKER_COMPOSE) -f docker-compose.dev.yml up
 
 # Production environment
-prod:
+prod: _compose_ok
 	@echo "Starting production environment..."
-	docker-compose -f docker-compose.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.yml up -d
 
 # Clean up containers, networks, and volumes
-clean:
+clean: _compose_ok
 	@echo "Cleaning up containers, networks, and volumes..."
-	docker-compose down -v
+	$(DOCKER_COMPOSE) down -v
 	@echo "Removing node_modules..."
 	rm -rf node_modules
 	@echo "Cleaning build artifacts..."
 	rm -rf dist
 
 # Build Docker images
-build:
+build: _compose_ok
 	@echo "Building Docker images..."
-	docker-compose build
-build-nc:
+	$(DOCKER_COMPOSE) build
+build-nc: _compose_ok
 	@echo "Building Docker images wo cache..."
-	docker-compose build --no-cache
+	$(DOCKER_COMPOSE) build --no-cache
 
 # Additional useful targets
 
 # Run the application in development mode in the background
-dev-detached:
+dev-detached: _compose_ok
 	@echo "Starting development environment in detached mode..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 # Show logs of running containers
-logs:
+logs: _compose_ok
 	@echo "Showing logs..."
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 # Stop the application without removing containers
-stop:
+stop: _compose_ok
 	@echo "Stopping containers..."
-	docker-compose stop
+	$(DOCKER_COMPOSE) stop
 
 # Restart the application
-restart:
+restart: _compose_ok
 	@echo "Restarting containers..."
-	docker-compose restart 
+	$(DOCKER_COMPOSE) restart 

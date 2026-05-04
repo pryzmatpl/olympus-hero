@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { calculate_western_zodiac, calculate_chinese_zodiac } from './zodiac.js';
-import { generateOpenAIImages, generateBackstory, isOpenAIQuotaError, checkOpenAIQuotaExceeded, setOpenAIQuotaExceeded } from './openai.js';
+import { generateOpenAIImages, generateBackstory, isOpenAIQuotaError, isOpenAIAuthOrConfigError, checkOpenAIQuotaExceeded, setOpenAIQuotaExceeded } from './openai.js';
 import { registerUser, loginUser, authMiddleware, getUserById, addHeroToUser } from './auth.js';
 import { processPaymentAndCreateNFT, getNFTById, getNFTsByHeroId } from './stripe.js';
 import { createSharedLink, accessSharedHero, getSharedLinksByUser, deactivateSharedLink } from './share.js';
@@ -92,6 +92,7 @@ const safeRequireOpenAI = () => {
         generateOpenAIImages: () => Promise.resolve([{ url: '/default-image.png' }]),
         generateBackstory: () => Promise.resolve('A backstory could not be generated due to API configuration.'),
         isOpenAIQuotaError: () => false,
+        isOpenAIAuthOrConfigError: () => false,
         checkOpenAIQuotaExceeded: () => false,
         setOpenAIQuotaExceeded: () => {}
       });
@@ -103,6 +104,7 @@ const safeRequireOpenAI = () => {
       generateOpenAIImages: () => Promise.resolve([{ url: '/default-image.png' }]),
       generateBackstory: () => Promise.resolve('A backstory could not be generated due to API configuration.'),
       isOpenAIQuotaError: () => false,
+      isOpenAIAuthOrConfigError: () => false,
       checkOpenAIQuotaExceeded: () => false,
       setOpenAIQuotaExceeded: () => {}
     });
@@ -142,7 +144,8 @@ async function startServer() {
     const { 
       generateOpenAIImages, 
       generateBackstory, 
-      isOpenAIQuotaError, 
+      isOpenAIQuotaError,
+      isOpenAIAuthOrConfigError,
       checkOpenAIQuotaExceeded, 
       setOpenAIQuotaExceeded 
     } = openaiModule;
@@ -753,6 +756,16 @@ async function startServer() {
       } catch (error) {
         console.error('Error generating hero content:', error);
         
+        if (isOpenAIAuthOrConfigError(error)) {
+          await heroDb.updateHero(id, { status: 'error', error_type: 'openai_config' });
+          return res.status(503).json({
+            error: 'OpenAI API authentication or configuration failed',
+            errorType: 'openai_config',
+            message:
+              'The AI service rejected the request (invalid or missing API key on the server). Update OPENAI_API_KEY in the deployment environment and retry.',
+          });
+        }
+
         // Check if this is a quota exceeded error
         if (isOpenAIQuotaError(error)) {
           // Mark the quota as exceeded for future requests

@@ -5,14 +5,13 @@ services:
       dockerfile: Dockerfile.ui
     ports:
       - "9001:80"
-    depends_on:
-      - server
-    environment:
-      - VITE_API_URL=http://127.0.0.1:9002
+      - "9443:443"
     volumes:
+      - pryzmat_certbot_certs:/etc/letsencrypt:ro
       - ./public:/app/public
       - ./src:/app/src
-
+    depends_on:
+      - server
 
   server:
     build:
@@ -49,3 +48,5 @@ services:
 volumes:
   hero-data: 
   mongodb-data: 
+  pryzmat_certbot_certs:
+    external: true

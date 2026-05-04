@@ -30,6 +30,22 @@ export function isOpenAIQuotaError(error) {
 }
 
 /**
+ * Missing key, invalid/revoked key, or other auth failures from OpenAI (SDK or fetch-based calls).
+ */
+export function isOpenAIAuthOrConfigError(error) {
+  if (!error) return false;
+  const msg = String(error.message || '');
+  if (msg.includes('OpenAI API key is not configured') || msg.includes('API key is not configured')) {
+    return true;
+  }
+  if (error.status === 401) return true;
+  if (error.code === 'invalid_api_key' || error.error?.code === 'invalid_api_key') return true;
+  if (msg.includes('invalid_api_key') || msg.includes('Incorrect API key')) return true;
+  if (/status 401\b/.test(msg) || msg.includes('"status":401')) return true;
+  return false;
+}
+
+/**
  * Set the OpenAI quota exceeded flag
  * @param {boolean} value - Whether the quota is exceeded
  */
