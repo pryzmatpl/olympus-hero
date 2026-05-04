@@ -187,6 +187,11 @@ docker-compose up -d --build
 - Server: 9002 -> express:9002
 - MongoDB: **not** exposed on the host (internal Docker network only)
 
+### If the browser shows **502 Bad Gateway** on `/api/` or Socket.IO
+That means **nginx is up but the Node process on the upstream port is not answering** (down, crash loop, or wrong `proxy_pass` target). It is **not** caused by Stripe or Firefox cookie warnings.
+
+Check on the host: `curl -sS http://127.0.0.1:9002/ping` (expect JSON with `"message":"pong"`); `docker compose ps`; API container logs (`docker compose logs server -f`). Confirm the server process can reach Mongo using `MONGO_URI` from inside the same network.
+
 ## External Proxy (Reverse Proxy to HTTPS)
 Add this to your main nginx HTTPS config:
 ```nginx
