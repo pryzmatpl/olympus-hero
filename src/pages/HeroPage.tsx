@@ -17,6 +17,22 @@ import { track } from '../utils/analytics';
 import { getPaywallCopyVariant } from '../utils/growthExperiments';
 import DailyCosmicPulse from '../components/engagement/DailyCosmicPulse';
 
+const HERO_POLL_INTERVAL_MS = 2500;
+const HERO_MAX_POLLS = 52;
+
+/** Poll until API reports completed or error (in-flight generation). */
+async function pollHeroUntilTerminal(
+  heroId: string,
+  loadHero: (data: unknown) => void
+): Promise<void> {
+  for (let i = 0; i < HERO_MAX_POLLS; i++) {
+    await new Promise((r) => setTimeout(r, HERO_POLL_INTERVAL_MS));
+    const r = await api.get(`/api/heroes/${heroId}`);
+    loadHero(r.data);
+    if (r.data.status === 'completed' || r.data.status === 'error') return;
+  }
+}
+
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [activeImage, setActiveImage] = useState<number>(0);
@@ -83,17 +99,49 @@ const HeroPage: React.FC = () => {
   useEffect(() => {
     const fetchHero = async () => {
       if (!id) return;
-      
+
+      const rawId = id.replace('preview-', '');
+
       try {
         setLoading(true);
         setError(null);
-        
-        // Fetch hero data from API
-        const response = await api.get(`/api/heroes/${id?.replace('preview-', '')}`);
-        
-        // Update store with all hero data at once - passing the hero data directly
-        loadHeroFromAPI(response.data);
-        
+
+        const response = await api.get(`/api/heroes/${rawId}`);
+        const data = response.data;
+        loadHeroFromAPI(data);
+
+        const isPreview = id.startsWith('preview-');
+        const noGeneratedContent =
+          (!data.images || data.images.length === 0) &&
+          !String(data.backstory || '').trim();
+
+        if (!isPreview && noGeneratedContent) {
+          if (data.status === 'processing') {
+            await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+          } else {
+            try {
+              const genRes = await api.post(`/api/heroes/generate/${rawId}`, {});
+              if (genRes.status === 202) {
+                await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+              } else if (genRes.data?.hero) {
+                loadHeroFromAPI(genRes.data.hero);
+              }
+            } catch (genErr: unknown) {
+              loadHeroFromAPI({ ...data, status: 'error' });
+              setStatus('error');
+              const ax = genErr as { response?: { data?: { message?: string; error?: string } } };
+              showNotification(
+                'error',
+                'Could not generate hero',
+                ax.response?.data?.message ||
+                  ax.response?.data?.error ||
+                  'Use “Regenerate content” below or try again later.',
+                true,
+                6000
+              );
+            }
+          }
+        }
       } catch (error) {
         console.error('Error fetching hero:', error);
         setError('Failed to load hero data. Please try again.');
@@ -102,9 +150,9 @@ const HeroPage: React.FC = () => {
         setLoading(false);
       }
     };
-    
-    fetchHero();
-  }, [id, loadHeroFromAPI, setStatus]);
+
+    void fetchHero();
+  }, [id, loadHeroFromAPI, setStatus, showNotification]);
   
   // Fetch storybook and chapters data
   useEffect(() => {
@@ -258,9 +306,10 @@ const HeroPage: React.FC = () => {
     setRegeneratingHero(true);
     try {
       const response = await api.post(`/api/heroes/generate/${rawId}`, {});
-      const heroPayload = response.data?.hero;
-      if (heroPayload) {
-        loadHeroFromAPI(heroPayload);
+      if (response.status === 202) {
+        await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+      } else if (response.data?.hero) {
+        loadHeroFromAPI(response.data.hero);
       }
       try {
         const sbRes = await api.get(`/api/heroes/${rawId}/storybook`);

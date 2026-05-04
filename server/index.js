@@ -853,6 +853,26 @@ async function startServer() {
         });
       }
 
+      const hasGeneratedContent =
+        Array.isArray(hero.images) &&
+        hero.images.length > 0 &&
+        typeof hero.backstory === 'string' &&
+        hero.backstory.trim().length > 0;
+      if (hero.status === 'completed' && hasGeneratedContent) {
+        const existing = await heroDb.findHeroById(id);
+        return res.json({
+          message: 'Hero generation completed',
+          hero: existing,
+        });
+      }
+      if (hero.status === 'processing') {
+        return res.status(202).json({
+          message: 'Generation in progress',
+          pending: true,
+          hero,
+        });
+      }
+
       try {
         // Update status
         hero.status = 'processing';
