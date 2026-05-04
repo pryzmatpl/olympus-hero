@@ -28,7 +28,8 @@ services:
     volumes:
       - ./:/app
       - /app/node_modules
-      - /storage/olympus-heros:/app/storage
+      # Persist only generated hero images; keep marketing files at storage/*.webp from the image/deploy tree.
+      - /storage/olympus-heros/images:/app/storage/images
     ports:
       - "9002:9002"
     command: npm run server:dev

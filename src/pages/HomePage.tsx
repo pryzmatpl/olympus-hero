@@ -146,9 +146,24 @@ const HomePage: React.FC = () => {
           className="mt-16 flex flex-wrap justify-center gap-8 scroll-mt-28"
         >
           {[
-            { name: 'Blazorus', id: 1, url: '/storage/aries.webp', caption: 'Sample AI portrait + identity' },
-            { name: 'Energus', id: 2, url: '/storage/capricorn.webp', caption: 'Zodiac-inspired look' },
-            { name: 'Manakuanea', id: 3, url: '/storage/rooster.webp', caption: 'Shareable hero card' },
+            {
+              name: 'Blazorus',
+              id: 1,
+              url: '/hero-showcase/aries.webp',
+              caption: 'Sample AI portrait + identity',
+            },
+            {
+              name: 'Energus',
+              id: 2,
+              url: '/hero-showcase/capricorn.webp',
+              caption: 'Zodiac-inspired look',
+            },
+            {
+              name: 'Manakuanea',
+              id: 3,
+              url: '/hero-showcase/rooster.webp',
+              caption: 'Shareable hero card',
+            },
           ].map((elem) => (
             <motion.div
               key={elem.id}
