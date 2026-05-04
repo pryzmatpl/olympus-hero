@@ -52,19 +52,41 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
   };
   
   try {
-    // Store the NFT in the database
     const db = await initializeDB();
-    await db.collection('nfts').insertOne(nft);
-    
-    // Update hero with NFT ID and payment status
+
+    const existing = await db.collection('nfts').findOne({
+      'metadata.paymentId': paymentIntent.id,
+    });
+    if (existing) {
+      console.log(`Idempotent: payment ${paymentIntent.id} already processed`);
+      return existing;
+    }
+
+    try {
+      await db.collection('nfts').insertOne(nft);
+    } catch (insertErr) {
+      if (insertErr?.code === 11000) {
+        const dup = await db.collection('nfts').findOne({
+          'metadata.paymentId': paymentIntent.id,
+        });
+        if (dup) return dup;
+      }
+      throw insertErr;
+    }
+
     await heroDb.updateHero(heroId, {
       nftId: tokenId,
       paymentStatus: 'paid'
     });
-    
-    // Create or update storybook as premium
+
     const hero = await heroDb.findHeroById(heroId);
-    const storyBook = await getOrCreateStoryBook(heroId, true, hero.backstory.substring(0, 100));
+    const backstorySeed =
+      typeof hero.backstory === 'string' && hero.backstory.trim().length > 0
+        ? hero.backstory.substring(0, 100)
+        : hero.name
+          ? `The tale of ${hero.name}`
+          : '';
+    const storyBook = await getOrCreateStoryBook(heroId, true, backstorySeed);
     
     // Unlock chapters if specified in the payment intent
     if (shouldUnlockChapters) {

@@ -26,6 +26,22 @@ export const connectDB = async () => {
       await db.collection('users').createIndex({ id: 1 }, { unique: true });
       await db.collection('analytics_events').createIndex({ ts: -1 });
       await db.collection('analytics_events').createIndex({ event: 1, ts: -1 });
+      try {
+        await db.collection('nfts').createIndex(
+          { 'metadata.paymentId': 1 },
+          {
+            unique: true,
+            partialFilterExpression: {
+              'metadata.paymentId': { $exists: true, $type: 'string' },
+            },
+          }
+        );
+      } catch (idxErr) {
+        console.warn(
+          'Could not ensure unique index on nfts.metadata.paymentId (duplicate rows from legacy webhooks?):',
+          idxErr.message
+        );
+      }
     }
     return db;
   } catch (error) {

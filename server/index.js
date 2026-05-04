@@ -175,6 +175,8 @@ async function startServer() {
     });
 
     const app = express();
+    app.set('trust proxy', 1);
+
     const httpServer = createServer(app);
     
     // Configure Socket.IO to work with HTTPS
@@ -237,6 +239,24 @@ async function startServer() {
     // Debugging endpoint to check if server is alive
     app.get('/ping', (req, res) => {
       res.json({ message: 'pong', timestamp: new Date().toISOString() });
+    });
+
+    app.get('/api/health', async (req, res) => {
+      try {
+        await initializeDB();
+        return res.json({
+          ok: true,
+          database: 'connected',
+          timestamp: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error('GET /api/health database check failed:', e);
+        return res.status(503).json({
+          ok: false,
+          database: 'unavailable',
+          timestamp: new Date().toISOString(),
+        });
+      }
     });
 
     app.post('/api/analytics/event', async (req, res) => {
