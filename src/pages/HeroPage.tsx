@@ -20,17 +20,18 @@ import DailyCosmicPulse from '../components/engagement/DailyCosmicPulse';
 const HERO_POLL_INTERVAL_MS = 2500;
 const HERO_MAX_POLLS = 52;
 
-/** Poll until API reports completed or error (in-flight generation). */
+/** Poll until API reports completed or error (in-flight generation). Returns false if max wait exceeded. */
 async function pollHeroUntilTerminal(
   heroId: string,
   loadHero: (data: unknown) => void
-): Promise<void> {
+): Promise<boolean> {
   for (let i = 0; i < HERO_MAX_POLLS; i++) {
     await new Promise((r) => setTimeout(r, HERO_POLL_INTERVAL_MS));
     const r = await api.get(`/api/heroes/${heroId}`);
     loadHero(r.data);
-    if (r.data.status === 'completed' || r.data.status === 'error') return;
+    if (r.data.status === 'completed' || r.data.status === 'error') return true;
   }
+  return false;
 }
 
 const HeroPage: React.FC = () => {
@@ -117,12 +118,30 @@ const HeroPage: React.FC = () => {
 
         if (!isPreview && noGeneratedContent) {
           if (data.status === 'processing') {
-            await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+            const ok = await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+            if (!ok) {
+              showNotification(
+                'warning',
+                'Still processing',
+                'Generation is taking longer than expected. Refresh the page or use Regenerate content.',
+                true,
+                8000
+              );
+            }
           } else {
             try {
               const genRes = await api.post(`/api/heroes/generate/${rawId}`, {});
               if (genRes.status === 202) {
-                await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+                const ok = await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+                if (!ok) {
+                  showNotification(
+                    'warning',
+                    'Still processing',
+                    'Generation is taking longer than expected. Refresh or try Regenerate content.',
+                    true,
+                    8000
+                  );
+                }
               } else if (genRes.data?.hero) {
                 loadHeroFromAPI(genRes.data.hero);
               }
@@ -178,7 +197,8 @@ const HeroPage: React.FC = () => {
   }, [heroId, id, setStoryBook, setChapters, setIsLoadingChapters]);
   
   const isPreview = id?.startsWith('preview-');
-  const isLoading = loading || status === 'generating';
+  /** Full-page loader only while fetchHero is running (GET + generate + poll). Do not key off `status === 'generating'` alone — that stayed true for stale `pending` heroes with old clients and could loop forever after poll timeout. */
+  const isLoading = loading;
   const isPaid = paymentStatus === 'paid';
 
   useEffect(() => {
@@ -295,7 +315,7 @@ const HeroPage: React.FC = () => {
   const showRegenerateHeroContent =
     !isPreview &&
     heroId &&
-    status !== 'generating' &&
+    !loading &&
     (status === 'error' ||
       !safeBackstory.trim() ||
       (status === 'complete' && missingStoryChapters));
