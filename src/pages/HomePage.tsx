@@ -16,6 +16,8 @@ import {
 import Button from '../components/ui/Button';
 import MetaTags from '../components/ui/MetaTags';
 import { AuthContext } from '../App';
+import { DEFAULT_META_DESCRIPTION, DEFAULT_META_TITLE } from '../constants/brand';
+import { track } from '../utils/analytics';
 
 const CREATE_PATH = '/create';
 
@@ -25,10 +27,8 @@ const HomePage: React.FC = () => {
   const primaryTo = isAuthenticated ? CREATE_PATH : '/register';
   const primaryState = isAuthenticated ? undefined : { from: { pathname: CREATE_PATH } };
 
-  const metaTitle =
-    'Cosmic Heroes — Create Your AI Fantasy Hero in Minutes';
-  const metaDescription =
-    'Turn your birth date and hero name into AI-generated artwork and a personalized fantasy backstory. Free to start; upgrade for premium.';
+  const metaTitle = DEFAULT_META_TITLE;
+  const metaDescription = DEFAULT_META_DESCRIPTION;
 
   return (
     <motion.div
@@ -107,7 +107,11 @@ const HomePage: React.FC = () => {
           transition={{ delay: 0.85, duration: 0.8 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <Link to={primaryTo} state={primaryState}>
+          <Link
+            to={primaryTo}
+            state={primaryState}
+            onClick={() => track('cta_create_click', { placement: 'hero_primary' })}
+          >
             <Button
               size="lg"
               icon={<ArrowRight size={20} />}
@@ -318,6 +322,7 @@ const HomePage: React.FC = () => {
               {[
                 'Guided hero creation with zodiac-based flavor',
                 'AI-generated images and backstory (per product limits)',
+                'One active unpaid hero at a time until you upgrade',
                 'Your heroes saved when you register',
               ].map((line) => (
                 <li key={line} className="flex gap-2">
@@ -412,7 +417,11 @@ const HomePage: React.FC = () => {
           <p className="text-gray-300 max-w-2xl mx-auto mb-8">
             Join in minutes. Your next fantasy identity is one short flow away.
           </p>
-          <Link to={primaryTo} state={primaryState}>
+          <Link
+            to={primaryTo}
+            state={primaryState}
+            onClick={() => track('cta_create_click', { placement: 'footer_cta' })}
+          >
             <Button size="lg" variant="secondary" icon={<Sparkles size={18} />}>
               {isAuthenticated ? 'Open creator' : 'Create my hero free'}
             </Button>

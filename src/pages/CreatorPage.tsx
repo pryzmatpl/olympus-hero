@@ -5,14 +5,20 @@ import { ChevronRight, Calendar, SparkleIcon } from 'lucide-react';
 import DatePickerInput from '../components/form/DatePickerInput';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
+import MetaTags from '../components/ui/MetaTags';
 import { useZodiac } from '../hooks/useZodiac';
 import { useHeroStore } from '../store/heroStore';
 import api from '../utils/api.ts';
 import { Guid } from 'guid-typescript';
-import { generateHeroBackstory } from '../utils/generateHeroPrompt';
+import { useNotification } from '../context/NotificationContext';
+import { track } from '../utils/analytics';
+import { getCreatorLimitHintVariant } from '../utils/growthExperiments';
+import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
 
 const CreatorPage: React.FC = () => {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
+  const creatorLimitVariant = getCreatorLimitHintVariant();
   const [step, setStep] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   
@@ -82,60 +88,46 @@ const CreatorPage: React.FC = () => {
     let heroId = Guid.create().toString();
     heroId = heroId.replace(/-/gi, '');
 
-    const user = localStorage.getItem('user');
-    const userId = user["id"];
-    console.log(user);
+    track('hero_generate_start', { heroId });
 
     try {
-      const response = await api.post(`/api/heroes`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          heroName: heroName,
-          birthdate: birthdate,
-          heroId: heroId,
-          userId: userId,
-        }),
-      });
-
-      console.log(response);
-
-      const data = response.data;
-
-      if (data.hero) {
-        try {
-          const response = await api.post(`/api/heroes/generate/${heroId}`, {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: data
-          });
-
-          setImages(response.data.hero.images);
-          setBackstory(response.data.hero.backstory);
-          setStatus('complete');
-
-        } catch (error) {
-          console.error('Error generating hero content:', error);
-        }
-
-        // Navigate to the hero page with a preview ID
-        navigate(`/hero/${heroId}`);
-      } else {
-        throw new Error('Failed to generate hero content');
+      if (!birthdate) {
+        throw new Error('Birth date is required');
       }
-    } catch (error) {
+      const payload = JSON.stringify({
+        heroName: heroName.trim(),
+        birthdate: birthdate.toISOString(),
+        heroId,
+      });
+      const createRes = await api.post(`/api/heroes`, { body: payload });
+      const created = createRes.data?.hero;
+      if (!created) {
+        throw new Error('Failed to create hero');
+      }
+
+      const genRes = await api.post(`/api/heroes/generate/${heroId}`);
+      const updated = genRes.data?.hero;
+      if (updated?.images) setImages(updated.images);
+      if (updated?.backstory) setBackstory(updated.backstory);
+      setStatus('complete');
+      track('hero_generate_success', { heroId });
+      navigate(`/hero/${heroId}`);
+    } catch (error: unknown) {
       console.error('Error creating hero:', error);
-      
-      // Check if this is due to already having a non-premium hero
-      if (error.response && error.response.data && error.response.data.error === 'You already have a non-premium hero') {
+      const err = error as { response?: { data?: { error?: string; message?: string } } };
+      if (err.response?.data?.error === 'You already have a non-premium hero') {
         setStatus('limit_reached');
-        // Show alert with message and redirect to heroes page
-        alert(error.response.data.message);
+        showNotification('warning', 'Hero limit', err.response.data.message ?? 'Upgrade an existing hero first.', true, 6000);
         navigate('/heroes');
       } else {
         setStatus('error');
+        showNotification(
+          'error',
+          'Could not create hero',
+          err.response?.data?.error ?? 'Something went wrong. Please try again.',
+          true,
+          5000
+        );
       }
     } finally {
       setLoading(false);
@@ -160,18 +152,24 @@ const CreatorPage: React.FC = () => {
   React.useEffect(() => {
     const checkExistingHeroes = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('authToken');
         if (!token) return;
-        
-        const response = await api.get('/api/user/heroes', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (response.data && response.data.heroes) {
-          const hasNonPremiumHero = response.data.heroes.some(hero => hero.paymentStatus !== 'paid');
-          
+
+        const response = await api.get('/api/user/heroes');
+
+        if (response.data?.heroes) {
+          const hasNonPremiumHero = response.data.heroes.some(
+            (hero: { paymentStatus?: string }) => hero.paymentStatus !== 'paid'
+          );
+
           if (hasNonPremiumHero) {
-            alert('You can only have one non-premium hero at a time. Please upgrade your existing hero to premium before creating a new one.');
+            showNotification(
+              'info',
+              'One unpaid hero at a time',
+              'Upgrade your existing hero to premium before creating another.',
+              true,
+              6000
+            );
             navigate('/heroes');
           }
         }
@@ -179,9 +177,9 @@ const CreatorPage: React.FC = () => {
         console.error('Error checking existing heroes:', error);
       }
     };
-    
-    checkExistingHeroes();
-  }, [navigate]);
+
+    void checkExistingHeroes();
+  }, [navigate, showNotification]);
 
   return (
     <motion.div
@@ -190,7 +188,20 @@ const CreatorPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 pt-32 pb-20"
     >
+      <MetaTags
+        title={`Create your hero | ${PRODUCT_NAME}`}
+        description={`Guided creator on ${DOMAIN_LABEL}: birth date, name, then AI portraits and backstory.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/create`}
+        robots="noindex,follow"
+      />
       <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl md:text-4xl font-display font-bold text-center mb-2">Create your cosmic hero</h1>
+        <p className="text-center text-gray-400 text-sm mb-8">
+          {creatorLimitVariant === 'prominent'
+            ? 'Free accounts may keep one unpaid hero at a time—upgrade to add more.'
+            : 'Three quick steps, then AI does the heavy lifting.'}
+        </p>
         {/* Progress bar */}
         <div className="mb-10">
           <div className="h-2 w-full bg-mystic-700 rounded-full overflow-hidden">

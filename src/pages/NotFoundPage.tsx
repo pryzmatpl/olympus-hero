@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home } from 'lucide-react';
 import Button from '../components/ui/Button';
+import MetaTags from '../components/ui/MetaTags';
+import { PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
 
 const NotFoundPage: React.FC = () => {
   return (
@@ -12,6 +14,13 @@ const NotFoundPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="min-h-screen flex flex-col items-center justify-center px-4 text-center"
     >
+      <MetaTags
+        title={`404 | ${PRODUCT_NAME}`}
+        description="Page not found on mythicalhero.me."
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/404`}
+        robots="noindex,follow"
+      />
       <motion.h1
         initial={{ y: -50 }}
         animate={{ y: 0 }}

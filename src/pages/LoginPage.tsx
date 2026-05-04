@@ -6,6 +6,9 @@ import { isAxiosError } from 'axios';
 import { AuthContext } from '../App';
 import PageTitle from '../components/ui/PageTitle';
 import { useNotification } from '../context/NotificationContext';
+import MetaTags from '../components/ui/MetaTags';
+import { track } from '../utils/analytics';
+import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
 
 const pageVariants = {
   initial: { opacity: 0 },
@@ -54,7 +57,8 @@ const LoginPage = () => {
       
       // Store the token and user data
       login(token, user);
-      
+      track('login_success', { userId: String(user?.id ?? '') });
+
       // Show success notification
       showNotification(
         'success',
@@ -99,6 +103,13 @@ const LoginPage = () => {
       animate="animate"
       exit="exit"
     >
+      <MetaTags
+        title={`Sign in | ${PRODUCT_NAME}`}
+        description={`Sign in to ${PRODUCT_NAME} on ${DOMAIN_LABEL} to continue your AI fantasy hero.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/login`}
+        robots="noindex,follow"
+      />
       <div className="max-w-md mx-auto">
         <PageTitle>Log In</PageTitle>
         

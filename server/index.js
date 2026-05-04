@@ -10,6 +10,7 @@ import { registerUser, loginUser, authMiddleware, getUserById, addHeroToUser } f
 import { processPaymentAndCreateNFT, getNFTById, getNFTsByHeroId } from './stripe.js';
 import { createSharedLink, accessSharedHero, getSharedLinksByUser, deactivateSharedLink } from './share.js';
 import { initializeDB, heroDb, storyBookDb } from './db.js';
+import { insertAnalyticsEvent, parseAnalyticsBody } from './analytics.js';
 import { ensureStorageDirectories, createHeroZip } from './utils.js';
 import { 
   createSharedStoryRoom, 
@@ -238,6 +239,29 @@ async function startServer() {
       res.json({ message: 'pong', timestamp: new Date().toISOString() });
     });
 
+    app.post('/api/analytics/event', async (req, res) => {
+      try {
+        const parsed = parseAnalyticsBody(req.body);
+        if (!parsed.ok) {
+          return res.status(400).json({ error: parsed.error });
+        }
+        const fwd = req.headers['x-forwarded-for'];
+        const ip =
+          typeof fwd === 'string'
+            ? fwd.split(',')[0].trim()
+            : req.socket.remoteAddress;
+        await insertAnalyticsEvent({
+          ...parsed.value,
+          userAgent: String(req.headers['user-agent'] || '').slice(0, 400),
+          ip: String(ip || '').slice(0, 45),
+        });
+        return res.status(204).end();
+      } catch (e) {
+        console.error('analytics event error', e);
+        return res.status(500).json({ error: 'Failed to record event' });
+      }
+    });
+
     // Endpoint to process payment and create NFT using Charges API
     app.post('/api/process-payment', async (req, res) => {
       const { heroId, stripeToken, amount, currency, walletAddress, email } = req.body;
@@ -456,6 +480,28 @@ async function startServer() {
         });
 
         console.log(`Payment intent created successfully: ${paymentIntent.id} in ${useTestMode ? 'TEST' : 'LIVE'} mode`);
+        try {
+          const sid =
+            typeof req.body?.sessionId === 'string' ? req.body.sessionId.slice(0, 80) : 'unknown';
+          await insertAnalyticsEvent({
+            event: 'checkout_open_server',
+            sessionId: sid,
+            path: '/api/create-payment-intent',
+            properties: {
+              heroId: String(heroId || ''),
+              paymentType: String(paymentType || ''),
+              amount: Number(amount),
+            },
+            userAgent: String(req.headers['user-agent'] || '').slice(0, 400),
+            ip: String(
+              (typeof req.headers['x-forwarded-for'] === 'string'
+                ? req.headers['x-forwarded-for'].split(',')[0].trim()
+                : req.socket.remoteAddress) || ''
+            ).slice(0, 45),
+          });
+        } catch (analyticsErr) {
+          console.error('checkout_open_server analytics:', analyticsErr);
+        }
         res.status(200).json({ clientSecret: paymentIntent.client_secret });
       } catch (error) {
         console.error('Error creating payment intent:', error);
@@ -507,6 +553,21 @@ async function startServer() {
           // Process the payment and create NFT
           await processPaymentAndCreateNFT(heroId, paymentIntent);
           console.log(`Payment processed for hero: ${heroId}`);
+          try {
+            await insertAnalyticsEvent({
+              event: 'payment_success_webhook',
+              sessionId: 'stripe_webhook',
+              path: '/api/webhook',
+              properties: {
+                heroId: String(heroId),
+                paymentIntentId: String(paymentIntent.id || ''),
+              },
+              userAgent: 'stripe_webhook',
+              ip: '',
+            });
+          } catch (analyticsErr) {
+            console.error('webhook analytics:', analyticsErr);
+          }
         } catch (error) {
           console.error('Error processing payment webhook:', error);
         }
@@ -529,6 +590,23 @@ async function startServer() {
         console.log('Calling registerUser...');
         const user = await registerUser(email, password, name);
         console.log('User registered successfully:', user.userId);
+        try {
+          const sid = typeof req.body?.sessionId === 'string' ? req.body.sessionId.slice(0, 80) : 'unknown';
+          await insertAnalyticsEvent({
+            event: 'register_success_server',
+            sessionId: sid,
+            path: '/api/auth/register',
+            properties: { userId: user.userId },
+            userAgent: String(req.headers['user-agent'] || '').slice(0, 400),
+            ip: String(
+              (typeof req.headers['x-forwarded-for'] === 'string'
+                ? req.headers['x-forwarded-for'].split(',')[0].trim()
+                : req.socket.remoteAddress) || ''
+            ).slice(0, 45),
+          });
+        } catch (analyticsErr) {
+          console.error('register analytics:', analyticsErr);
+        }
         res.status(201).json({ user });
       } catch (error) {
         console.error('Error registering user:', error);
@@ -844,7 +922,7 @@ async function startServer() {
       }
       
       // Check if the user owns this hero
-      if (hero.userId !== userId) {
+      if (hero.userid !== userId) {
         return res.status(403).json({ error: 'You do not have permission to view this hero' });
       }
       
@@ -873,7 +951,7 @@ async function startServer() {
       }
       
       // Check if the user owns this hero
-      if (hero.userId !== userId) {
+      if (hero.userid !== userId) {
         return res.status(403).json({ error: 'You do not have permission to share this hero' });
       }
       
@@ -935,6 +1013,24 @@ async function startServer() {
         chineseZodiac: hero.chineseZodiac,
         isShared: true
       };
+
+      try {
+        const fwd = req.headers['x-forwarded-for'];
+        const ip =
+          typeof fwd === 'string'
+            ? fwd.split(',')[0].trim()
+            : req.socket.remoteAddress;
+        await insertAnalyticsEvent({
+          event: 'share_visit',
+          sessionId: 'server_share',
+          path: `/api/share/${shareId}`,
+          properties: { shareId: String(shareId), heroId: String(hero.id) },
+          userAgent: String(req.headers['user-agent'] || '').slice(0, 400),
+          ip: String(ip || '').slice(0, 45),
+        });
+      } catch (analyticsErr) {
+        console.error('share_visit analytics:', analyticsErr);
+      }
       
       return res.json({ 
         message: 'Shared hero accessed successfully',

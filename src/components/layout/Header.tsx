@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Menu, X, Sparkles, LogOut, User, Users } from 'lucide-react';
+import { Menu, X, Sparkles, LogOut, User } from 'lucide-react';
 import { AuthContext } from '../../App';
 import { useNotification } from '../../context/NotificationContext';
+import { DOMAIN_LABEL } from '../../constants/brand';
 
 const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -50,8 +51,11 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4 flex justify-between items-center">
         <Link to="/" className="flex items-center gap-2">
           <Sparkles className="text-cosmic-500 h-6 w-6" />
-          <span className="font-display text-xl font-semibold bg-gradient-to-r from-white to-cosmic-500 bg-clip-text text-transparent">
-            Cosmic Heroes
+          <span className="flex flex-col leading-tight">
+            <span className="font-display text-xl font-semibold bg-gradient-to-r from-white to-cosmic-500 bg-clip-text text-transparent">
+              Cosmic Heroes
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-gray-500 hidden sm:block">{DOMAIN_LABEL}</span>
           </span>
         </Link>
 

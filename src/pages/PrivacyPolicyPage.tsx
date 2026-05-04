@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import MetaTags from '../components/ui/MetaTags';
+import { DOMAIN_LABEL, PRODUCT_NAME, PRIVACY_EMAIL, SITE_ORIGIN } from '../constants/brand';
 
 const PrivacyPolicyPage: React.FC = () => {
   return (
@@ -9,6 +11,13 @@ const PrivacyPolicyPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 py-16 max-w-4xl"
     >
+      <MetaTags
+        title={`Privacy Policy | ${PRODUCT_NAME}`}
+        description={`How ${PRODUCT_NAME} on ${DOMAIN_LABEL} collects, uses, and protects personal data.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/privacy-policy`}
+      />
+
       <motion.h1
         initial={{ y: -20 }}
         animate={{ y: 0 }}
@@ -98,7 +107,11 @@ const PrivacyPolicyPage: React.FC = () => {
         
         <h2 className="text-2xl font-semibold mt-8 mb-4">11. Contact Information</h2>
         <p>
-          If you have any questions about this Privacy Policy, please contact us at privacy@cosmicheroes.com.
+          If you have any questions about this Privacy Policy, please contact us at{' '}
+          <a href={`mailto:${PRIVACY_EMAIL}`} className="text-cosmic-400">
+            {PRIVACY_EMAIL}
+          </a>
+          .
         </p>
       </div>
     </motion.div>

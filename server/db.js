@@ -24,6 +24,8 @@ export const connectDB = async () => {
       // Create indexes for common queries
       await db.collection('users').createIndex({ email: 1 }, { unique: true });
       await db.collection('users').createIndex({ id: 1 }, { unique: true });
+      await db.collection('analytics_events').createIndex({ ts: -1 });
+      await db.collection('analytics_events').createIndex({ event: 1, ts: -1 });
     }
     return db;
   } catch (error) {

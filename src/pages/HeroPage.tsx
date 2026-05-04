@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users, RefreshCw } from 'lucide-react';
@@ -13,6 +13,9 @@ import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
 import { formatLiteraryBackstory } from '../utils/literaryFormatter';
 import { useNotification } from '../context/NotificationContext';
+import { track } from '../utils/analytics';
+import { getPaywallCopyVariant } from '../utils/growthExperiments';
+import DailyCosmicPulse from '../components/engagement/DailyCosmicPulse';
 
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +26,8 @@ const HeroPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showNotification } = useNotification();
+  const paywallVariant = useMemo(() => getPaywallCopyVariant(), []);
+  const paywallImpressionRef = useRef<HTMLDivElement | null>(null);
   
   // Get hero data from the store
   const { 
@@ -127,6 +132,24 @@ const HeroPage: React.FC = () => {
   const isPreview = id?.startsWith('preview-');
   const isLoading = loading || status === 'generating';
   const isPaid = paymentStatus === 'paid';
+
+  useEffect(() => {
+    if (isPreview || isPaid || !id) return;
+    const el = paywallImpressionRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting);
+        if (hit) {
+          track('paywall_view', { heroId: id.replace('preview-', '') });
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [id, isPaid, isPreview]);
   
   // Derive hero traits from zodiac info
   const heroTraits = zodiacInfo ? [
@@ -140,12 +163,26 @@ const HeroPage: React.FC = () => {
     : [];
 
   // Handle share and download clicks
-  const handleShareClick = () => {
-    if (isPaid) {
-      // TODO: Implement actual sharing functionality
-      alert('Sharing functionality would open here');
-    } else {
-      navigate(`/checkout/${id}`);
+  const handleShareClick = async () => {
+    const rawId = id?.replace('preview-', '');
+    if (!rawId) return;
+    if (!isPaid) {
+      track('checkout_open', { from: 'share_cta', heroId: rawId });
+      navigate(`/checkout/${rawId}`);
+      return;
+    }
+    try {
+      const res = await api.post(`/api/heroes/${rawId}/share`, {});
+      const shareUrlPath = res.data?.sharedLink?.shareUrl as string | undefined;
+      const shareId = res.data?.sharedLink?.shareId as string | undefined;
+      if (!shareUrlPath) throw new Error('No share URL');
+      const fullUrl = `${window.location.origin}${shareUrlPath}`;
+      await navigator.clipboard.writeText(fullUrl);
+      track('share_create', { heroId: rawId, shareId: shareId ?? '' });
+      showNotification('success', 'Share link copied', fullUrl, true, 5000);
+    } catch (e) {
+      console.error(e);
+      showNotification('error', 'Could not share', 'Please try again in a moment.', true, 4000);
     }
   };
   
@@ -371,6 +408,7 @@ const HeroPage: React.FC = () => {
           description={`Discover the cosmic journey of ${heroName}, a mythical hero with ${zodiacInfo?.western.sign} and ${zodiacInfo?.chinese.sign} zodiac influences.`}
           image={images && images.length > 0 ? images[0].url : '/logo.jpg'}
           type="profile"
+          robots="noindex,nofollow"
         />
       )}
       
@@ -408,7 +446,7 @@ const HeroPage: React.FC = () => {
                   size="sm"
                   icon={<ShoppingCart size={16} />}
                 >
-                  Purchase Full Version
+                  {paywallVariant === 'explicit_price' ? 'Unlock premium ($3.99)' : 'Unlock premium'}
                 </Button>
               </Link>
             ) : (
@@ -505,18 +543,36 @@ const HeroPage: React.FC = () => {
             
             {/* CTA for unpaid users */}
             {!isPaid && (
-              <div className="mt-6 bg-mystic-800/80 border border-cosmic-600/30 p-4 rounded-lg">
+              <div
+                ref={paywallImpressionRef}
+                className="mt-6 bg-mystic-800/80 border border-cosmic-600/30 p-4 rounded-lg"
+              >
                 <div className="flex items-center gap-4">
                   <div className="bg-cosmic-600/20 p-3 rounded-full">
                     <CreditCard className="h-6 w-6 text-cosmic-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg mb-1">Unlock Full Quality Images</h3>
-                    <p className="text-gray-400 text-sm">Get high-resolution images and access to all views</p>
+                    <h3 className="font-semibold text-lg mb-1">
+                      {paywallVariant === 'explicit_price'
+                        ? 'Unlock full-quality art ($3.99)'
+                        : 'Unlock full-quality images'}
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      {paywallVariant === 'explicit_price'
+                        ? 'One-time upgrade for this hero: all angles, full resolution, full story, download & shared story access.'
+                        : 'Get high-resolution images and access to all views'}
+                    </p>
                   </div>
                   <div className="ml-auto">
-                    <Link to={`/checkout/${id}`}>
-                      <Button size="sm">Unlock Now</Button>
+                    <Link
+                      to={`/checkout/${id}`}
+                      onClick={() =>
+                        track('checkout_open', { from: 'paywall_strip', heroId: String(id).replace('preview-', '') })
+                      }
+                    >
+                      <Button size="sm">
+                        {paywallVariant === 'explicit_price' ? 'Unlock — $3.99' : 'Unlock now'}
+                      </Button>
                     </Link>
                   </div>
                 </div>
@@ -669,6 +725,8 @@ const HeroPage: React.FC = () => {
             />
           )}
         </div>
+
+        {isPaid && !isPreview && heroId && <DailyCosmicPulse heroId={heroId} />}
       </div>
     </motion.div>
   );

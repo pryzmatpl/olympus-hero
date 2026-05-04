@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import MetaTags from '../components/ui/MetaTags';
+import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
 
 const ZodiacGuidePage: React.FC = () => {
   const zodiacSigns = [
@@ -96,6 +98,12 @@ const ZodiacGuidePage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 py-16"
     >
+      <MetaTags
+        title={`Zodiac guide — Western signs for fantasy heroes | ${PRODUCT_NAME}`}
+        description={`Use Western zodiac traits to inspire AI fantasy heroes on ${DOMAIN_LABEL}. Elements, strengths, and character flavor for each sign.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/zodiac-guide`}
+      />
       <motion.h1
         initial={{ y: -20 }}
         animate={{ y: 0 }}

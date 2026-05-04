@@ -7,6 +7,9 @@ import { useHeroStore, useStoryStore } from '../../store/heroStore';
 import { formatMarkdown } from '../../utils/markdownHelper';
 import { formatLiteraryChapter } from '../../utils/literaryFormatter';
 import api from '../../utils/api';
+import { getChapterFrameVariant } from '../../utils/growthExperiments';
+
+const CHAPTER_BUNDLE_PRICE_LABEL = '$1.99';
 
 interface HeroChaptersProps {
   heroId: string;
@@ -14,6 +17,7 @@ interface HeroChaptersProps {
 }
 
 const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) => {
+  const chapterFrame = getChapterFrameVariant();
   const { 
     storyBook, 
     chapters, 
@@ -67,7 +71,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     
     if (!isPremium) {
       // Redirect to checkout page if not paid
-      navigate(`/checkout/${heroId}?type=chapters&amount=499`);
+      navigate(`/checkout/${heroId}?type=chapters`);
       return;
     }
     
@@ -229,7 +233,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                     onClick={handleUnlockBundle}
                     isLoading={isUnlocking}
                   >
-                    Unlock 3 More Chapters – $3.99
+                    Unlock 3 More Chapters – {CHAPTER_BUNDLE_PRICE_LABEL}
                   </Button>
                 </div>
               </div>
@@ -243,11 +247,15 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                 </div>
                 <div>
                   <h3 className="font-semibold text-lg mb-1">Unlock Full Story</h3>
-                  <p className="text-gray-400 text-sm">Gain access to all premium chapters</p>
+                  <p className="text-gray-400 text-sm">
+                    {chapterFrame === 'progression'
+                      ? 'Advance your serialized saga with the next story beats.'
+                      : 'Unlock the next premium chapters for this hero.'}
+                  </p>
                 </div>
                 <div className="ml-auto">
-                  <Button onClick={() => navigate(`/checkout/${heroId}?type=chapters&amount=499`)}>
-                    Unlock Now
+                  <Button onClick={() => navigate(`/checkout/${heroId}?type=chapters`)}>
+                    Unlock chapters — {CHAPTER_BUNDLE_PRICE_LABEL}
                   </Button>
                 </div>
               </div>
@@ -265,14 +273,18 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
             </div>
             <div>
               <h3 className="font-semibold text-lg mb-1">Unlock More Chapters</h3>
-              <p className="text-gray-400 text-sm">Continue your hero's journey with 3 more chapters now and daily chapter releases. </p>
+              <p className="text-gray-400 text-sm">
+                {chapterFrame === 'progression'
+                  ? 'Keep the narrative arc moving: three more beats now, plus daily releases while you play.'
+                  : 'Add three more chapters now, plus keep receiving daily chapter drops.'}
+              </p>
             </div>
             <div className="ml-auto">
               <Button 
                 onClick={handleUnlockBundle}
                 isLoading={isUnlocking}
               >
-                Unlock 3 More Chapters – $1.99
+                Unlock 3 More Chapters – {CHAPTER_BUNDLE_PRICE_LABEL}
               </Button>
             </div>
           </div>

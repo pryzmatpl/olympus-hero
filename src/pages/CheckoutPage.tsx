@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useContext} from 'react';
+import React, {useState, useEffect, useContext, useMemo} from 'react';
 import {useParams, useNavigate, Link} from 'react-router-dom';
 import {motion} from 'framer-motion';
 import {AuthContext} from '../App';
@@ -18,6 +18,10 @@ import {
 } from '@stripe/react-stripe-js';
 import QuotaStatusCheck from '../components/QuotaStatusCheck';
 import axios from 'axios';
+import MetaTags from '../components/ui/MetaTags';
+import { track, getSessionId } from '../utils/analytics';
+import { getCheckoutTrustVariant } from '../utils/growthExperiments';
+import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
 
 // Determine if we're in development mode
 const isDevelopment = import.meta.env.MODE === 'development';
@@ -46,7 +50,7 @@ const pageVariants = {
 };
 
 // This is the inner form component that uses the Elements context
-const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuccess, onError, paymentAmount, paymentTitle, paymentDescription }) => {
+const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuccess, onError, paymentAmount, paymentTitle, paymentDescription, showExpandedTrust }) => {
     const stripe = useStripe();
     const elements = useElements();
     const [isProcessing, setIsProcessing] = useState(false);
@@ -150,6 +154,11 @@ const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuc
                     Your payment information is securely processed by Stripe.
                     We do not store your card details on our servers.
                 </p>
+                {showExpandedTrust && (
+                    <p className="text-cosmic-500 text-xs mt-2">
+                        Premium applies to this hero: full-resolution portraits, full backstory, downloads, and shared-story access where enabled—kept on your account after checkout.
+                    </p>
+                )}
                 {isDevelopment && (
                     <div className="mt-2 pt-2 border-t border-cosmic-800/30">
                         <p className="text-amber-400 text-xs font-semibold">Development Mode</p>
@@ -212,9 +221,10 @@ const stripeElementsOptions = (clientSecret) => ({
 
 const CheckoutPage = () => {
     const { id } = useParams();
-    const { token, user } = useContext(AuthContext);
+    const { user } = useContext(AuthContext);
     const { heroId, heroName, images, setPaymentStatus } = useHeroStore();
     const navigate = useNavigate();
+    const checkoutTrustVariant = useMemo(() => getCheckoutTrustVariant(), []);
     
     // State variables
     const [clientSecret, setClientSecret] = useState(null);
@@ -283,11 +293,13 @@ const CheckoutPage = () => {
                     walletAddress: walletAddress,
                     unlockChapters: type === 'chapters',
                     paymentType: type,
-                    is_test: isDevelopment // Pass development mode flag
+                    is_test: isDevelopment, // Pass development mode flag
+                    sessionId: getSessionId(),
                 });
                 
                 console.log("Payment intent created");
                 setClientSecret(response.data.clientSecret);
+                track('checkout_open', { heroId: String(effectiveHeroId), paymentType: type });
             } catch (err) {
                 console.error("Error creating payment intent:", err);
                 if (err.response?.data?.errorType === 'quota_exceeded') {
@@ -313,6 +325,10 @@ const CheckoutPage = () => {
     // Handle successful payment
     const handlePaymentSuccess = async (paymentIntent) => {
         console.log("Payment successful:", paymentIntent);
+        track('payment_success_client', {
+            heroId: String(effectiveHeroId),
+            paymentIntentId: String(paymentIntent?.id || ''),
+        });
         let navigationTimeout = null;
         
         try {
@@ -409,6 +425,13 @@ const CheckoutPage = () => {
             animate="animate"
             exit="exit"
         >
+            <MetaTags
+                title={`Checkout | ${PRODUCT_NAME}`}
+                description={`Secure checkout on ${DOMAIN_LABEL} for premium hero unlocks and chapter bundles.`}
+                image="/logo.jpg"
+                canonical={`${SITE_ORIGIN}/checkout/${id || heroId || 'hero'}`}
+                robots="noindex,nofollow"
+            />
             <div className="max-w-2xl mx-auto">
                 <div className="flex items-center justify-between mb-6">
                     <PageTitle>{paymentTitle}</PageTitle>
@@ -466,7 +489,7 @@ const CheckoutPage = () => {
                                 placeholder="0x..."
                             />
                             <p className="text-gray-400 text-xs mt-2">
-                                For storing your hero as an NFT in the future (not required)
+                                Optional: for a future voluntary on-chain mint, if we offer it (not required today)
                             </p>
                         </div>
 
@@ -482,6 +505,7 @@ const CheckoutPage = () => {
                                     paymentAmount={paymentAmount}
                                     paymentTitle={paymentTitle}
                                     paymentDescription={paymentDescription}
+                                    showExpandedTrust={checkoutTrustVariant === 'expanded'}
                                 />
                             </Elements>
                         ) : (

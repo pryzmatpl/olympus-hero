@@ -1,12 +1,38 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Calendar, ArrowLeft, Sparkles } from 'lucide-react';
 import MetaTags from '../components/ui/MetaTags';
+import JsonLd from '../components/seo/JsonLd';
 import Button from '../components/ui/Button';
 import OptimizedImage from '../components/ui/OptimizedImage';
+import { PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
+import { BLOG_AI_MYTHICAL_JOURNEYS_DATE } from '../constants/blogPublished';
+
+const formatBlogDate = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
 const BlogAIMythicalJourneysPage: React.FC = () => {
+  const articleUrl = `${SITE_ORIGIN}/blog/ai-mythical-journeys`;
+  const jsonLd = useMemo(
+    () => ({
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: 'Exploring Mythical Journeys Through AI',
+      datePublished: BLOG_AI_MYTHICAL_JOURNEYS_DATE,
+      dateModified: BLOG_AI_MYTHICAL_JOURNEYS_DATE,
+      author: { '@type': 'Organization', name: PRODUCT_NAME },
+      publisher: {
+        '@type': 'Organization',
+        name: PRODUCT_NAME,
+        logo: { '@type': 'ImageObject', url: `${SITE_ORIGIN}/logo.jpg` },
+      },
+      mainEntityOfPage: articleUrl,
+      image: `${SITE_ORIGIN}/blog-ai-storytelling.jpg`,
+    }),
+    [articleUrl]
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -18,7 +44,9 @@ const BlogAIMythicalJourneysPage: React.FC = () => {
         title="Exploring Mythical Journeys Through AI | Cosmic Heroes"
         description="Discover how AI is revolutionizing personalized fantasy storytelling and creating unique hero journeys. Learn about AI-driven character creation and storytelling."
         image="/blog-ai-storytelling.jpg"
+        canonical={articleUrl}
       />
+      <JsonLd id="jsonld-blog-ai-mythical" data={jsonLd} />
 
       <section className="max-w-4xl mx-auto">
         <div className="mb-6">
@@ -49,7 +77,7 @@ const BlogAIMythicalJourneysPage: React.FC = () => {
           <div className="p-8 md:p-12">
             <div className="flex items-center text-cosmic-400 text-sm mb-4">
               <Calendar size={16} className="mr-2" />
-              <span>{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              <span>{formatBlogDate(BLOG_AI_MYTHICAL_JOURNEYS_DATE)}</span>
             </div>
             
             <h1 className="text-3xl md:text-4xl font-display font-bold mb-6">

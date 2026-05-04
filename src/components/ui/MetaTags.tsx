@@ -14,6 +14,8 @@ interface MetaTagsProps {
   twitterCard?: 'summary' | 'summary_large_image';
   /** e.g. @YourBrand */
   twitterSite?: string;
+  /** e.g. noindex,follow for low-value authenticated surfaces */
+  robots?: string;
 }
 
 const DEFAULT_TITLE =
@@ -52,6 +54,7 @@ const MetaTags: React.FC<MetaTagsProps> = ({
   locale = 'en_US',
   twitterCard = 'summary_large_image',
   twitterSite,
+  robots,
 }) => {
   const resolvedUrl = url || (typeof window !== 'undefined' ? window.location.href : '');
   const resolvedCanonical = canonical ?? stripHash(resolvedUrl);
@@ -69,11 +72,26 @@ const MetaTags: React.FC<MetaTagsProps> = ({
       if (
         key.startsWith('og:') ||
         key.startsWith('twitter:') ||
-        key === 'description'
+        key === 'description' ||
+        key === 'robots'
       ) {
         originalMeta[key] = m.getAttribute('content') || '';
       }
     });
+
+    let robotsEl: HTMLMetaElement | null = document.querySelector('meta[name="robots"]');
+    let createdRobots = false;
+    const hadRobots = !!robotsEl;
+    const originalRobots = robotsEl?.getAttribute('content') ?? '';
+    if (robots) {
+      if (!robotsEl) {
+        robotsEl = document.createElement('meta');
+        robotsEl.setAttribute('name', 'robots');
+        document.head.appendChild(robotsEl);
+        createdRobots = !hadRobots;
+      }
+      robotsEl.setAttribute('content', robots);
+    }
 
     const existingCanonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     const hadCanonical = !!existingCanonical;
@@ -133,6 +151,14 @@ const MetaTags: React.FC<MetaTagsProps> = ({
         }
       });
 
+      if (robotsEl) {
+        if (createdRobots) {
+          robotsEl.remove();
+        } else if (robots) {
+          robotsEl.setAttribute('content', originalRobots);
+        }
+      }
+
       if (canonicalLink) {
         if (createdCanonical) {
           canonicalLink.remove();
@@ -152,6 +178,7 @@ const MetaTags: React.FC<MetaTagsProps> = ({
     locale,
     twitterCard,
     twitterSite,
+    robots,
   ]);
 
   return null;

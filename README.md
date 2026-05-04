@@ -1,103 +1,46 @@
-# Olympus Hero Generator
+# Cosmic Heroes (mythicalhero.me)
 
-A web application that generates mythical heroes based on zodiac signs, creates NFTs of these heroes, and allows sharing with unique URLs.
+Web app for **AI-generated fantasy hero portraits and personalized backstories**, combining Western and Chinese zodiac influences from a birth date and hero name. Users sign in, create heroes, optionally upgrade with **Stripe**, and can share public links.
 
 ## Features
 
-- Generate mythical heroes based on birthdate with Western and Chinese zodiac influences
-- Create detailed character backstories with RPG-like character traits/stats
-- Multiple hero portrait views (front, profile, action)
-- User authentication system
-- Payment processing with Stripe for NFT creation
-- Share heroes with unique URLs `/share/[uuid]`
-- View hero stats with attractive visualizations
+- Guided hero creation (birth date → name → generation)
+- AI portrait angles and markdown-friendly backstory
+- Premium unlock per hero (full assets, chapters, shared-story access where enabled)
+- JWT auth, MongoDB persistence, Stripe payment intents + webhook path
+- Public shared hero URLs (`/share/:shareId`)
 
 ## Tech Stack
 
-- **Frontend**: React with TypeScript, Framer Motion, TailwindCSS
-- **Backend**: Node.js with Express
-- **Authentication**: JWT-based authentication
-- **Containerization**: Docker with Nginx for the frontend
-- **Development Tools**: Makefile, Docker Compose
+- **Frontend**: React (TypeScript), Vite, Framer Motion, TailwindCSS
+- **Backend**: Node.js + Express
+- **Data**: MongoDB
+- **Deploy**: Docker + Nginx (see repo root configs)
 
-## Prerequisites
+## Prerequisite
 
-- Docker and Docker Compose
-- Make (for using the Makefile commands)
-- Node.js v20+ (for local development)
+- Node.js 20+
 
-## Quick Start
-
-The project includes a Makefile to simplify common tasks:
+## Scripts
 
 ```bash
-# Show available commands
-make help
-
-# Start the application in development mode (with hot reloading)
-make dev
-
-# Start the application in production mode
-make prod
-
-# Build the Docker images
-make build
-
-# Clean up containers, volumes, and build artifacts
-make clean
+npm install
+npm run dev        # Vite on :9001 (see package.json)
+npm run server     # API on :9002
+npm run build
+npm run lint
+npm test           # server analytics allowlist tests
 ```
 
-## Development
+## Product analytics
 
-### Local Development
+Client events POST to `/api/analytics/event` and are stored in MongoDB collection `analytics_events` (see `server/analytics.js`). Attribution keys are captured once per session from query parameters when present (`src/utils/attribution.ts`).
 
-Start the application in development mode to enable hot reloading:
+## Crawl hints
 
-```bash
-make dev
-```
+- Public SEO surfaces include `/`, `/blog/*`, `/guides/*`, `/zodiac-guide`, `/faqs`, etc.
+- Authenticated app routes use `noindex` meta where appropriate; `public/sitemap.xml` lists indexable URLs only.
 
-This will start both the frontend and backend servers with volume mounts for live code updates.
+## Docker & Make
 
-### Production Deployment
-
-Build and start the application in production mode:
-
-```bash
-make build
-make prod
-```
-
-## Project Structure
-
-- `/src` - Frontend React application
-- `/server` - Backend Express API
-- `/public` - Static assets
-- `docker-compose.yml` - Main Docker Compose configuration
-- `docker-compose.dev.yml` - Development-specific configuration
-- `Dockerfile.ui` - Frontend production Dockerfile
-- `Dockerfile.server` - Backend production Dockerfile
-- `Dockerfile.ui.dev` - Frontend development Dockerfile
-- `Dockerfile.server.dev` - Backend development Dockerfile
-
-## Environment Variables
-
-The application uses several environment variables that can be configured:
-
-- `VITE_API_URL` - URL for the API server
-- `PORT` - Backend server port (default: 9002)
-- `JWT_SECRET` - Secret key for JWT token generation
-- `NODE_ENV` - Environment (development/production)
-
-## Accessing the Application
-
-- Frontend: http://localhost:9001
-- Backend API: http://localhost:9002
-
-## Shared Hero Access
-
-Heroes can be shared using a unique URL: `http://localhost:9001/share/[uuid]`
-
-## License
-
-This project is licensed under the MIT License. 
+Docker Compose and a `Makefile` are included for production-like workflows. Run `make help` for available commands.

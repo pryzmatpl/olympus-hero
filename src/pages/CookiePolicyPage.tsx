@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import MetaTags from '../components/ui/MetaTags';
+import { DOMAIN_LABEL, PRODUCT_NAME, PRIVACY_EMAIL, SITE_ORIGIN } from '../constants/brand';
 
 const CookiePolicyPage: React.FC = () => {
   return (
@@ -9,6 +11,13 @@ const CookiePolicyPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 py-16 max-w-4xl"
     >
+      <MetaTags
+        title={`Cookie Policy | ${PRODUCT_NAME}`}
+        description={`Cookie and similar technologies policy for ${PRODUCT_NAME} (${DOMAIN_LABEL}).`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/cookie-policy`}
+      />
+
       <motion.h1
         initial={{ y: -20 }}
         animate={{ y: 0 }}
@@ -70,7 +79,11 @@ const CookiePolicyPage: React.FC = () => {
         
         <h2 className="text-2xl font-semibold mt-8 mb-4">8. Contact Information</h2>
         <p>
-          If you have any questions about our use of cookies or other technologies, please email us at cookies@cosmicheroes.com.
+          If you have any questions about our use of cookies or other technologies, please email us at{' '}
+          <a href={`mailto:${PRIVACY_EMAIL}`} className="text-cosmic-400">
+            {PRIVACY_EMAIL}
+          </a>
+          .
         </p>
       </div>
     </motion.div>
