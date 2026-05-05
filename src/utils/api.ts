@@ -144,7 +144,20 @@ api.interceptors.response.use(
       console.error('Network error occurred');
       error.message = 'Network error. Please check your connection and try again.';
     }
-    
+
+    // Nginx 502/503/504: upstream (Node) unreachable, crashed, or overloaded — not an app JSON body
+    const st = error.response?.status;
+    if (st === 502 || st === 503 || st === 504) {
+      const msg =
+        st === 502
+          ? 'The API did not respond (bad gateway). The server may be restarting or unreachable—try again in a moment.'
+          : 'Service temporarily unavailable. Please try again shortly.';
+      error.message = msg;
+      if (error.response && (typeof error.response.data === 'string' || error.response.data == null)) {
+        error.response.data = { error: 'upstream_error', message: msg };
+      }
+    }
+
     // Handle authentication errors
     if (error.response?.status === 401) {
       // Don't redirect to login for login/auth endpoints (avoid loops)

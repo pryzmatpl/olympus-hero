@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
-import { v4 as uuidv4 } from 'uuid';
 import { AuthContext } from '../App';
 import { useHeroStore } from '../store/heroStore';
 import Button from '../components/ui/Button';
@@ -184,6 +183,9 @@ interface SharedRoom {
   title: string;
   participants: Participant[];
   created: Date;
+  mode?: string;
+  agentDriveEnabled?: boolean;
+  ownerUserId?: string;
 }
 
 // Interface for room list items
@@ -194,6 +196,7 @@ interface RoomListItem {
   spectatorCount: number;
   created: Date;
   updated: Date;
+  mode?: string;
 }
 
 // Zodiac icons and colors mapping
@@ -215,8 +218,19 @@ const westernZodiacIcons: Record<string, { color: string }> = {
 const SharedStoryPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const { token, user, isAuthenticated } = useContext(AuthContext);
+  const userId = user?.id as string | undefined;
   const navigate = useNavigate();
-  const { heroId, heroName, images, status, westernZodiac, chineseZodiac, loadHeroFromAPI } = useHeroStore();
+  const {
+    heroId,
+    heroName,
+    images,
+    westernZodiac,
+    chineseZodiac,
+    loadHeroFromAPI,
+    level,
+    xp,
+    xpToNextLevel,
+  } = useHeroStore();
   
   // State
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -248,6 +262,13 @@ const SharedStoryPage: React.FC = () => {
     };
   }>({});
   const [fetchingZodiac, setFetchingZodiac] = useState<boolean>(false);
+  const [createMode, setCreateMode] = useState<'shared_story' | 'skirmish' | 'scripted_story'>('shared_story');
+  const [pendingProposal, setPendingProposal] = useState<{
+    roomId: string;
+    proposal: { id: string; heroId: string; actionText: string; createdAt?: string };
+  } | null>(null);
+  const [agentTokenReveal, setAgentTokenReveal] = useState<string | null>(null);
+  const [agentTokens, setAgentTokens] = useState<Array<{ id: string; revokedAt: string | null; expiresAt: string }>>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -364,14 +385,41 @@ const SharedStoryPage: React.FC = () => {
       setIsLoading(false);
       setIsPremium(data.isPremium);
       setUserRole(data.role);
+      setRoom((prev) =>
+        prev
+          ? {
+              ...prev,
+              mode: data.mode || prev.mode,
+              agentDriveEnabled:
+                data.agentDriveEnabled !== undefined
+                  ? data.agentDriveEnabled
+                  : prev.agentDriveEnabled,
+            }
+          : prev
+      );
       
       // Parse message timestamps
-      const parsedMessages = data.messages.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      }));
+      const parsedMessages = data.messages.map(
+        (msg: Message & { timestamp: string | Date }) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        })
+      );
       
       setMessages(parsedMessages);
+    });
+
+    socketIo.on(
+      'agent_action_pending',
+      (payload: { roomId: string; proposal: { id: string; heroId: string; actionText: string } }) => {
+        if (payload.roomId === roomId) {
+          setPendingProposal(payload);
+        }
+      }
+    );
+
+    socketIo.on('agent_action_resolved', () => {
+      setPendingProposal(null);
     });
     
     socketIo.on('message', (newMessage) => {
@@ -416,7 +464,16 @@ const SharedStoryPage: React.FC = () => {
       try {
         setIsLoading(true);
         const response = await api.get(`/api/shared-story/${roomId}`);
-        setRoom(response.data);
+        const d = response.data;
+        setRoom({
+          roomId: d.roomId,
+          title: d.title,
+          participants: d.participants,
+          created: new Date(d.created),
+          mode: d.mode,
+          agentDriveEnabled: d.agentDriveEnabled,
+          ownerUserId: d.ownerUserId,
+        });
       } catch (error) {
         console.error('Error fetching room details:', error);
         setError('Failed to load room details');
@@ -438,10 +495,14 @@ const SharedStoryPage: React.FC = () => {
         const response = await api.get('/api/shared-story');
         
         // Parse dates from strings to Date objects
-        const roomsWithParsedDates = response.data.map((room: any) => ({
+        const roomsWithParsedDates = (
+          response.data as Array<
+            RoomListItem & { created: string | Date; updated: string | Date }
+          >
+        ).map((room) => ({
           ...room,
           created: new Date(room.created),
-          updated: new Date(room.updated)
+          updated: new Date(room.updated),
         }));
         
         setActiveRooms(roomsWithParsedDates);
@@ -455,6 +516,19 @@ const SharedStoryPage: React.FC = () => {
     
     fetchActiveRooms();
   }, [roomId]);
+
+  useEffect(() => {
+    const loadTokens = async () => {
+      if (!heroId || !roomId) return;
+      try {
+        const r = await api.get(`/api/heroes/${heroId}/agent-drive/tokens`);
+        setAgentTokens(r.data.tokens || []);
+      } catch {
+        /* optional */
+      }
+    };
+    void loadTokens();
+  }, [heroId, roomId]);
   
   // If we're creating a new room, do that
   const handleCreateRoom = async () => {
@@ -473,14 +547,18 @@ const SharedStoryPage: React.FC = () => {
       setError(null);
       console.log('Creating room with heroId:', heroId);
       
-      const response = await api.post('/api/shared-story/create', { heroId });
+      const response = await api.post('/api/shared-story/create', {
+        heroId,
+        mode: createMode,
+      });
       console.log('Room created successfully:', response.data);
       
       // Navigate to the new room
       navigate(`/shared-story/${response.data.roomId}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating room:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to create room';
+      const ax = error as { response?: { data?: { error?: string } } };
+      const errorMessage = ax.response?.data?.error || 'Failed to create room';
       console.error('Error message:', errorMessage);
       setError(errorMessage);
       setIsLoading(false);
@@ -490,6 +568,71 @@ const SharedStoryPage: React.FC = () => {
   // Handler for joining an existing room
   const handleJoinRoom = (roomId: string) => {
     navigate(`/shared-story/${roomId}`);
+  };
+
+  const handleCreateAgentToken = async () => {
+    if (!heroId) return;
+    try {
+      const r = await api.post(`/api/heroes/${heroId}/agent-drive/tokens`, {
+        roomId: roomId || undefined,
+      });
+      setAgentTokenReveal(r.data.token);
+      const list = await api.get(`/api/heroes/${heroId}/agent-drive/tokens`);
+      setAgentTokens(list.data.tokens || []);
+    } catch (e) {
+      console.error(e);
+      setError('Could not create agent token');
+    }
+  };
+
+  const handleToggleAgentDrive = async () => {
+    if (!roomId || !room) return;
+    try {
+      const on = !room.agentDriveEnabled;
+      await api.post(`/api/shared-story/${roomId}/agent-drive/${on ? 'enable' : 'disable'}`);
+      setRoom((prev) => (prev ? { ...prev, agentDriveEnabled: on } : prev));
+    } catch (e) {
+      console.error(e);
+      setError('Could not toggle Agent Drive');
+    }
+  };
+
+  const handleProposalDecision = (decision: 'approve' | 'reject') => {
+    if (!socket || !pendingProposal) return;
+    socket.emit('agent_action_decision', {
+      roomId: pendingProposal.roomId,
+      proposalId: pendingProposal.proposal.id,
+      decision,
+      reason: '',
+    });
+    setPendingProposal(null);
+  };
+
+  const handleSkirmishResolve = async (outcome: 'win' | 'loss') => {
+    if (!roomId || !heroId) return;
+    try {
+      await api.post(`/api/shared-story/${roomId}/skirmish/resolve`, {
+        heroId,
+        outcome,
+      });
+      const hres = await api.get(`/api/heroes/${heroId}`);
+      loadHeroFromAPI(hres.data);
+    } catch (e) {
+      console.error(e);
+      setError('Could not resolve skirmish');
+    }
+  };
+
+  const handleScriptAdvance = async () => {
+    if (!roomId || !heroId) return;
+    try {
+      await api.post(`/api/shared-story/${roomId}/scripted/advance`, { heroId });
+      const hres = await api.get(`/api/heroes/${heroId}`);
+      loadHeroFromAPI(hres.data);
+    } catch (e) {
+      console.error(e);
+      setError('Could not advance script');
+    }
   };
   
   // Handler for sending messages
@@ -689,6 +832,27 @@ const SharedStoryPage: React.FC = () => {
               <p className="mb-4">
                 Create a new shared story room where your hero can embark on a grand adventure with other heroes. Premium heroes can actively participate, while non-premium heroes can spectate.
               </p>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {(['shared_story', 'skirmish', 'scripted_story'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setCreateMode(m)}
+                    className={`px-3 py-1.5 rounded-lg text-sm border ${
+                      createMode === m
+                        ? 'border-cosmic-500 bg-cosmic-900/40 text-cosmic-200'
+                        : 'border-mystic-700 bg-mystic-900/40 text-gray-400'
+                    }`}
+                  >
+                    {m === 'shared_story'
+                      ? 'Shared Story'
+                      : m === 'skirmish'
+                        ? 'Skirmish'
+                        : 'Scripted Arc'}
+                  </button>
+                ))}
+              </div>
               
               <Button 
                 onClick={handleCreateRoom}
@@ -836,10 +1000,109 @@ const SharedStoryPage: React.FC = () => {
               size="sm"
               icon={<Users size={16} />}
             >
-              {room?.participants.length || 0} Heroes
+              {room?.participants?.length || 0} Heroes
             </Button>
           </div>
         </div>
+
+        {pendingProposal && userId && room?.ownerUserId === userId && (
+          <div className="bg-amber-900/30 border border-amber-700 rounded-lg p-4 mb-6">
+            <p className="text-sm font-medium text-amber-200 mb-2">Agent action pending approval</p>
+            <p className="text-white mb-4 whitespace-pre-wrap">{pendingProposal.proposal.actionText}</p>
+            <div className="flex gap-2">
+              <Button size="sm" type="button" onClick={() => handleProposalDecision('approve')}>
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                onClick={() => handleProposalDecision('reject')}
+              >
+                Reject
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-mystic-900/40 border border-mystic-700 rounded-lg p-4 md:col-span-2">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Legend progress</p>
+            <p className="text-cosmic-300">
+              Level {level} — {xp} / {xpToNextLevel} XP
+            </p>
+            <p className="text-gray-500 text-sm mt-1">
+              Epic Legendary Book chapters unlock with level-ups (linked progression).
+            </p>
+          </div>
+          <div className="bg-mystic-900/40 border border-mystic-700 rounded-lg p-4">
+            <p className="text-xs text-gray-500 uppercase mb-2">Session mode</p>
+            <p className="text-sm capitalize">
+              {(room?.mode || 'shared_story').replace(/_/g, ' ')}
+            </p>
+          </div>
+        </div>
+
+        {userId && room?.ownerUserId === userId && (
+          <div className="bg-mystic-800/60 border border-cosmic-800/40 rounded-lg p-4 mb-6 space-y-3">
+            <h3 className="text-lg font-medium text-cosmic-300">Agent Drive</h3>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Button
+                size="sm"
+                variant={room?.agentDriveEnabled ? 'secondary' : 'outline'}
+                type="button"
+                onClick={handleToggleAgentDrive}
+              >
+                {room?.agentDriveEnabled ? 'Disable' : 'Enable'} Agent Drive
+              </Button>
+              <Button size="sm" variant="outline" type="button" onClick={handleCreateAgentToken}>
+                New agent token
+              </Button>
+            </div>
+            {agentTokenReveal && (
+              <p className="text-xs text-amber-300 break-all">
+                Copy now — shown once: {agentTokenReveal}
+              </p>
+            )}
+            <ul className="text-xs text-gray-500 space-y-1">
+              {agentTokens.map((t) => (
+                <li key={t.id}>
+                  {t.id.slice(0, 8)}… {t.revokedAt ? 'revoked' : 'active'}
+                  {t.expiresAt ? ` · exp ${new Date(t.expiresAt).toLocaleDateString()}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {room?.mode === 'skirmish' && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              onClick={() => void handleSkirmishResolve('win')}
+            >
+              Record Skirmish Win
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              onClick={() => void handleSkirmishResolve('loss')}
+            >
+              Record Skirmish Loss
+            </Button>
+          </div>
+        )}
+
+        {room?.mode === 'scripted_story' && userId === room?.ownerUserId && (
+          <div className="mb-4">
+            <Button size="sm" type="button" onClick={() => void handleScriptAdvance()}>
+              Advance scripted beat
+            </Button>
+          </div>
+        )}
         
         {/* Share dialog */}
         {showShareDialog && (

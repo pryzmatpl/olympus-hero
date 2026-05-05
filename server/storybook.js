@@ -28,6 +28,7 @@ export const createStoryBook = async (heroId, isPremium = false, userPrompt = ''
     is_premium: isPremium,
     chapters_total_count: isPremium ? DEFAULT_CHAPTERS_TOTAL : 1,
     chapters_unlocked_count: 1, // Always start with 1 unlocked chapter
+    legendaryRank: 1,
     initial_chapter_generated_at: new Date(),
     created_at: new Date(),
     updated_at: new Date()
@@ -258,6 +259,54 @@ export const getStoryBookChapters = async (storyBookId, includeContent = true, f
 };
 
 /**
+ * After hero assets exist (backstory), ensure the storybook exists and chapter 1 is present.
+ * Used when chapter generation failed earlier (quota, API errors) but a storybook row exists with no rows in `chapters`,
+ * or chapter 1 is empty / quota-error placeholder.
+ *
+ * @param {string} heroId
+ * @returns {Promise<object|null>} Updated or existing storybook, or null if hero has no backstory yet
+ */
+export async function ensureHeroStorybookChapterOne(heroId) {
+  const hero = await heroDb.findHeroById(heroId);
+  if (!hero?.backstory?.trim()) {
+    return null;
+  }
+
+  const isPremium = hero.paymentStatus === 'paid';
+  let storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
+
+  if (!storyBook) {
+    await createStoryBook(heroId, isPremium, '');
+    return storyBookDb.findStoryBookByHeroId(heroId);
+  }
+
+  const chapters = await chapterDb.getChaptersByStoryBookId(storyBook.id);
+  const ch1 = chapters.find((c) => c.chapter_number === 1);
+
+  const needsGeneration =
+    !ch1 ||
+    ch1.error_type === 'quota_exceeded' ||
+    !String(ch1.content || '').trim();
+
+  if (!needsGeneration) {
+    return storyBook;
+  }
+
+  await generateAndSaveChapter(storyBook.id, hero, '', 1);
+
+  const updates = {
+    chapters_unlocked_count: Math.max(storyBook.chapters_unlocked_count || 0, 1),
+    updated_at: new Date(),
+  };
+  if (!storyBook.initial_chapter_generated_at) {
+    updates.initial_chapter_generated_at = new Date();
+  }
+  await storyBookDb.updateStoryBook(storyBook.id, updates);
+
+  return storyBookDb.findStoryBookById(storyBook.id);
+}
+
+/**
  * Check if a hero has a storybook, create one if not
  * @param {string} heroId - The ID of the hero
  * @param {boolean} isPremium - Whether the hero is a premium hero
@@ -265,14 +314,13 @@ export const getStoryBookChapters = async (storyBookId, includeContent = true, f
  * @returns {object} The storybook
  */
 export const getOrCreateStoryBook = async (heroId, isPremium = false, userPrompt = '') => {
-  // Check if a storybook already exists for this hero
   const existingStoryBook = await storyBookDb.findStoryBookByHeroId(heroId);
-  
+
   if (existingStoryBook) {
-    return existingStoryBook;
+    await ensureHeroStorybookChapterOne(heroId);
+    return storyBookDb.findStoryBookByHeroId(heroId);
   }
-  
-  // Create a new storybook
+
   return createStoryBook(heroId, isPremium, userPrompt);
 };
 

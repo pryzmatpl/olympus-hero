@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { FileText, Shield, Wallet, Coins, ArrowRight, Layers } from 'lucide-react';
+import { FileText, Shield, Wallet, ArrowRight, Layers } from 'lucide-react';
 import Button from '../components/ui/Button';
+import MetaTags from '../components/ui/MetaTags';
+import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
 
 const NFTBasicsPage: React.FC = () => {
   return (
@@ -12,6 +14,13 @@ const NFTBasicsPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 py-16 max-w-4xl"
     >
+      <MetaTags
+        title={`NFT Basics | ${PRODUCT_NAME}`}
+        description={`Educational guide to NFTs and how ${PRODUCT_NAME} on ${DOMAIN_LABEL} uses Stripe for premium digital goods today.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/nft-basics`}
+      />
+
       <motion.h1
         initial={{ y: -20 }}
         animate={{ y: 0 }}
@@ -20,123 +29,78 @@ const NFTBasicsPage: React.FC = () => {
       >
         NFT Basics
       </motion.h1>
-      
+
       <p className="text-center text-lg text-gray-300 max-w-3xl mx-auto mb-16">
-        New to the world of NFTs? This guide will help you understand the basics of non-fungible tokens
-        and how they work in the Cosmic Heroes universe.
+        A plain-language overview of NFTs—and how {PRODUCT_NAME} delivers AI hero content today with card checkout, not
+        crypto.
       </p>
-      
+
       <div className="space-y-12">
-        <Section 
-          title="What are NFTs?" 
-          icon={<FileText className="w-8 h-8 text-cosmic-500" />}
-        >
+        <Section title="What are NFTs?" icon={<FileText className="w-8 h-8 text-cosmic-500" />}>
           <p>
-            NFT stands for "Non-Fungible Token." Unlike cryptocurrencies such as Bitcoin or Ethereum, which are identical 
-            and interchangeable (fungible), NFTs are unique digital assets with distinctive values and properties.
+            NFT stands for &quot;Non-Fungible Token.&quot; Unlike interchangeable coins on a network, an NFT is a unique
+            digital record that can be linked to art, collectibles, tickets, or game items.
           </p>
           <p>
-            Each NFT contains unique identification codes and metadata that distinguish it from any other token. 
-            They can represent ownership of digital items such as art, collectibles, music, videos, or in our case—unique 
-            cosmic heroes with special attributes and powers.
+            People talk about NFTs together with blockchains because the chain can act as a public ledger for who holds
+            which token. That does not change the fact that most day-to-day products—including Cosmic Heroes—deliver
+            value as normal digital goods in your account.
           </p>
         </Section>
-        
-        <Section 
-          title="How do NFTs work?" 
-          icon={<Layers className="w-8 h-8 text-cosmic-500" />}
-        >
+
+        <Section title="How do NFTs work (high level)?" icon={<Layers className="w-8 h-8 text-cosmic-500" />}>
           <p>
-            NFTs are created or "minted" from digital objects that represent both tangible and intangible items. 
-            They are stored on a blockchain—a distributed public ledger that records transactions.
+            A blockchain is a shared database operated by many computers. &quot;Minting&quot; writes a new row of
+            ownership into that database, and transfers move that row from wallet to wallet.
           </p>
           <p>
-            The blockchain serves as a public certificate of authenticity and proof of ownership. When you purchase 
-            an NFT from Cosmic Heroes, the transaction is recorded on the blockchain, providing you with verifiable 
-            ownership of that unique digital asset.
+            NFTs can be useful when you truly need portable, public ownership on-chain. They also come with wallet
+            security responsibilities and network fees—so we only recommend them when the product experience clearly
+            benefits.
           </p>
         </Section>
-        
-        <Section 
-          title="NFTs in Cosmic Heroes" 
-          icon={<Shield className="w-8 h-8 text-cosmic-500" />}
-        >
+
+        <Section title={`How ${PRODUCT_NAME} works today`} icon={<Shield className="w-8 h-8 text-cosmic-500" />}>
           <p>
-            In the Cosmic Heroes universe, each hero you create becomes a unique NFT with attributes influenced by 
-            zodiac signs, cosmic elements, and your customization choices. These NFTs have special properties:
+            On {DOMAIN_LABEL}, you create a hero with AI-generated portraits and story content tied to your account.
+            Premium unlocks are purchased with Stripe. You do not need a crypto wallet to use the core product.
           </p>
           <ul className="list-disc pl-6 my-4 space-y-2">
             <li>
-              <strong className="text-white">Uniqueness:</strong> No two Cosmic Heroes are exactly alike. Each has its 
-              own combination of traits, abilities, and visual appearance.
+              <strong className="text-white">Digital goods:</strong> You receive the features described at checkout
+              (full images, full story, downloads, and shared-story access where applicable).
             </li>
             <li>
-              <strong className="text-white">Verifiable Ownership:</strong> Your ownership of a Cosmic Hero is recorded 
-              on the blockchain, providing indisputable proof that you own that hero.
+              <strong className="text-white">Account-based access:</strong> Your purchases are attached to your login,
+              similar to other creative web apps.
             </li>
             <li>
-              <strong className="text-white">Transferability:</strong> You can keep, trade, or sell your Cosmic Heroes 
-              to other collectors.
-            </li>
-            <li>
-              <strong className="text-white">Utility:</strong> Your Cosmic Heroes can be used in shared stories, special events, 
-              and future platform features.
+              <strong className="text-white">Roadmap transparency:</strong> If we ship optional on-chain minting later,
+              we will announce it clearly and make it opt-in—not a surprise requirement.
             </li>
           </ul>
         </Section>
-        
-        <Section 
-          title="Getting Started with Wallets" 
-          icon={<Wallet className="w-8 h-8 text-cosmic-500" />}
-        >
+
+        <Section title="Wallets and blockchains (optional future)" icon={<Wallet className="w-8 h-8 text-cosmic-500" />}>
           <p>
-            To purchase, store, and manage NFTs, you need a digital wallet that supports the blockchain where our NFTs are minted. 
-            Cosmic Heroes uses the Ethereum blockchain, so you'll need an Ethereum-compatible wallet.
+            Some collectors use wallets like MetaMask to hold tokens on Ethereum or other networks. Cosmic Heroes may
+            explore optional wallet fields for future features, but you should assume the live product is{' '}
+            <strong className="text-white">email + Stripe</strong> unless we publish otherwise.
           </p>
           <p>
-            Popular options include MetaMask, Trust Wallet, and Coinbase Wallet. These wallets store your private keys and 
-            allow you to interact with the blockchain.
-          </p>
-          <div className="mt-6">
-            <h4 className="text-white font-semibold mb-2">Basic Wallet Setup Steps:</h4>
-            <ol className="list-decimal pl-6 space-y-2 text-gray-300">
-              <li>Download a wallet application or browser extension</li>
-              <li>Create a new wallet and secure your recovery phrase</li>
-              <li>Connect your wallet to Cosmic Heroes when prompted</li>
-              <li>Ensure you have enough cryptocurrency to cover the cost of the NFT and transaction fees</li>
-            </ol>
-          </div>
-        </Section>
-        
-        <Section 
-          title="Buying and Selling NFTs" 
-          icon={<Coins className="w-8 h-8 text-cosmic-500" />}
-        >
-          <p>
-            After setting up your wallet, you're ready to start collecting Cosmic Heroes:
-          </p>
-          <ol className="list-decimal pl-6 my-4 space-y-2 text-gray-300">
-            <li>Create your own custom Cosmic Hero on our platform</li>
-            <li>Complete the purchase using cryptocurrency from your connected wallet</li>
-            <li>Once the transaction is confirmed, the NFT will appear in your collection</li>
-          </ol>
-          <p>
-            To sell your Cosmic Heroes, you can list them on our platform marketplace (coming soon) or transfer them 
-            to compatible third-party NFT marketplaces.
+            If you want to learn wallets for your own education, use official wallet documentation and never share your
+            seed phrase with anyone—including support.
           </p>
         </Section>
       </div>
-      
+
       <div className="mt-16 bg-mystic-800 border border-mystic-700 rounded-lg p-8 text-center">
-        <h2 className="text-2xl font-display font-bold text-white mb-4">Ready to Create Your First Cosmic Hero?</h2>
+        <h2 className="text-2xl font-display font-bold text-white mb-4">Ready to create your hero?</h2>
         <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-          Armed with your new knowledge of NFTs, dive into the Cosmic Heroes universe and create a unique character 
-          that reflects your zodiac powers and cosmic destiny.
+          Skip the complexity: sign up on {DOMAIN_LABEL}, run the creator flow, and upgrade only if you love the result.
         </p>
-        <Link to="/create">
-          <Button icon={<ArrowRight size={18} />}>
-            Start Creating Now
-          </Button>
+        <Link to="/register" state={{ from: { pathname: '/create' } }}>
+          <Button icon={<ArrowRight size={18} />}>Create a free account</Button>
         </Link>
       </div>
     </motion.div>
@@ -156,11 +120,9 @@ const Section: React.FC<SectionProps> = ({ title, icon, children }) => {
         {icon}
         <h2 className="text-2xl font-display font-bold text-white">{title}</h2>
       </div>
-      <div className="text-gray-300 space-y-4">
-        {children}
-      </div>
+      <div className="text-gray-300 space-y-4">{children}</div>
     </div>
   );
 };
 
-export default NFTBasicsPage; 
+export default NFTBasicsPage;

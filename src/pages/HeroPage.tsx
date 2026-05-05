@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users } from 'lucide-react';
+import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users, RefreshCw } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useHeroStore } from '../store/heroStore';
 import HeroPortrait from '../components/hero/HeroPortrait';
@@ -13,15 +13,38 @@ import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
 import { formatLiteraryBackstory } from '../utils/literaryFormatter';
 import { useNotification } from '../context/NotificationContext';
+import { track } from '../utils/analytics';
+import { getPaywallCopyVariant } from '../utils/growthExperiments';
+import DailyCosmicPulse from '../components/engagement/DailyCosmicPulse';
+
+const HERO_POLL_INTERVAL_MS = 2500;
+const HERO_MAX_POLLS = 52;
+
+/** Poll until API reports completed or error (in-flight generation). Returns false if max wait exceeded. */
+async function pollHeroUntilTerminal(
+  heroId: string,
+  loadHero: (data: unknown) => void
+): Promise<boolean> {
+  for (let i = 0; i < HERO_MAX_POLLS; i++) {
+    await new Promise((r) => setTimeout(r, HERO_POLL_INTERVAL_MS));
+    const r = await api.get(`/api/heroes/${heroId}`);
+    loadHero(r.data);
+    if (r.data.status === 'completed' || r.data.status === 'error') return true;
+  }
+  return false;
+}
 
 const HeroPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [activeImage, setActiveImage] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [regeneratingHero, setRegeneratingHero] = useState<boolean>(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { showNotification } = useNotification();
+  const paywallVariant = useMemo(() => getPaywallCopyVariant(), []);
+  const paywallImpressionRef = useRef<HTMLDivElement | null>(null);
   
   // Get hero data from the store
   const { 
@@ -37,7 +60,8 @@ const HeroPage: React.FC = () => {
     setStoryBook,
     setChapters,
     setIsLoadingChapters,
-    isLoadingChapters
+    isLoadingChapters,
+    chapters,
   } = useHeroStore();
   
   // Check for payment success and chapter purchase
@@ -76,17 +100,67 @@ const HeroPage: React.FC = () => {
   useEffect(() => {
     const fetchHero = async () => {
       if (!id) return;
-      
+
+      const rawId = id.replace('preview-', '');
+
       try {
         setLoading(true);
         setError(null);
-        
-        // Fetch hero data from API
-        const response = await api.get(`/api/heroes/${id?.replace('preview-', '')}`);
-        
-        // Update store with all hero data at once - passing the hero data directly
-        loadHeroFromAPI(response.data);
-        
+
+        const response = await api.get(`/api/heroes/${rawId}`);
+        const data = response.data;
+        loadHeroFromAPI(data);
+
+        const isPreview = id.startsWith('preview-');
+        const noGeneratedContent =
+          (!data.images || data.images.length === 0) &&
+          !String(data.backstory || '').trim();
+
+        if (!isPreview && noGeneratedContent) {
+          if (data.status === 'processing') {
+            const ok = await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+            if (!ok) {
+              showNotification(
+                'warning',
+                'Still processing',
+                'Generation is taking longer than expected. Refresh the page or use Regenerate content.',
+                true,
+                8000
+              );
+            }
+          } else {
+            try {
+              const genRes = await api.post(`/api/heroes/generate/${rawId}`, {});
+              if (genRes.status === 202) {
+                const ok = await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+                if (!ok) {
+                  showNotification(
+                    'warning',
+                    'Still processing',
+                    'Generation is taking longer than expected. Refresh or try Regenerate content.',
+                    true,
+                    8000
+                  );
+                }
+              } else if (genRes.data?.hero) {
+                loadHeroFromAPI(genRes.data.hero);
+              }
+            } catch (genErr: unknown) {
+              loadHeroFromAPI({ ...data, status: 'error' });
+              setStatus('error');
+              const ax = genErr as { response?: { data?: { message?: string; error?: string } } };
+              showNotification(
+                'error',
+                'Could not generate hero',
+                ax.response?.data?.message ||
+                  ax.response?.data?.error ||
+                  'Use “Regenerate content” below or try again later.',
+                true,
+                6000
+              );
+            }
+          }
+        }
       } catch (error) {
         console.error('Error fetching hero:', error);
         setError('Failed to load hero data. Please try again.');
@@ -95,9 +169,9 @@ const HeroPage: React.FC = () => {
         setLoading(false);
       }
     };
-    
-    fetchHero();
-  }, [id, loadHeroFromAPI, setStatus]);
+
+    void fetchHero();
+  }, [id, loadHeroFromAPI, setStatus, showNotification]);
   
   // Fetch storybook and chapters data
   useEffect(() => {
@@ -123,8 +197,27 @@ const HeroPage: React.FC = () => {
   }, [heroId, id, setStoryBook, setChapters, setIsLoadingChapters]);
   
   const isPreview = id?.startsWith('preview-');
-  const isLoading = loading || status === 'generating';
+  /** Full-page loader only while fetchHero is running (GET + generate + poll). Do not key off `status === 'generating'` alone — that stayed true for stale `pending` heroes with old clients and could loop forever after poll timeout. */
+  const isLoading = loading;
   const isPaid = paymentStatus === 'paid';
+
+  useEffect(() => {
+    if (isPreview || isPaid || !id) return;
+    const el = paywallImpressionRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting);
+        if (hit) {
+          track('paywall_view', { heroId: id.replace('preview-', '') });
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [id, isPaid, isPreview]);
   
   // Derive hero traits from zodiac info
   const heroTraits = zodiacInfo ? [
@@ -138,12 +231,26 @@ const HeroPage: React.FC = () => {
     : [];
 
   // Handle share and download clicks
-  const handleShareClick = () => {
-    if (isPaid) {
-      // TODO: Implement actual sharing functionality
-      alert('Sharing functionality would open here');
-    } else {
-      navigate(`/checkout/${id}`);
+  const handleShareClick = async () => {
+    const rawId = id?.replace('preview-', '');
+    if (!rawId) return;
+    if (!isPaid) {
+      track('checkout_open', { from: 'share_cta', heroId: rawId });
+      navigate(`/checkout/${rawId}`);
+      return;
+    }
+    try {
+      const res = await api.post(`/api/heroes/${rawId}/share`, {});
+      const shareUrlPath = res.data?.sharedLink?.shareUrl as string | undefined;
+      const shareId = res.data?.sharedLink?.shareId as string | undefined;
+      if (!shareUrlPath) throw new Error('No share URL');
+      const fullUrl = `${window.location.origin}${shareUrlPath}`;
+      await navigator.clipboard.writeText(fullUrl);
+      track('share_create', { heroId: rawId, shareId: shareId ?? '' });
+      showNotification('success', 'Share link copied', fullUrl, true, 5000);
+    } catch (e) {
+      console.error(e);
+      showNotification('error', 'Could not share', 'Please try again in a moment.', true, 4000);
     }
   };
   
@@ -197,6 +304,56 @@ const HeroPage: React.FC = () => {
   
   // Ensure backstory is a string
   const safeBackstory = typeof backstory === 'string' ? backstory : '';
+
+  const missingStoryChapters =
+    !isPreview &&
+    heroId &&
+    !isLoadingChapters &&
+    Array.isArray(chapters) &&
+    chapters.length === 0;
+
+  const showRegenerateHeroContent =
+    !isPreview &&
+    heroId &&
+    !loading &&
+    (status === 'error' ||
+      !safeBackstory.trim() ||
+      (status === 'complete' && missingStoryChapters));
+
+  const handleRegenerateHeroContent = async () => {
+    const rawId = id?.replace('preview-', '');
+    if (!rawId || !heroId) return;
+    setRegeneratingHero(true);
+    try {
+      const response = await api.post(`/api/heroes/generate/${rawId}`, {});
+      if (response.status === 202) {
+        await pollHeroUntilTerminal(rawId, loadHeroFromAPI);
+      } else if (response.data?.hero) {
+        loadHeroFromAPI(response.data.hero);
+      }
+      try {
+        const sbRes = await api.get(`/api/heroes/${rawId}/storybook`);
+        setStoryBook(sbRes.data.storyBook);
+        setChapters(sbRes.data.chapters ?? []);
+      } catch {
+        /* storybook refetch optional */
+      }
+      showNotification(
+        'success',
+        'Content updated',
+        'Images, backstory, and story chapters were refreshed.'
+      );
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string; error?: string } } };
+      const msg =
+        ax.response?.data?.message ||
+        ax.response?.data?.error ||
+        'Regeneration failed. Try again in a moment.';
+      showNotification('error', 'Regeneration failed', msg);
+    } finally {
+      setRegeneratingHero(false);
+    }
+  };
   
   // Format backstory preview for unpaid users
   const backstoryPreview = safeBackstory && safeBackstory.length > 300
@@ -212,22 +369,34 @@ const HeroPage: React.FC = () => {
         className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
       >
         <div className="text-center max-w-md w-full bg-mystic-900/80 border border-cosmic-600/30 p-6 rounded-xl shadow-lg">
-          {/* Cosmic animation container */}
-          <div className="relative h-32 mb-6">
+          {/* Cosmic animation — spin must be on a child: animate-spin overwrites transform, so mixing translate centering + rotate on one node breaks orbits */}
+          <div className="relative mx-auto mb-6 flex min-h-[16rem] w-full max-w-xs items-center justify-center">
             {/* Central sun/star */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-yellow-300 rounded-full animate-pulse shadow-glow"></div>
-            
-            {/* Orbiting planets */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-dashed border-cosmic-500/30 animate-spin" style={{ animationDuration: '8s' }}>
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-cosmic-500 rounded-full"></div>
+            <div className="absolute top-1/2 left-1/2 z-10 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-300 shadow-glow animate-pulse" />
+
+            {/* Orbiting planets: outer wrapper = center in scene; inner = rotate only */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div className="h-24 w-24 animate-spin" style={{ animationDuration: '8s' }}>
+                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-500/30">
+                  <div className="absolute top-0 left-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cosmic-500" />
+                </div>
+              </div>
             </div>
-            
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-dashed border-cosmic-400/20 animate-spin" style={{ animationDuration: '15s' }}>
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-purple-500 rounded-full"></div>
+
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div className="h-48 w-48 animate-spin" style={{ animationDuration: '15s' }}>
+                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-400/20">
+                  <div className="absolute top-0 left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-500" />
+                </div>
+              </div>
             </div>
-            
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full border border-dashed border-cosmic-300/10 animate-spin" style={{ animationDuration: '20s' }}>
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-blue-500 rounded-full"></div>
+
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div className="h-64 w-64 animate-spin" style={{ animationDuration: '20s' }}>
+                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-300/10">
+                  <div className="absolute top-0 left-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -320,6 +489,7 @@ const HeroPage: React.FC = () => {
           description={`Discover the cosmic journey of ${heroName}, a mythical hero with ${zodiacInfo?.western.sign} and ${zodiacInfo?.chinese.sign} zodiac influences.`}
           image={images && images.length > 0 ? images[0].url : '/logo.jpg'}
           type="profile"
+          robots="noindex,nofollow"
         />
       )}
       
@@ -357,7 +527,7 @@ const HeroPage: React.FC = () => {
                   size="sm"
                   icon={<ShoppingCart size={16} />}
                 >
-                  Purchase Full Version
+                  {paywallVariant === 'explicit_price' ? 'Unlock premium ($3.99)' : 'Unlock premium'}
                 </Button>
               </Link>
             ) : (
@@ -454,18 +624,36 @@ const HeroPage: React.FC = () => {
             
             {/* CTA for unpaid users */}
             {!isPaid && (
-              <div className="mt-6 bg-mystic-800/80 border border-cosmic-600/30 p-4 rounded-lg">
+              <div
+                ref={paywallImpressionRef}
+                className="mt-6 bg-mystic-800/80 border border-cosmic-600/30 p-4 rounded-lg"
+              >
                 <div className="flex items-center gap-4">
                   <div className="bg-cosmic-600/20 p-3 rounded-full">
                     <CreditCard className="h-6 w-6 text-cosmic-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg mb-1">Unlock Full Quality Images</h3>
-                    <p className="text-gray-400 text-sm">Get high-resolution images and access to all views</p>
+                    <h3 className="font-semibold text-lg mb-1">
+                      {paywallVariant === 'explicit_price'
+                        ? 'Unlock full-quality art ($3.99)'
+                        : 'Unlock full-quality images'}
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      {paywallVariant === 'explicit_price'
+                        ? 'One-time upgrade for this hero: all angles, full resolution, full story, download & shared story access.'
+                        : 'Get high-resolution images and access to all views'}
+                    </p>
                   </div>
                   <div className="ml-auto">
-                    <Link to={`/checkout/${id}`}>
-                      <Button size="sm">Unlock Now</Button>
+                    <Link
+                      to={`/checkout/${id}`}
+                      onClick={() =>
+                        track('checkout_open', { from: 'paywall_strip', heroId: String(id).replace('preview-', '') })
+                      }
+                    >
+                      <Button size="sm">
+                        {paywallVariant === 'explicit_price' ? 'Unlock — $3.99' : 'Unlock now'}
+                      </Button>
                     </Link>
                   </div>
                 </div>
@@ -548,9 +736,36 @@ const HeroPage: React.FC = () => {
             
             <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
               <h2 className="text-xl font-display font-semibold mb-4">Backstory</h2>
+
+              {showRegenerateHeroContent && (
+                <div className="mb-4 p-3 rounded-lg bg-amber-900/25 border border-amber-700/40">
+                  <p className="text-amber-100/90 text-sm mb-3">
+                    {status === 'error'
+                      ? 'Generation failed or was interrupted.'
+                      : !safeBackstory.trim()
+                        ? 'Backstory is missing.'
+                        : 'Your first story chapter has not been created yet.'}{' '}
+                    Regenerate to rebuild portraits, backstory, and the opening chapter (uses AI credits).
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    icon={<RefreshCw size={16} />}
+                    isLoading={regeneratingHero}
+                    disabled={regeneratingHero}
+                    onClick={handleRegenerateHeroContent}
+                  >
+                    Regenerate backstory &amp; images
+                  </Button>
+                </div>
+              )}
+
               <div className="prose prose-invert prose-sm max-w-none">
-                {!safeBackstory ? (
+                {!safeBackstory && status !== 'error' && !showRegenerateHeroContent ? (
                   <p className="text-cosmic-400">Backstory is being generated...</p>
+                ) : !safeBackstory && showRegenerateHeroContent ? (
+                  <p className="text-cosmic-400 text-sm">Use the button above to generate your backstory.</p>
                 ) : !isPaid && safeBackstory.length > 300 ? (
                   <>
                     <div 
@@ -591,6 +806,8 @@ const HeroPage: React.FC = () => {
             />
           )}
         </div>
+
+        {isPaid && !isPreview && heroId && <DailyCosmicPulse heroId={heroId} />}
       </div>
     </motion.div>
   );

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Search, AlertCircle, Sparkles } from 'lucide-react';
+import { Plus, Search, AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
 import api from '../utils/api';
 import { AuthContext } from '../App';
 import Button from '../components/ui/Button';
+import { useNotification } from '../context/NotificationContext';
 
 type Hero = {
   id: string;
@@ -27,32 +28,58 @@ const HeroesListPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [recreatingId, setRecreatingId] = useState<string | null>(null);
   const { token } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
+
+  const fetchHeroes = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await api.get('/api/user/heroes', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data && response.data.heroes) {
+        setHeroes(response.data.heroes);
+      }
+    } catch (err) {
+      console.error('Error fetching heroes:', err);
+      setError('Failed to load heroes. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    const fetchHeroes = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await api.get('/api/user/heroes', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (response.data && response.data.heroes) {
-          setHeroes(response.data.heroes);
-        }
-      } catch (error) {
-        console.error('Error fetching heroes:', error);
-        setError('Failed to load heroes. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchHeroes();
-  }, [token]);
+  }, [fetchHeroes]);
+
+  const handleRecreate = async (e: React.MouseEvent, heroId: string) => {
+    e.stopPropagation();
+    setRecreatingId(heroId);
+    try {
+      const response = await api.post(`/api/heroes/generate/${heroId}`, {});
+      const updated = response.data?.hero as Hero | undefined;
+      if (updated) {
+        setHeroes((prev) =>
+          prev.map((h) => (h.id === heroId ? { ...h, ...updated } : h))
+        );
+        showNotification('success', 'Hero ready', 'Images and backstory were generated successfully.');
+      }
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { message?: string; error?: string }; status?: number } };
+      const msg =
+        ax.response?.data?.message ||
+        ax.response?.data?.error ||
+        'Could not regenerate this hero. Try again in a moment.';
+      showNotification('error', 'Regeneration failed', msg);
+    } finally {
+      setRecreatingId(null);
+    }
+  };
 
   // Filter heroes based on search term
   const filteredHeroes = heroes.filter(hero => 
@@ -130,7 +157,7 @@ const HeroesListPage: React.FC = () => {
             <AlertCircle size={48} className="mx-auto text-red-400 mb-4" />
             <h2 className="text-xl font-medium mb-2">Failed to Load Heroes</h2>
             <p className="text-gray-400 mb-6">{error}</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
+            <Button onClick={() => fetchHeroes()}>Try Again</Button>
           </div>
         ) : filteredHeroes.length === 0 ? (
           <div className="text-center py-16 bg-mystic-800 rounded-xl">
@@ -173,18 +200,27 @@ const HeroesListPage: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-mystic-900">
-                      <p className="text-gray-400">Image generating...</p>
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-mystic-900 px-4 text-center">
+                      <p className="text-gray-400 text-sm">
+                        {hero.status === 'error'
+                          ? 'Generation did not complete.'
+                          : 'Image generating...'}
+                      </p>
                     </div>
                   )}
                   
                   {/* Status Badge */}
+                  {hero.status === 'error' && (
+                    <div className="absolute top-3 right-3 bg-red-900/90 text-red-200 px-2 py-1 rounded-md text-xs">
+                      Failed
+                    </div>
+                  )}
                   {hero.status === 'pending' && (
                     <div className="absolute top-3 right-3 bg-yellow-800 text-yellow-200 px-2 py-1 rounded-md text-xs">
                       Generating
                     </div>
                   )}
-                  {hero.paymentStatus === 'paid' && (
+                  {hero.paymentStatus === 'paid' && hero.status !== 'error' && (
                     <div className="absolute top-3 right-3 bg-green-800 text-green-200 px-2 py-1 rounded-md text-xs">
                       Premium
                     </div>
@@ -196,6 +232,22 @@ const HeroesListPage: React.FC = () => {
                   <p className="text-gray-400 text-sm mt-1">
                     {hero.westernZodiac?.sign} / {hero.chineseZodiac?.sign}
                   </p>
+                  {hero.status === 'error' && (
+                    <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        icon={<RefreshCw size={14} />}
+                        isLoading={recreatingId === hero.id}
+                        disabled={recreatingId !== null}
+                        className="w-full"
+                        onClick={(e) => handleRecreate(e, hero.id)}
+                      >
+                        Recreate
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

@@ -30,6 +30,22 @@ export function isOpenAIQuotaError(error) {
 }
 
 /**
+ * Missing key, invalid/revoked key, or other auth failures from OpenAI (SDK or fetch-based calls).
+ */
+export function isOpenAIAuthOrConfigError(error) {
+  if (!error) return false;
+  const msg = String(error.message || '');
+  if (msg.includes('OpenAI API key is not configured') || msg.includes('API key is not configured')) {
+    return true;
+  }
+  if (error.status === 401) return true;
+  if (error.code === 'invalid_api_key' || error.error?.code === 'invalid_api_key') return true;
+  if (msg.includes('invalid_api_key') || msg.includes('Incorrect API key')) return true;
+  if (/status 401\b/.test(msg) || msg.includes('"status":401')) return true;
+  return false;
+}
+
+/**
  * Set the OpenAI quota exceeded flag
  * @param {boolean} value - Whether the quota is exceeded
  */
@@ -444,18 +460,22 @@ The hero has the following zodiac traits:
 
 Write an engaging first chapter (800-1200 words) that introduces the hero and sets up an overarching cosmic conflict that will span multiple chapters.
 
-Format your chapter with:
-1. A chapter title in the format "Chapter I: [Evocative Title]"
-2. Natural paragraph breaks with elegant pacing
-3. Rich, vivid descriptions that engage all senses
-4. Dynamic character interactions and dialogue
-5. A consistent literary voice similar to classic fantasy authors
-6. Literary devices like foreshadowing, metaphor, and rhythm
-7. Scene breaks using "***" where appropriate
-8. A compelling hook ending that creates anticipation for chapter 2
+OUTPUT FORMAT (required — follow exactly):
+- Use Markdown only. Start with exactly ONE chapter heading as: ## Chapter I: [Evocative Title]
+- Leave one blank line after the heading, then the prose.
+- Use 10–16 paragraphs total. Each paragraph must be separated by a blank line (double newline).
+- Each paragraph should contain 3–6 sentences (readable book rhythm — never one giant block).
+- Put dialogue in its own paragraph; use em dashes or quoted speech.
+- Use a line containing only *** between major scene or time shifts.
+- Optional short subsection titles may use ### Scene: [Name] sparingly (at most 2 per chapter).
+
+Voice and craft:
+- Rich sensory description, metaphor, and pacing like literary fantasy.
+- No preamble ("Here is chapter…"). Begin at the ## heading.
+
+End with a compelling hook for chapter 2.
 
 The chapter should establish their personality, showcase their abilities, and draw the reader into their world.
-Do not include preambles like "Here's the first chapter" - begin directly with the chapter title.
     `;
   } else {
     // Subsequent chapter prompt - uses previous chapter summary for continuity
@@ -470,15 +490,15 @@ ${previousChapterSummary || "The hero began their cosmic journey."}
 
 Write an engaging chapter (800-1200 words) that continues the hero's adventure.
 
-Format your chapter with:
-1. A chapter title in the format "Chapter ${chapterNumber}: [Evocative Title]"
-2. Natural paragraph breaks with elegant pacing
-3. Rich, vivid descriptions that engage all senses
-4. Dynamic character interactions and dialogue
-5. A consistent literary voice similar to classic fantasy authors
-6. Literary devices like foreshadowing, metaphor, and rhythm
-7. Scene breaks using "***" where appropriate
-8. A compelling hook ending that creates anticipation for the next chapter
+OUTPUT FORMAT (required — follow exactly):
+- Use Markdown only. Start with exactly ONE chapter heading: ## Chapter ${chapterNumber}: [Evocative Title] (use Roman numerals if you prefer, but keep one line only).
+- One blank line after the heading, then prose.
+- 10–16 paragraphs; every paragraph separated by a blank line (double newline).
+- 3–6 sentences per paragraph — never output the chapter as a single paragraph block.
+- Dialogue in its own paragraph; scene shifts may use a standalone *** line.
+- At most 2 optional ### subsection headings for long chapters.
+
+Voice: literary fantasy, vivid and cinematic; no meta-commentary or preamble.
 
 Your chapter should:
 1. Build on events from the previous chapter

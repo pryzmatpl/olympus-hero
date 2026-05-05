@@ -1,5 +1,5 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { createContext, useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
@@ -29,8 +29,12 @@ import BlogZodiacArchetypesPage from './pages/BlogZodiacArchetypesPage';
 import BlogAIMythicalJourneysPage from './pages/BlogAIMythicalJourneysPage';
 // Import backlink strategy page
 import BacklinkStrategyPage from './pages/BacklinkStrategyPage';
-import { NotificationProvider, useNotification } from './context/NotificationContext';
+import GuideFantasyHeroBirthdatePage from './pages/guides/GuideFantasyHeroBirthdatePage';
+import GuideZodiacPowersPage from './pages/guides/GuideZodiacPowersPage';
+import { NotificationProvider } from './context/NotificationContext';
 import ApiErrorHandler from './components/ApiErrorHandler';
+import { initAttributionFromUrl } from './utils/attribution';
+import { track } from './utils/analytics';
 
 // Create auth context
 interface AuthContextType {
@@ -50,39 +54,73 @@ export const AuthContext = createContext<AuthContextType>({
 });
 
 // Protected route component
+function RouteAnalytics() {
+  const location = useLocation();
+
+  useEffect(() => {
+    initAttributionFromUrl();
+  }, []);
+
+  useEffect(() => {
+    const path = `${location.pathname}${location.search}`;
+    track('page_view', { path });
+    if (location.pathname === '/') {
+      try {
+        if (!sessionStorage.getItem('mh_landing_view_v1')) {
+          sessionStorage.setItem('mh_landing_view_v1', '1');
+          track('landing_view', { path });
+        }
+      } catch {
+        track('landing_view', { path });
+      }
+    }
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, user } = React.useContext(AuthContext);
+  const { isAuthenticated } = React.useContext(AuthContext);
+  const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  
+
   return <>{children}</>;
 };
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<any>(null);
-  const [token, setToken] = useState<string | null>(null);
-  
-  // Check for token on startup
-  useEffect(() => {
+function readStoredAuth(): {
+  token: string | null;
+  user: any;
+  isAuthenticated: boolean;
+} {
+  if (typeof window === 'undefined') {
+    return { token: null, user: null, isAuthenticated: false };
+  }
+  try {
     const storedToken = localStorage.getItem('authToken');
     const storedUser = localStorage.getItem('user');
-    
     if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Error parsing stored user data:', error);
-        // Clear invalid stored data
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
-      }
+      return {
+        token: storedToken,
+        user: JSON.parse(storedUser),
+        isAuthenticated: true,
+      };
     }
-  }, []);
+  } catch (error) {
+    console.error('Error parsing stored user data:', error);
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+  }
+  return { token: null, user: null, isAuthenticated: false };
+}
+
+function App() {
+  const initialAuth = readStoredAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(initialAuth.isAuthenticated);
+  const [user, setUser] = useState<any>(initialAuth.user);
+  const [token, setToken] = useState<string | null>(initialAuth.token);
   
   // Auth functions
   const login = (token: string, user: any) => {
@@ -120,6 +158,7 @@ function App() {
         <ApiErrorHandler />
         <Router>
           <div className="flex flex-col min-h-screen bg-gradient-to-b from-mystic-900 to-mystic-800 text-white relative overflow-hidden">
+            <RouteAnalytics />
             <StarBackground />
             <Header />
             <main className="flex-grow">
@@ -199,6 +238,9 @@ function App() {
                   <Route path="/blog" element={<BlogPage />} />
                   <Route path="/blog/zodiac-hero-archetypes" element={<BlogZodiacArchetypesPage />} />
                   <Route path="/blog/ai-mythical-journeys" element={<BlogAIMythicalJourneysPage />} />
+
+                  <Route path="/guides/fantasy-hero-from-birth-date" element={<GuideFantasyHeroBirthdatePage />} />
+                  <Route path="/guides/zodiac-powers-for-fantasy-heroes" element={<GuideZodiacPowersPage />} />
                   
                   {/* Marketing strategy */}
                   <Route path="/backlink-strategy" element={<BacklinkStrategyPage />} />

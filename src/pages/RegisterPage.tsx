@@ -1,9 +1,12 @@
 import React, { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { motion } from 'framer-motion';
-// @ts-ignore
 import api from '../utils/api.ts';
 import { AuthContext } from '../App';
+import { getSessionId, track } from '../utils/analytics';
+import MetaTags from '../components/ui/MetaTags';
+import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
 
 const pageVariants = {
   initial: { opacity: 0 },
@@ -21,6 +24,9 @@ const RegisterPage = () => {
   
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectAfterRegister =
+    (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/create';
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,13 +46,12 @@ const RegisterPage = () => {
       setError(null);
       
       // Register the user
-      const registerResponse = await api.post('/api/auth/register', {
+      await api.post('/api/auth/register', {
         name,
         email,
-        password
+        password,
+        sessionId: getSessionId(),
       });
-
-      if(!registerResponse.ok) setError("Email already exists");
 
       // Now login the user
       const loginResponse = await api.post('/api/auth/login', {
@@ -58,12 +63,15 @@ const RegisterPage = () => {
       
       // Store the token and user data
       login(token, user);
-      
-      // Redirect to home
-      navigate('/');
-    } catch (err: any) {
+      track('register_success', { userId: String(user?.id ?? '') });
+
+      navigate(redirectAfterRegister, { replace: true });
+    } catch (err: unknown) {
       console.error('Registration error:', err);
-      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+      const message = isAxiosError(err)
+        ? String(err.response?.data?.error ?? err.message)
+        : 'Registration failed. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -77,6 +85,13 @@ const RegisterPage = () => {
       animate="animate"
       exit="exit"
     >
+      <MetaTags
+        title={`Create account | ${PRODUCT_NAME}`}
+        description={`Join ${PRODUCT_NAME} on ${DOMAIN_LABEL} to save heroes and unlock premium when you are ready.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/register`}
+        robots="noindex,follow"
+      />
       <div className="max-w-md mx-auto">
         <h1 className="text-3xl font-bold text-center mb-2">Create Account</h1>
         <p className="text-cosmic-400 text-center mb-8">Join the mythical heroes community</p>
@@ -157,7 +172,11 @@ const RegisterPage = () => {
           <div className="mt-6 text-center">
             <p className="text-cosmic-400">
               Already have an account?{' '}
-              <Link to="/login" className="text-cosmic-300 hover:text-cosmic-200">
+              <Link
+                to="/login"
+                state={location.state}
+                className="text-cosmic-300 hover:text-cosmic-200"
+              >
                 Log In
               </Link>
             </p>

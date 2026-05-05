@@ -14,9 +14,17 @@
     "migrate-passwords": "node server/index.js --migrate-passwords",
     "migrate-passwords-standalone": "node server/runMigration.js",
     "test-bcrypt": "node server/testBcrypt.js",
-    "health-check": "node server/health-check.js"
+    "health-check": "node server/health-check.js",
+    "mcp:agent-drive": "node server/mcp/agentDriveServer.mjs",
+    "test:unit": "node --test server/analytics.test.mjs",
+    "test:integration": "node --import ./server/tests/setup.mjs --test server/tests/*.integration.test.mjs",
+    "test:server": "npm run test:unit && npm run test:integration",
+    "test:web": "vitest run",
+    "test:web:watch": "vitest",
+    "test": "npm run test:server && npm run test:web"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@stripe/react-stripe-js": "^3.7.0",
     "@stripe/stripe-js": "^7.3.0",
     "@types/dompurify": "^3.2.0",
@@ -47,10 +55,14 @@
     "socket.io-client": "^4.8.1",
     "stripe": "^18.1.0",
     "uuid": "^9.0.1",
+    "zod": "^3.25.76",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.6",
@@ -60,16 +72,20 @@
     "@types/uuid": "^9.0.8",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
+    "axios-mock-adapter": "^2.1.0",
     "concurrently": "^8.2.2",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",
     "globals": "^15.9.0",
+    "jsdom": "^25.0.1",
+    "mongodb-memory-server": "^10.1.4",
     "nodemon": "^3.1.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
-    "vite": "^4.5.0"
+    "vite": "^4.5.0",
+    "vitest": "^2.1.5"
   }
 }

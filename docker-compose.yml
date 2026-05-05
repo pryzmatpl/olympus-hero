@@ -5,14 +5,13 @@ services:
       dockerfile: Dockerfile.ui
     ports:
       - "9001:80"
-    depends_on:
-      - server
-    environment:
-      - VITE_API_URL=http://localhost:9002
+      - "9443:443"
     volumes:
+      - pryzmat_certbot_certs:/etc/letsencrypt:ro
       - ./public:/app/public
       - ./src:/app/src
-
+    depends_on:
+      - server
 
   server:
     build:
@@ -24,22 +23,23 @@ services:
       - NODE_ENV=production
       - PORT=9002
       - JWT_SECRET=dev_jwt_secret
-      - MONGO_URI=mongodb://mongodb:27017/olympus-hero
+      # Prefer MONGO_URI from .env (required if Mongo uses auth). Never publish Mongo to the host without a firewall + auth.
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/olympus-hero}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./:/app
       - /app/node_modules
-      - /storage/olympus-heros:/app/storage
+      # Persist only generated hero images; keep marketing files at storage/*.webp from the image/deploy tree.
+      - /storage/olympus-heros/images:/app/storage/images
     ports:
       - "9002:9002"
     command: npm run server:dev
     depends_on:
       - mongodb
 
+  # MongoDB is NOT published to the host. It is only reachable on the Docker network (e.g. hostname "mongodb" for the server service). This blocks internet-wide scanning and opportunistic ransom/wipe attacks. To open a local admin shell: docker compose exec mongodb mongosh "mongodb://127.0.0.1:27017/olympus-hero"
   mongodb:
     image: mongo:6.0
-    ports:
-      - "27017:27017"
     volumes:
       - mongodb-data:/data/db
     restart: always
@@ -49,3 +49,5 @@ services:
 volumes:
   hero-data: 
   mongodb-data: 
+  pryzmat_certbot_certs:
+    external: true

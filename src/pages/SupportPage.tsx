@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, Mail, Phone, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { Mail, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import Button from '../components/ui/Button';
+import MetaTags from '../components/ui/MetaTags';
+import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../constants/brand';
 
 const SupportPage: React.FC = () => {
   // Form state
@@ -58,7 +60,7 @@ const SupportPage: React.FC = () => {
         message: '',
         category: 'general-inquiry'
       });
-    } catch (error) {
+    } catch {
       // Error handling
       setSubmitStatus('error');
       setErrorMessage('There was a problem submitting your request. Please try again later.');
@@ -74,6 +76,12 @@ const SupportPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="container mx-auto px-4 py-16"
     >
+      <MetaTags
+        title={`Support | ${PRODUCT_NAME}`}
+        description={`Contact ${PRODUCT_NAME} on ${DOMAIN_LABEL} for billing, account, and generation issues.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/support`}
+      />
       <motion.h1
         initial={{ y: -20 }}
         animate={{ y: 0 }}
@@ -99,17 +107,8 @@ const SupportPage: React.FC = () => {
                 <Mail className="w-5 h-5 text-cosmic-500 mt-1 flex-shrink-0" />
                 <div>
                   <h3 className="font-medium text-white">Email Support</h3>
-                  <p className="text-gray-300">support@mythicalhero.me</p>
+                  <p className="text-gray-300">{SUPPORT_EMAIL}</p>
                   <p className="text-sm text-gray-400">Responses within 24 hours</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3">
-                <MessageSquare className="w-5 h-5 text-cosmic-500 mt-1 flex-shrink-0" />
-                <div>
-                  <h3 className="font-medium text-white">Live Chat</h3>
-                  <p className="text-gray-300">Available on weekdays</p>
-                  <p className="text-sm text-gray-400">9am - 5pm ET</p>
                 </div>
               </div>
               

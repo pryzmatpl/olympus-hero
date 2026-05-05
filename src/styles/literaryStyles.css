@@ -2,13 +2,89 @@
  * These styles create a book-like appearance for narrative content
  */
 
+/* Reading column: optimal measure + serif stack (override any UI sans-serif inheritance) */
+.chapter-tome-root {
+  max-width: 44rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.chapter-tome-prose {
+  font-family: 'Spectral', 'Cinzel', 'Georgia', serif !important;
+  font-size: 1.075rem;
+  line-height: 1.88;
+  letter-spacing: 0.015em;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  color: #ede9fe;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+.chapter-tome-prose h2 {
+  text-align: center;
+  text-wrap: balance;
+  margin-bottom: 1.75rem !important;
+}
+
+.chapter-tome-prose .chapter > p.literary-paragraph:first-of-type,
+.chapter-tome-prose h2 + p.literary-paragraph {
+  text-indent: 0;
+}
+
+.chapter-tome-prose .chapter > p.literary-paragraph:not(:first-of-type),
+.chapter-tome-prose > p.literary-paragraph:not(:first-of-type) {
+  text-indent: 1.5rem;
+}
+
+.chapter-tome-prose h2 + p.literary-paragraph {
+  text-indent: 0 !important;
+}
+
+.chapter-tome-prose .chapter > p.literary-paragraph:first-of-type:first-letter,
+.chapter-tome-prose > p.literary-paragraph:first-of-type:first-letter,
+.chapter-tome-prose h2 + p.literary-paragraph:first-letter {
+  font-size: 2.75rem;
+  font-family: 'Cinzel', 'Spectral', serif;
+  float: left;
+  line-height: 0.92;
+  padding-right: 0.35rem;
+  margin-top: 0.15rem;
+  color: #fde68a;
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.35);
+}
+
+@media (max-width: 640px) {
+  .chapter-tome-prose {
+    font-size: 1rem;
+    text-align: left;
+  }
+}
+
 /* Base literary container */
 .literary-content {
-  font-family: 'Palatino', 'Georgia', serif;
+  font-family: 'Spectral', 'Palatino', 'Georgia', serif;
   line-height: 1.8;
   color: #e2e8f0;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Chapter titles — apply whether or not wrapped in .chapter (marked output varies) */
+.literary-content > h2:first-of-type,
+.literary-content h2 {
+  font-family: 'Cinzel', 'Spectral', 'Georgia', serif;
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #fde68a;
+  text-shadow:
+    0 0 24px rgba(250, 204, 21, 0.25),
+    0 2px 8px rgba(58, 16, 120, 0.6);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.35);
 }
 
 /* Chapter styling */
@@ -18,14 +94,17 @@
 }
 
 .chapter h2 {
-  font-family: 'Cinzel', 'Times New Roman', serif;
-  font-size: 1.75rem;
+  font-family: 'Cinzel', 'Spectral', serif;
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
   font-weight: 600;
   text-align: center;
   margin: 2.5rem 0 1.5rem;
-  letter-spacing: 0.05em;
-  color: #a78bfa;
-  text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
+  letter-spacing: 0.08em;
+  color: #fde68a;
+  text-shadow:
+    0 0 24px rgba(250, 204, 21, 0.25),
+    0 2px 8px rgba(58, 16, 120, 0.6);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.35);
 }
 
 .chapter h3 {

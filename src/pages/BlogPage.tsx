@@ -5,6 +5,10 @@ import { Calendar, ArrowRight } from 'lucide-react';
 import MetaTags from '../components/ui/MetaTags';
 import Button from '../components/ui/Button';
 import OptimizedImage from '../components/ui/OptimizedImage';
+import { BLOG_AI_MYTHICAL_JOURNEYS_DATE, BLOG_ZODIAC_ARCHETYPES_DATE } from '../constants/blogPublished';
+
+const formatBlogDate = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
 const BlogPage: React.FC = () => {
   return (
@@ -53,7 +57,7 @@ const BlogPage: React.FC = () => {
             <div className="p-8">
               <div className="flex items-center text-cosmic-400 text-sm mb-4">
                 <Calendar size={16} className="mr-2" />
-                <span>{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                <span>{formatBlogDate(BLOG_ZODIAC_ARCHETYPES_DATE)}</span>
               </div>
               <h2 className="text-2xl font-display font-bold mb-4">
                 <Link to="/blog/zodiac-hero-archetypes" className="hover:text-cosmic-500 transition-colors">
@@ -98,7 +102,7 @@ const BlogPage: React.FC = () => {
             <div className="p-8">
               <div className="flex items-center text-cosmic-400 text-sm mb-4">
                 <Calendar size={16} className="mr-2" />
-                <span>{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                <span>{formatBlogDate(BLOG_AI_MYTHICAL_JOURNEYS_DATE)}</span>
               </div>
               <h2 className="text-2xl font-display font-bold mb-4">
                 <Link to="/blog/ai-mythical-journeys" className="hover:text-cosmic-500 transition-colors">

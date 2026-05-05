@@ -4,44 +4,59 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/cosmic-hero.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cosmic Heroes - Personalized Fantasy Story & AI-Generated Hero Journey</title>
-    <meta name="description" content="Discover your zodiac-powered mythical identity with Cosmic Heroes. Create a personalized fantasy story and embark on an AI-generated hero journey." />
-    
+    <title>Cosmic Heroes — Create Your AI Fantasy Hero in Minutes</title>
+    <meta name="description" content="Turn your birth date and hero name into AI-generated artwork and a personalized fantasy backstory on mythicalhero.me. Free to start; upgrade for premium." />
+    <link rel="canonical" href="https://mythicalhero.me/" />
+
     <!-- Open Graph / Social Media Meta Tags -->
-    <meta property="og:title" content="Cosmic Heroes - Personalized Fantasy Story & AI-Generated Hero Journey" />
-    <meta property="og:description" content="Discover your zodiac-powered mythical identity with Cosmic Heroes. Create a personalized fantasy story and embark on an AI-generated hero journey." />
+    <meta property="og:title" content="Cosmic Heroes — Create Your AI Fantasy Hero in Minutes" />
+    <meta property="og:description" content="Turn your birth date and hero name into AI-generated artwork and a personalized fantasy backstory on mythicalhero.me. Free to start; upgrade for premium." />
+    <meta property="og:site_name" content="Cosmic Heroes" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:image" content="https://mythicalhero.me/logo.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1024" />
     <meta property="og:image:height" content="1024" />
-    <meta property="og:url" content="https://mythicalhero.me" />
+    <meta property="og:url" content="https://mythicalhero.me/" />
     <meta property="og:type" content="website" />
-    
+
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Cosmic Heroes - Personalized Fantasy Story & AI-Generated Hero Journey" />
-    <meta name="twitter:description" content="Discover your zodiac-powered mythical identity with Cosmic Heroes. Create a personalized fantasy story and embark on an AI-generated hero journey." />
+    <meta name="twitter:title" content="Cosmic Heroes — Create Your AI Fantasy Hero in Minutes" />
+    <meta name="twitter:description" content="Turn your birth date and hero name into AI-generated artwork and a personalized fantasy backstory on mythicalhero.me. Free to start; upgrade for premium." />
     <meta name="twitter:image" content="https://mythicalhero.me/logo.jpg" />
-    
-    <!-- Schema.org markup for rich snippets -->
+
+    <!-- Schema.org markup -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Cosmic Heroes",
-      "url": "https://mythicalhero.me",
-      "description": "Discover your zodiac-powered mythical identity with Cosmic Heroes. Create a personalized fantasy story and embark on an AI-generated hero journey.",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://mythicalhero.me/search?q={search_term_string}",
-        "query-input": "required name=search_term_string"
-      }
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://mythicalhero.me/#organization",
+          "name": "Cosmic Heroes",
+          "alternateName": "mythicalhero.me",
+          "url": "https://mythicalhero.me/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://mythicalhero.me/logo.jpg"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://mythicalhero.me/#website",
+          "name": "Cosmic Heroes",
+          "url": "https://mythicalhero.me/",
+          "description": "Turn your birth date and hero name into AI-generated artwork and a personalized fantasy backstory on mythicalhero.me. Free to start; upgrade for premium.",
+          "publisher": { "@id": "https://mythicalhero.me/#organization" }
+        }
+      ]
     }
     </script>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Spectral:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Montserrat:wght@400;600;700&family=Spectral:wght@400;600;700&display=swap" rel="stylesheet">
   </head>
   <body>
     <div id="root"></div>

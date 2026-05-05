@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Github, Twitter, Instagram, Facebook, Sparkles } from 'lucide-react';
+import { Github, Twitter, Facebook, Sparkles } from 'lucide-react';
+import { DOMAIN_LABEL, PRODUCT_NAME } from '../../constants/brand';
 
 const Footer: React.FC = () => {
   return (
@@ -12,11 +13,11 @@ const Footer: React.FC = () => {
             <Link to="/" className="flex items-center gap-2 mb-4">
               <Sparkles className="text-cosmic-500 h-6 w-6" />
               <span className="font-display text-xl font-semibold bg-gradient-to-r from-white to-cosmic-500 bg-clip-text text-transparent">
-                Cosmic Heroes
+                {PRODUCT_NAME}
               </span>
             </Link>
             <p className="text-gray-300 text-sm mb-4">
-              Discover your mythical destiny through the power of zodiac influences.
+              AI fantasy heroes and stories at {DOMAIN_LABEL}—zodiac-inspired, shareable, upgradeable.
             </p>
             <div className="flex space-x-4">
               <ExternalLink href="https://x.com/pryzmat_tech">
@@ -48,6 +49,8 @@ const Footer: React.FC = () => {
             <ul className="space-y-2">
               <FooterLink href="/blog/zodiac-hero-archetypes">Zodiac Hero Archetypes</FooterLink>
               <FooterLink href="/blog/ai-mythical-journeys">AI Storytelling</FooterLink>
+              <FooterLink href="/guides/fantasy-hero-from-birth-date">Hero from birth date</FooterLink>
+              <FooterLink href="/guides/zodiac-powers-for-fantasy-heroes">Zodiac powers guide</FooterLink>
               <FooterLink href="/zodiac-guide">Zodiac Guide</FooterLink>
               <FooterLink href="/nft-basics">NFT Basics</FooterLink>
               <FooterLink href="/faqs">FAQs</FooterLink>
@@ -68,7 +71,9 @@ const Footer: React.FC = () => {
         </div>
 
         <div className="border-t border-mystic-700 mt-8 pt-6 text-center text-sm text-gray-400">
-          <p>© {new Date().getFullYear()} Cosmic Heroes. All rights reserved.</p>
+          <p>
+            © {new Date().getFullYear()} {PRODUCT_NAME}. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>

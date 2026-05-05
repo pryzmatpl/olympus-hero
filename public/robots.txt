@@ -4,6 +4,7 @@ Allow: /
 Disallow: /checkout/
 Disallow: /profile
 Disallow: /hero/
+Disallow: /backlink-strategy
 
 # Allow all images to be crawled
 Allow: /*.jpg$
@@ -18,6 +19,5 @@ Allow: /blog/
 Allow: /zodiac-guide
 Allow: /nft-basics
 Allow: /faqs
-
 # Specify sitemap location
 Sitemap: https://mythicalhero.me/sitemap.xml 

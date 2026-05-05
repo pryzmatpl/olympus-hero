@@ -24,7 +24,7 @@ services:
       - NODE_ENV=development
       - PORT=9002
       - JWT_SECRET=dev_jwt_secret
-      - MONGO_URI=mongodb://mongodb:27017/olympus-hero
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/olympus-hero}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./:/app
@@ -36,10 +36,11 @@ services:
     depends_on:
       - mongodb
 
+  # Bind to loopback only so local tools (mongosh, Compass) can connect; not exposed on the LAN/WAN interface.
   mongodb:
     image: mongo:6.0
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongodb-data-dev:/data/db
     restart: always

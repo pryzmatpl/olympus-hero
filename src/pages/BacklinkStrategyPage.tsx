@@ -17,6 +17,7 @@ const BacklinkStrategyPage: React.FC = () => {
         title="Backlink Strategy | Cosmic Heroes"
         description="Our strategy for building quality backlinks through guest posting, influencer collaborations, and content partnerships in fantasy and astrology niches."
         image="/logo.jpg"
+        robots="noindex,nofollow"
       />
 
       <section className="max-w-4xl mx-auto">

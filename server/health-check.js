@@ -11,7 +11,7 @@ dotenv.config();
  * Performs a health check on various server components
  */
 const healthCheck = async () => {
-  console.log('💫 Starting Olympus Hero Health Check...');
+  console.log('💫 Starting Cosmic Heroes health check...');
   
   // Check environment variables
   console.log('\n📋 Environment Variables:');

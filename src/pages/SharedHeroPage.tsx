@@ -8,6 +8,7 @@ import HeroBackstory from '../components/hero/HeroBackstory';
 import ZodiacInfo from '../components/hero/ZodiacInfo';
 import MetaTags from '../components/ui/MetaTags';
 import { Sparkles } from 'lucide-react';
+import { track } from '../utils/analytics';
 
 // Animation variants
 const pageVariants = {
@@ -28,6 +29,7 @@ const SharedHeroPage = () => {
         setLoading(true);
         const response = await api.get(`/api/share/${shareId}`);
         setHero(response.data.hero);
+        track('share_visit', { shareId: String(shareId), heroId: String(response.data.hero?.id ?? '') });
         setError(null);
       } catch (err: any) {
         setError(err.response?.data?.error || 'Failed to load the shared hero');
@@ -130,10 +132,11 @@ const SharedHeroPage = () => {
           <div className="mt-8 text-center">
             <p className="text-cosmic-400 mb-4">Impressed by this mythical hero?</p>
             <Link
-              to="/create"
+              to="/register"
+              state={{ from: { pathname: '/create' } }}
               className="inline-block px-6 py-3 bg-cosmic-700 hover:bg-cosmic-600 text-white rounded-lg transition-colors"
             >
-              Create Your Own Hero
+              Sign up to create your hero
             </Link>
           </div>
         </div>
