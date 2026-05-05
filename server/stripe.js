@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
-import { initializeDB, heroDb } from './db.js';
-import { getOrCreateStoryBook, unlockChapters } from './storybook.js';
+import { initializeDB, heroDb, storyBookDb } from './db.js';
+import { getOrCreateStoryBook, unlockChapters, promoteStorybookAfterPremiumPayment } from './storybook.js';
 
 // Load environment variables
 dotenv.config();
@@ -87,11 +87,17 @@ export const processPaymentAndCreateNFT = async (heroId, paymentIntent) => {
           ? `The tale of ${hero.name}`
           : '';
     const storyBook = await getOrCreateStoryBook(heroId, true, backstorySeed);
-    
-    // Unlock chapters if specified in the payment intent
+
+    await promoteStorybookAfterPremiumPayment(heroId, {
+      skipInitialBatchUnlock: shouldUnlockChapters,
+    });
+
+    const latestBook = (await storyBookDb.findStoryBookByHeroId(heroId)) || storyBook;
+
+    // Unlock chapters if specified in the payment intent (bundle SKU; runs after promotion)
     if (shouldUnlockChapters) {
-      console.log(`Unlocking chapters for storybook: ${storyBook.id}`);
-      await unlockChapters(storyBook.id, 3);
+      console.log(`Unlocking chapters for storybook: ${latestBook.id}`);
+      await unlockChapters(latestBook.id, 3);
     }
     
     console.log(`NFT created successfully: ${tokenId}`);

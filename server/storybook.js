@@ -325,6 +325,66 @@ export const getOrCreateStoryBook = async (heroId, isPremium = false, userPrompt
 };
 
 /**
+ * After `paymentStatus === 'paid'`: make the Epic book premium-sized, add missing placeholders,
+ * and run one welcome batch (`unlockChapters(3)`) while the hero still only has chapter 1.
+ * Client-only upgrades used `/api/heroes/setpremium`, which historically updated heroes only —
+ * leaving `is_premium`, `chapters_total_count`, and AI chapters stale.
+ *
+ * Chapter-bundle checkouts pass `skipInitialBatchUnlock` so Stripe flow does not double-unlock before
+ * the explicit `unlockChapters(3)` for the purchased SKU.
+ *
+ * @param {string} heroId
+ * @param {{ skipInitialBatchUnlock?: boolean }} [options]
+ * @returns {Promise<object|null>} Updated storybook, or null if hero is unpaid
+ */
+export async function promoteStorybookAfterPremiumPayment(heroId, options = {}) {
+  const skipInitialBatchUnlock = !!options.skipInitialBatchUnlock;
+
+  const hero = await heroDb.findHeroById(heroId);
+  if (!hero || hero.paymentStatus !== 'paid') {
+    return null;
+  }
+
+  await ensureHeroStorybookChapterOne(heroId);
+
+  let storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
+  if (!storyBook) {
+    await createStoryBook(heroId, true, '');
+    storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
+    if (!storyBook) return null;
+  }
+
+  const prevUnlocked = Number(storyBook.chapters_unlocked_count) || 1;
+  const desiredTotal = Math.max(
+    Number(storyBook.chapters_total_count) || 1,
+    DEFAULT_CHAPTERS_TOTAL,
+  );
+
+  await storyBookDb.updateStoryBook(storyBook.id, {
+    is_premium: true,
+    chapters_total_count: desiredTotal,
+    updated_at: new Date(),
+  });
+  storyBook = await storyBookDb.findStoryBookById(storyBook.id);
+
+  const existingChapters = await chapterDb.getChaptersByStoryBookId(storyBook.id);
+  const nums = new Set(existingChapters.map((c) => c.chapter_number));
+
+  for (let n = 2; n <= storyBook.chapters_total_count; n++) {
+    if (!nums.has(n)) {
+      await createPlaceholderChapter(storyBook.id, n);
+      nums.add(n);
+    }
+  }
+
+  if (!skipInitialBatchUnlock && prevUnlocked <= 1) {
+    await unlockChapters(storyBook.id, 3);
+  }
+
+  return storyBookDb.findStoryBookById(storyBook.id);
+}
+
+/**
  * Unlock a batch of chapters for a storybook
  * @param {string} storyBookId - The ID of the storybook
  * @param {number} chaptersToUnlock - Number of chapters to unlock

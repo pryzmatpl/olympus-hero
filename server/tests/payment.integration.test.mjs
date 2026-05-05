@@ -14,6 +14,7 @@ import {
   getNFTsByHeroId,
 } from '../stripe.js';
 import { heroDb, storyBookDb, chapterDb } from '../db.js';
+import { createStoryBook, promoteStorybookAfterPremiumPayment } from '../storybook.js';
 import { makeHero, makePaymentIntent } from './factories.mjs';
 
 beforeEach(async () => {
@@ -62,6 +63,11 @@ test('processPaymentAndCreateNFT marks hero as paid, creates NFT and a premium s
   assert.ok(storyBook, 'storybook should exist after premium upgrade');
   assert.equal(storyBook.is_premium, true);
   assert.equal(storyBook.chapters_total_count, 10);
+  assert.equal(
+    storyBook.chapters_unlocked_count,
+    4,
+    'welcome batch: chapter 1 plus three generated follow-ons',
+  );
 });
 
 test('processPaymentAndCreateNFT defaults walletAddress to a zero address when missing', async () => {
@@ -119,16 +125,32 @@ test('paymentIntent.unlockChapters=true (top-level flag) also triggers chapter u
   assert.equal(storyBook.chapters_unlocked_count, 4);
 });
 
-test('premium_upgrade without unlock flags does NOT auto-unlock additional chapters', async () => {
+test('premium_upgrade promotes an existing free storybook and unlocks 3 follow-on chapters', async () => {
   const hero = await seedHero();
+  await createStoryBook(hero.id, false, '');
+  const before = await storyBookDb.findStoryBookByHeroId(hero.id);
+  assert.equal(before.is_premium, false);
+  assert.equal(before.chapters_total_count, 1);
+  assert.equal(before.chapters_unlocked_count, 1);
+
   const intent = makePaymentIntent({
     metadata: { heroId: hero.id, paymentType: 'premium_upgrade' },
   });
-
   await processPaymentAndCreateNFT(hero.id, intent);
 
   const storyBook = await storyBookDb.findStoryBookByHeroId(hero.id);
-  assert.equal(storyBook.chapters_unlocked_count, 1, 'only the included first chapter');
+  assert.equal(storyBook.is_premium, true);
+  assert.equal(storyBook.chapters_total_count, 10);
+  assert.equal(storyBook.chapters_unlocked_count, 4);
+});
+
+test('setpremium promotes storybook for heroes already paid via client webhook path', async () => {
+  const hero = await seedHero({ paymentStatus: 'paid' });
+  await createStoryBook(hero.id, false, '');
+  await promoteStorybookAfterPremiumPayment(hero.id);
+  const sb = await storyBookDb.findStoryBookByHeroId(hero.id);
+  assert.equal(sb.is_premium, true);
+  assert.equal(sb.chapters_unlocked_count, 4);
 });
 
 test('getNFTsByHeroId returns every NFT minted for that hero', async () => {

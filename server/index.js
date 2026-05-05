@@ -39,7 +39,8 @@ import {
   unlockChapters,
   checkAndUnlockDailyChapters,
   fixStoryBookChapters,
-  ensureHeroStorybookChapterOne
+  ensureHeroStorybookChapterOne,
+  promoteStorybookAfterPremiumPayment,
 } from './storybook.js';
 import path from 'path';
 import fs from 'fs';
@@ -837,6 +838,12 @@ async function startServer() {
 
       const updatedHero = await heroDb.upgradeHero(id);
 
+      try {
+        await promoteStorybookAfterPremiumPayment(id);
+      } catch (promoteErr) {
+        console.error('promoteStorybookAfterPremiumPayment (setpremium):', promoteErr);
+      }
+
       return res.json(updatedHero);
     });
 
@@ -1576,14 +1583,23 @@ async function startServer() {
         const isPremium = hero.paymentStatus === 'paid';
         
         // Get or create the storybook
-        const storyBook = await getOrCreateStoryBook(heroId, isPremium);
-        
-        // Check for daily chapter unlocks
+        let storyBook = await getOrCreateStoryBook(heroId, isPremium);
+
+        // Paid hero but Mongo still on free-tier story shape (legacy setpremium/webhook gap)
         if (isPremium) {
+          try {
+            await promoteStorybookAfterPremiumPayment(heroId);
+          } catch (promoteErr) {
+            console.warn(
+              'promoteStorybookAfterPremiumPayment (GET /storybook):',
+              promoteErr?.message || promoteErr
+            );
+          }
+          storyBook = (await storyBookDb.findStoryBookByHeroId(heroId)) || storyBook;
           await checkAndUnlockDailyChapters(storyBook.id);
+          storyBook = (await storyBookDb.findStoryBookByHeroId(heroId)) || storyBook;
         }
-        
-        // Get the chapters
+
         const chapters = await getStoryBookChapters(storyBook.id);
         
         return res.status(200).json({
