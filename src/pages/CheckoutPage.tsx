@@ -1,528 +1,542 @@
-import React, {useState, useEffect, useContext, useMemo} from 'react';
-import {useParams, useNavigate, Link} from 'react-router-dom';
-import {motion} from 'framer-motion';
-import {AuthContext} from '../App';
-import {useHeroStore, useStoryStore} from '../store/heroStore';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { AuthContext } from '../App';
+import { useHeroStore, useStoryStore } from '../store/heroStore';
 import Button from '../components/ui/Button';
-import PageTitle from '../components/ui/PageTitle';
-import {CreditCard, Lock, Shield, X, Check, AlertTriangle} from 'lucide-react';
+import { CreditCard, Shield, X, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
-// Import the Stripe.js library
-import {loadStripe} from '@stripe/stripe-js';
-import {
-    PaymentElement,
-    Elements,
-    useStripe,
-    useElements,
-    AddressElement,
-} from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+import { PaymentElement, Elements, useStripe, useElements } from '@stripe/react-stripe-js';
 import QuotaStatusCheck from '../components/QuotaStatusCheck';
 import axios from 'axios';
 import MetaTags from '../components/ui/MetaTags';
 import { track, getSessionId } from '../utils/analytics';
 import { getCheckoutTrustVariant } from '../utils/growthExperiments';
 import { DOMAIN_LABEL, PRODUCT_NAME, SITE_ORIGIN } from '../constants/brand';
+import {
+  LandingStyleHero,
+  LandingStyleMain,
+  LandingStylePageRoot,
+} from '../components/layout/LandingStyleLayout';
 
-// Determine if we're in development mode
 const isDevelopment = import.meta.env.MODE === 'development';
 
-// Choose the appropriate Stripe key based on environment
-const stripeKey = isDevelopment 
-    ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY 
-    : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripeKey = isDevelopment
+  ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY
+  : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
-// Initialize Stripe with the appropriate key
-const stripePromise = stripeKey
-    ? loadStripe(stripeKey)
-    : Promise.resolve(null);
+const stripePromise = stripeKey ? loadStripe(stripeKey) : Promise.resolve(null);
 
-// Log environment information for debugging (removed in production builds)
 if (isDevelopment) {
-    console.log('Running in development mode');
-    console.log('Using Stripe key:', stripeKey ? 'TEST key available' : 'No key available');
+  console.log('Running in development mode');
+  console.log('Using Stripe key:', stripeKey ? 'TEST key available' : 'No key available');
 }
 
-// Animation variants
-const pageVariants = {
-    initial: {opacity: 0},
-    animate: {opacity: 1, transition: {duration: 0.5}},
-    exit: {opacity: 0, transition: {duration: 0.3}}
-};
+const checkoutPanelClass =
+  'rounded-sm border border-stone-700/90 bg-gradient-to-b from-stone-950/95 via-stone-950/88 to-stone-950 shadow-xl shadow-black/50 ring-1 ring-inset ring-stone-500/10 p-8 md:p-10';
 
-// This is the inner form component that uses the Elements context
-const CheckoutFormContent = ({ clientSecret, heroId, email, walletAddress, onSuccess, onError, paymentAmount, paymentTitle, paymentDescription, showExpandedTrust }) => {
-    const stripe = useStripe();
-    const elements = useElements();
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [errorMessage, setErrorMessage] = useState(null);
-    const [paymentElementMounted, setPaymentElementMounted] = useState(false);
-    const mountedRef = React.useRef(false);
-    const navigate = useNavigate();
+const inputEpic =
+  'w-full px-4 py-3 rounded-sm bg-stone-950/75 border border-stone-700/90 text-stone-100 placeholder:text-stone-600 focus:outline-none focus:ring-2 focus:ring-amber-600/35 focus:border-amber-700/45 transition-shadow';
 
-    // When the component mounts, set the ref flag
-    useEffect(() => {
-        mountedRef.current = true;
-        return () => {
-            mountedRef.current = false;
-        };
-    }, []);
-
-    // Track when the Payment Element is ready
-    const handlePaymentElementReady = () => {
-        console.log("Payment Element is ready");
-        setPaymentElementMounted(true);
-    };
-
-    // Handle form submission
-    const handleSubmit = async (event) => {
-        event.preventDefault();
-
-        if (!stripe || !elements) {
-            console.error("Stripe or Elements not initialized");
-            onError("Payment processor not available. Please try again later.");
-            return;
-        }
-
-        if (!paymentElementMounted) {
-            console.error("Payment Element not ready yet");
-            onError("Payment form is still loading. Please wait and try again.");
-            return;
-        }
-
-        setIsProcessing(true);
-
-        try {
-            console.log("Confirming payment with client secret");
-            
-            // Verify we have the right elements instance
-            const element = elements.getElement(PaymentElement);
-            if (!element) {
-                throw new Error("Payment Element not found. Please refresh and try again.");
-            }
-
-            // Use confirmPayment with the mounted elements
-            const { error, paymentIntent } = await stripe.confirmPayment({
-                elements,
-                confirmParams: {
-                    return_url: `${window.location.origin}/hero/${heroId}`,
-                    receipt_email: email,
-                },
-                redirect: 'if_required',
-            });
-
-            if (error) {
-                console.error("Payment confirmation error:", error);
-                setErrorMessage(error.message);
-                onError(error.message);
-            } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-                console.log("Payment succeeded:", paymentIntent);
-                onSuccess(paymentIntent);
-            } else {
-                console.log("Payment requires additional steps or is processing");
-                // The customer will be redirected if needed
-            }
-        } catch (err) {
-            console.error("Payment submission error:", err);
-            console.error("Error details:", err.message);
-            setErrorMessage(err.message);
-            onError(err.message);
-        } finally {
-            if (mountedRef.current) {
-                setIsProcessing(false);
-            }
-        }
-    };
-
-    // Log when the stripe or elements change
-    useEffect(() => {
-        console.log("Stripe available:", !!stripe);
-        console.log("Elements available:", !!elements);
-    }, [stripe, elements]);
-
-    return (
-        <form onSubmit={handleSubmit}>
-            <div className="mb-6 bg-mystic-800 border border-mystic-700 rounded-lg p-4">
-                <PaymentElement onReady={handlePaymentElementReady} />
-            </div>
-
-            <div className="mb-6 p-3 bg-cosmic-900/20 border border-cosmic-800/30 rounded-lg">
-                <div className="flex items-center gap-2 text-cosmic-400 text-sm mb-2">
-                    <Shield size={16}/>
-                    <span className="font-medium">Secure Payment</span>
-                </div>
-                <p className="text-cosmic-500 text-xs">
-                    Your payment information is securely processed by Stripe.
-                    We do not store your card details on our servers.
-                </p>
-                {showExpandedTrust && (
-                    <p className="text-cosmic-500 text-xs mt-2">
-                        Premium applies to this hero: full-resolution portraits, full backstory, downloads, and shared-story access where enabled—kept on your account after checkout.
-                    </p>
-                )}
-                {isDevelopment && (
-                    <div className="mt-2 pt-2 border-t border-cosmic-800/30">
-                        <p className="text-amber-400 text-xs font-semibold">Development Mode</p>
-                        <p className="text-cosmic-500 text-xs">
-                            Use Stripe test card: 4242 4242 4242 4242, any future date, any 3 digits CVC, any postal code
-                        </p>
-                    </div>
-                )}
-            </div>
-
-            {errorMessage && (
-                <div className="mb-6 p-4 bg-red-900/20 border border-red-800/50 rounded-lg flex items-start gap-3">
-                    <AlertTriangle size={20} className="text-red-400 flex-shrink-0 mt-0.5"/>
-                    <div>
-                        <h4 className="font-semibold text-red-400">Payment Error</h4>
-                        <p className="text-red-300 text-sm">{errorMessage}</p>
-                    </div>
-                </div>
-            )}
-
-            <div className="flex items-center justify-between">
-                <div className="text-xl font-bold">
-                    <span className="text-cosmic-400">${paymentAmount.toFixed(2)}</span>
-                    <span className="text-xs text-gray-500 ml-1">USD</span>
-                </div>
-
-                <Button
-                    type="submit"
-                    icon={<CreditCard size={16}/>}
-                    disabled={isProcessing || !stripe || !elements || !paymentElementMounted}
-                    className={isProcessing ? 'opacity-75' : ''}
-                >
-                    {isProcessing ? 'Processing...' : paymentDescription}
-                </Button>
-            </div>
-        </form>
-    );
-};
-
-// Stripe appearance options
-const appearance = {
-    theme: 'night',
-    variables: {
-        colorPrimary: '#8B5CF6',
-        colorBackground: '#1F2937',
-        colorText: '#F9FAFB',
-        colorDanger: '#EF4444',
-        fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
-        spacingUnit: '4px',
-        borderRadius: '8px',
+/** Stripe Appearance — aligns with Mythical Hero / landing stone tokens */
+const stripeAppearance = {
+  theme: 'night' as const,
+  variables: {
+    colorPrimary: '#f59e0b',
+    colorBackground: '#0c0a09',
+    colorText: '#e7e5e4',
+    colorTextSecondary: '#a8a29e',
+    colorTextPlaceholder: '#78716c',
+    colorDanger: '#f87171',
+    fontFamily:
+      'ui-sans-serif, Montserrat, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    spacingUnit: '5px',
+    borderRadius: '2px',
+  },
+  rules: {
+    '.Input': {
+      backgroundColor: '#0c0a09',
+      border: '1px solid rgba(68, 64, 60, 0.65)',
+      boxShadow: 'none',
+      color: '#e7e5e4',
     },
+    '.Input:focus': {
+      border: '1px solid rgba(245, 158, 11, 0.45)',
+      boxShadow: '0 0 0 2px rgba(217, 119, 6, 0.2)',
+    },
+    '.Label': {
+      color: '#d6d3d1',
+      fontWeight: '500',
+    },
+    '.Tab': {
+      backgroundColor: 'rgba(28, 25, 23, 0.8)',
+      border: '1px solid rgba(68, 64, 60, 0.65)',
+      color: '#e7e5e4',
+    },
+    '.Tab--selected': {
+      border: '1px solid rgba(245, 158, 11, 0.5)',
+      backgroundColor: 'rgba(69, 26, 3, 0.35)',
+    },
+  },
 };
 
-// Stripe Element options
-const stripeElementsOptions = (clientSecret) => ({
-    clientSecret,
-    appearance,
-    loader: 'always',
+const stripeElementsOptions = (clientSecret: string) => ({
+  clientSecret,
+  appearance: stripeAppearance,
+  loader: 'always' as const,
 });
 
-const CheckoutPage = () => {
-    const { id } = useParams();
-    const { user } = useContext(AuthContext);
-    const { heroId, heroName, images, setPaymentStatus } = useHeroStore();
-    const navigate = useNavigate();
-    const checkoutTrustVariant = useMemo(() => getCheckoutTrustVariant(), []);
-    
-    // State variables
-    const [clientSecret, setClientSecret] = useState(null);
-    const [stripeReady, setStripeReady] = useState(false);
-    const [error, setError] = useState(null);
-    const [email, setEmail] = useState(user?.email || '');
-    const [walletAddress, setWalletAddress] = useState('');
-    const [paymentAmount, setPaymentAmount] = useState(3.99);
-    const [paymentTitle, setPaymentTitle] = useState('Unlock Premium Hero');
-    const [paymentDescription, setPaymentDescription] = useState('Upgrade to Premium');
-    const [paymentType, setPaymentType] = useState('premium_upgrade');
-    const [isUnlockingChapters, setIsUnlockingChapters] = useState(false);
-    const [isPaymentDisabled, setIsPaymentDisabled] = useState(false);
-    
-    // Determine the actual hero ID to use
-    const effectiveHeroId = id || heroId;
+type CheckoutFormContentProps = {
+  heroId: string;
+  email: string;
+  onSuccess: (paymentIntent: import('@stripe/stripe-js').PaymentIntent) => void;
+  onError: (message: string) => void;
+  paymentAmount: number;
+  paymentDescription: string;
+  showExpandedTrust: boolean;
+};
 
-    // Verify if the Stripe Elements can be initialized
-    useEffect(() => {
-        const checkStripeAvailability = async () => {
-            try {
-                // Check if stripePromise is resolved properly
-                const stripeInstance = await stripePromise;
-                if (!stripeInstance) {
-                    console.error("Stripe failed to initialize - no publishable key?");
-                    setError("Payment processing is unavailable. Please try again later.");
-                } else {
-                    console.log("Stripe initialized successfully");
-                    setStripeReady(true);
-                }
-            } catch (err) {
-                console.error("Error initializing Stripe:", err);
-                setError("Payment processing failed to initialize. Please try again later.");
-            }
-        };
+const CheckoutFormContent: React.FC<CheckoutFormContentProps> = ({
+  heroId,
+  email,
+  onSuccess,
+  onError,
+  paymentAmount,
+  paymentDescription,
+  showExpandedTrust,
+}) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [paymentElementMounted, setPaymentElementMounted] = useState(false);
+  const mountedRef = React.useRef(false);
 
-        checkStripeAvailability();
-    }, []);
-
-    // Initialize the checkout when parameters are available
-    useEffect(() => {
-        const initializeCheckout = async () => {
-            // Skip if no hero ID is available or if disabled
-            if (!effectiveHeroId || isPaymentDisabled) return;
-            
-            try {
-                console.log(`Initializing checkout for hero: ${effectiveHeroId}`);
-                
-                // Determine payment type and amount from URL params
-                const urlParams = new URLSearchParams(window.location.search);
-                const type = urlParams.get('type') || 'premium_upgrade';
-                setPaymentType(type);
-                
-                if (type === 'chapters') {
-                    setPaymentTitle('Unlock More Chapters');
-                    setPaymentDescription('Unlock 3 Chapters');
-                    setPaymentAmount(1.99);
-                    setIsUnlockingChapters(true);
-                }
-                
-                // Create a payment intent
-                const response = await api.post('/api/create-payment-intent', {
-                    amount: type === 'chapters' ? 1.99 : 3.99,
-                    currency: 'usd',
-                    heroId: effectiveHeroId,
-                    walletAddress: walletAddress,
-                    unlockChapters: type === 'chapters',
-                    paymentType: type,
-                    is_test: isDevelopment, // Pass development mode flag
-                    sessionId: getSessionId(),
-                });
-                
-                console.log("Payment intent created");
-                setClientSecret(response.data.clientSecret);
-                track('checkout_open', { heroId: String(effectiveHeroId), paymentType: type });
-            } catch (err) {
-                console.error("Error creating payment intent:", err);
-                if (err.response?.data?.errorType === 'quota_exceeded') {
-                    setError(err.response.data.message || "Payment processing is temporarily unavailable due to AI service quota limitations.");
-                } else {
-                    setError(err.message || "Failed to initialize payment. Please try again later.");
-                }
-            }
-        };
-        
-        if (effectiveHeroId && !isPaymentDisabled) {
-            initializeCheckout();
-        }
-    }, [effectiveHeroId, walletAddress, isPaymentDisabled]);
-
-    // Handle input changes
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        if (name === 'email') setEmail(value);
-        if (name === 'walletAddress') setWalletAddress(value);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
     };
+  }, []);
 
-    // Handle successful payment
-    const handlePaymentSuccess = async (paymentIntent) => {
-        console.log("Payment successful:", paymentIntent);
-        track('payment_success_client', {
-            heroId: String(effectiveHeroId),
-            paymentIntentId: String(paymentIntent?.id || ''),
-        });
-        let navigationTimeout = null;
-        
-        try {
-            // Set a safety timeout to ensure navigation happens even if API calls hang
-            navigationTimeout = setTimeout(() => {
-                console.log("Navigation timeout triggered - ensuring redirect happens");
-                navigate(`/hero/${effectiveHeroId}?payment=success${isUnlockingChapters ? '&type=chapters' : ''}`);
-            }, 5000); // 5 second safety timeout
-            
-            // Update hero payment status
-            await api.post(`/api/heroes/setpremium/${effectiveHeroId}`);
-            
-            // Update local state immediately
-            setPaymentStatus('paid');
-            
-            // If unlocking chapters, make additional API call with timeout protection
-            if (isUnlockingChapters) {
-                try {
-                    // Create a specialized API instance with shorter timeout for this critical call
-                    const fastApi = axios.create({
-                        baseURL: api.defaults.baseURL,
-                        headers: api.defaults.headers,
-                        timeout: 3000 // 3 seconds timeout
-                    });
-                    
-                    // Add authorization header
-                    const authToken = localStorage.getItem('authToken');
-                    if (authToken) {
-                        fastApi.defaults.headers.Authorization = `Bearer ${authToken}`;
-                    }
-                    
-                    // Make the API call with the specialized instance
-                    await fastApi.post(`/api/storybook/${effectiveHeroId}/unlock-after-payment`);
-                    console.log("Successfully unlocked chapters after payment");
-                } catch (unlockError) {
-                    console.error("Error or timeout unlocking chapters:", unlockError);
-                    // Continue execution even if this fails
-                }
-            }
-            
-            // Fetch updated storybook using the store's function directly
-            try {
-                // Use a non-blocking approach to fetch the storybook data
-                setTimeout(() => {
-                    try {
-                        console.log("Fetching storybook data after payment");
-                        useStoryStore.getState().fetchStorybook(effectiveHeroId);
-                    } catch (fetchError) {
-                        console.error("Error in delayed storybook fetch:", fetchError);
-                    }
-                }, 0);
-            } catch (fetchError) {
-                console.error("Error setting up storybook fetch:", fetchError);
-                // Continue with navigation even if storybook fetch fails
-            }
-        } catch (err) {
-            console.error("Error handling successful payment:", err);
-            setError("Payment was successful, but we encountered an error updating your hero. Please refresh the page.");
-        } finally {
-            // Clear the navigation timeout since we're navigating normally
-            if (navigationTimeout) {
-                clearTimeout(navigationTimeout);
-                navigationTimeout = null;
-            }
-            
-            // Always navigate back to hero page with success message and payment type
-            // This ensures navigation happens regardless of any errors in the process
-            navigate(`/hero/${effectiveHeroId}?payment=success${isUnlockingChapters ? '&type=chapters' : ''}`);
-        }
-    };
+  const handlePaymentElementReady = () => {
+    setPaymentElementMounted(true);
+  };
 
-    // Handle payment error
-    const handlePaymentError = (errorMessage) => {
-        console.error("Payment error:", errorMessage);
-        setError(errorMessage);
-    };
-    
-    // Handle quota exceeded
-    const handleQuotaExceeded = () => {
-        setIsPaymentDisabled(true);
-        setError("Payment processing is temporarily disabled because the AI service quota has been exceeded. Please try again later.");
-    };
-    
-    // Handle quota available
-    const handleQuotaAvailable = () => {
-        setIsPaymentDisabled(false);
-    };
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-    return (
-        <motion.div
-            className="container mx-auto px-4 pt-20 pb-10"
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
+    if (!stripe || !elements) {
+      console.error('Stripe or Elements not initialized');
+      onError('Payment processor not available. Please try again later.');
+      return;
+    }
+
+    if (!paymentElementMounted) {
+      onError('Payment form is still loading. Please wait and try again.');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const element = elements.getElement(PaymentElement);
+      if (!element) {
+        throw new Error('Payment Element not found. Please refresh and try again.');
+      }
+
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/hero/${heroId}`,
+          receipt_email: email,
+        },
+        redirect: 'if_required',
+      });
+
+      if (error) {
+        setErrorMessage(error.message ?? null);
+        onError(error.message ?? 'Payment failed');
+      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+        onSuccess(paymentIntent);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Payment failed';
+      setErrorMessage(msg);
+      onError(msg);
+    } finally {
+      if (mountedRef.current) setIsProcessing(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log('Stripe available:', !!stripe);
+    console.log('Elements available:', !!elements);
+  }, [stripe, elements]);
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="mb-8 rounded-sm border border-stone-800 bg-stone-950/80 p-4 shadow-inner shadow-black/40">
+        <PaymentElement onReady={handlePaymentElementReady} />
+      </div>
+
+      <div className="mb-8 rounded-sm border border-amber-900/35 bg-gradient-to-br from-amber-950/25 to-stone-950/50 p-4 md:p-5">
+        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-500/90">
+          <Shield size={16} className="opacity-95" aria-hidden />
+          <span>Secure payment</span>
+        </div>
+        <p className="text-sm leading-relaxed text-stone-400">
+          Your card runs through Stripe. We never store full card numbers on{' '}
+          {DOMAIN_LABEL}
+          &apos;s servers.
+        </p>
+        {showExpandedTrust && (
+          <p className="mt-3 text-sm leading-relaxed text-stone-500">
+            Premium attaches to this hero: full-resolution portraits, full backstory, downloads, and
+            shared-story access where enabled — kept with your account after checkout.
+          </p>
+        )}
+        {isDevelopment && (
+          <div className="mt-4 border-t border-amber-900/30 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+              Development mode
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              Test card{' '}
+              <code className="rounded bg-stone-950/90 px-1.5 py-0.5 text-amber-200/85">
+                4242&nbsp;4242&nbsp;4242&nbsp;4242
+              </code>
+              , any future expiry, any CVC, any postal code.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {errorMessage && (
+        <div className="mb-8 flex gap-4 rounded-sm border border-red-800/60 bg-red-950/30 p-4">
+          <AlertTriangle size={22} className="mt-0.5 shrink-0 text-red-400" aria-hidden />
+          <div>
+            <p className="font-display font-semibold text-red-300">Payment could not finish</p>
+            <p className="mt-1 text-sm text-red-200/85">{errorMessage}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-6 border-t border-stone-800/90 pt-8 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">Total</p>
+          <p className="font-display text-3xl font-bold tracking-tight text-amber-200/95">
+            ${paymentAmount.toFixed(2)}
+            <span className="ml-2 text-sm font-display font-semibold uppercase tracking-wide text-stone-500">
+              USD
+            </span>
+          </p>
+        </div>
+
+        <Button
+          type="submit"
+          icon={<CreditCard size={16} />}
+          disabled={isProcessing || !stripe || !elements || !paymentElementMounted}
+          className={
+            `${isProcessing ? 'opacity-80' : ''} border border-amber-700/40 shadow-lg shadow-amber-950/35`.trim()
+          }
         >
-            <MetaTags
-                title={`Checkout | ${PRODUCT_NAME}`}
-                description={`Secure checkout on ${DOMAIN_LABEL} for premium hero unlocks and chapter bundles.`}
-                image="/logo.jpg"
-                canonical={`${SITE_ORIGIN}/checkout/${id || heroId || 'hero'}`}
-                robots="noindex,nofollow"
-            />
-            <div className="max-w-2xl mx-auto">
-                <div className="flex items-center justify-between mb-6">
-                    <PageTitle>{paymentTitle}</PageTitle>
-                    <Button variant="ghost" icon={<X size={16}/>} onClick={() => navigate(-1)}>
-                        Cancel
-                    </Button>
+          {isProcessing ? 'Processing…' : paymentDescription}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+const CheckoutPage = () => {
+  const { id } = useParams();
+  const { user } = useContext(AuthContext);
+  const { heroId, setPaymentStatus } = useHeroStore();
+  const navigate = useNavigate();
+  const checkoutTrustVariant = useMemo(() => getCheckoutTrustVariant(), []);
+
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [stripeReady, setStripeReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState(user?.email || '');
+  const [walletAddress, setWalletAddress] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState(3.99);
+  const [paymentTitle, setPaymentTitle] = useState('Unlock Premium Hero');
+  const [paymentDescription, setPaymentDescription] = useState('Upgrade to Premium');
+  const [isUnlockingChapters, setIsUnlockingChapters] = useState(false);
+  const [isPaymentDisabled, setIsPaymentDisabled] = useState(false);
+
+  const effectiveHeroId = id || heroId;
+
+  const heroLead = useMemo(
+    () => (
+      <div className="flex flex-col gap-2 font-medium text-stone-300 md:text-lg">
+        <p className="text-amber-100/90">{paymentDescription}</p>
+        <p className="text-sm leading-relaxed text-stone-500 md:text-[0.9375rem]">
+          Stripe-encrypted checkout for this hero • {DOMAIN_LABEL}
+        </p>
+      </div>
+    ),
+    [paymentDescription],
+  );
+
+  useEffect(() => {
+    const checkStripeAvailability = async () => {
+      try {
+        const stripeInstance = await stripePromise;
+        if (!stripeInstance) {
+          setError('Payment processing is unavailable. Please try again later.');
+        } else {
+          setStripeReady(true);
+        }
+      } catch (err) {
+        console.error('Error initializing Stripe:', err);
+        setError('Payment processing failed to initialize. Please try again later.');
+      }
+    };
+    checkStripeAvailability();
+  }, []);
+
+  useEffect(() => {
+    const initializeCheckout = async () => {
+      if (!effectiveHeroId || isPaymentDisabled) return;
+
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const type = urlParams.get('type') || 'premium_upgrade';
+
+        if (type === 'chapters') {
+          setPaymentTitle('Unlock More Chapters');
+          setPaymentDescription('Unlock 3 chapters');
+          setPaymentAmount(1.99);
+          setIsUnlockingChapters(true);
+        }
+
+        const response = await api.post('/api/create-payment-intent', {
+          amount: type === 'chapters' ? 1.99 : 3.99,
+          currency: 'usd',
+          heroId: effectiveHeroId,
+          walletAddress,
+          unlockChapters: type === 'chapters',
+          paymentType: type,
+          is_test: isDevelopment,
+          sessionId: getSessionId(),
+        });
+
+        setClientSecret(response.data.clientSecret);
+        track('checkout_open', { heroId: String(effectiveHeroId), paymentType: type });
+      } catch (err: unknown) {
+        console.error('Error creating payment intent:', err);
+        const ax = err as { response?: { data?: { errorType?: string; message?: string } } };
+        if (ax.response?.data?.errorType === 'quota_exceeded') {
+          setError(
+            ax.response.data.message ||
+              'Payment is temporarily unavailable due to AI quota limits.',
+          );
+        } else {
+          const msg =
+            err instanceof Error ? err.message : 'Failed to initialize payment. Try again later.';
+          setError(msg);
+        }
+      }
+    };
+
+    if (effectiveHeroId && !isPaymentDisabled) initializeCheckout();
+  }, [effectiveHeroId, walletAddress, isPaymentDisabled]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name === 'email') setEmail(value);
+    if (name === 'walletAddress') setWalletAddress(value);
+  };
+
+  const handlePaymentSuccess = async (paymentIntent: import('@stripe/stripe-js').PaymentIntent) => {
+    track('payment_success_client', {
+      heroId: String(effectiveHeroId),
+      paymentIntentId: String(paymentIntent?.id || ''),
+    });
+    let navigationTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    try {
+      navigationTimeout = setTimeout(() => {
+        navigate(
+          `/hero/${effectiveHeroId}?payment=success${isUnlockingChapters ? '&type=chapters' : ''}`,
+        );
+      }, 5000);
+
+      await api.post(`/api/heroes/setpremium/${effectiveHeroId}`);
+      setPaymentStatus('paid');
+
+      if (isUnlockingChapters) {
+        try {
+          const fastApi = axios.create({
+            baseURL: api.defaults.baseURL,
+            headers: api.defaults.headers,
+            timeout: 3000,
+          });
+          const authToken = localStorage.getItem('authToken');
+          if (authToken) fastApi.defaults.headers.Authorization = `Bearer ${authToken}`;
+          await fastApi.post(`/api/storybook/${effectiveHeroId}/unlock-after-payment`);
+        } catch (unlockError) {
+          console.error('Error or timeout unlocking chapters:', unlockError);
+        }
+      }
+
+      setTimeout(() => {
+        try {
+          useStoryStore.getState().fetchStorybook(effectiveHeroId);
+        } catch (fetchError) {
+          console.error('Error in delayed storybook fetch:', fetchError);
+        }
+      }, 0);
+    } catch (err) {
+      console.error('Error handling successful payment:', err);
+      setError(
+        'Payment succeeded, but updating your hero hit an error. Refresh the hero page.',
+      );
+    } finally {
+      if (navigationTimeout) clearTimeout(navigationTimeout);
+      navigate(`/hero/${effectiveHeroId}?payment=success${isUnlockingChapters ? '&type=chapters' : ''}`);
+    }
+  };
+
+  const handlePaymentError = (errorMessage: string) => setError(errorMessage);
+
+  const handleQuotaExceeded = () => {
+    setIsPaymentDisabled(true);
+    setError('Checkout is paused while AI quota is exceeded. Try again shortly.');
+  };
+
+  const handleQuotaAvailable = () => setIsPaymentDisabled(false);
+
+  return (
+    <LandingStylePageRoot>
+      <MetaTags
+        title={`Checkout | ${PRODUCT_NAME}`}
+        description={`Secure checkout on ${DOMAIN_LABEL} for premium hero unlocks and chapter bundles.`}
+        image="/logo.jpg"
+        canonical={`${SITE_ORIGIN}/checkout/${id || heroId || 'hero'}`}
+        robots="noindex,nofollow"
+      />
+
+      <LandingStyleHero
+        eyebrow="Mythical Hero · Forge"
+        title={paymentTitle}
+        lead={heroLead}
+        leadStyle="plain"
+        headingId="checkout-heading"
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            icon={<X size={16} />}
+            onClick={() => navigate(-1)}
+            className="rounded-full border-stone-600 text-stone-200 hover:bg-stone-900/90"
+          >
+            Cancel
+          </Button>
+        }
+      />
+
+      <LandingStyleMain>
+        <div className="max-w-2xl mx-auto pb-16">
+          {error && (
+            <div className="mb-10 flex gap-4 rounded-sm border border-red-800/60 bg-red-950/25 p-6 shadow-lg shadow-black/30">
+              <AlertTriangle size={26} className="mt-0.5 shrink-0 text-red-400/95" aria-hidden />
+              <div>
+                <h2 className="font-display text-lg font-semibold text-red-300">Something went wrong</h2>
+                <p className="mt-2 text-sm leading-relaxed text-red-200/90">{error}</p>
+              </div>
+            </div>
+          )}
+
+          <QuotaStatusCheck onQuotaExceeded={handleQuotaExceeded} onQuotaAvailable={handleQuotaAvailable}>
+            <section className={checkoutPanelClass} aria-labelledby="payment-details-heading">
+              <header className="mb-10 border-b border-stone-800 pb-8">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-amber-500/90">
+                  Payment
+                </p>
+                <h2 id="payment-details-heading" className="font-display text-2xl font-bold text-stone-100">
+                  Billing details
+                </h2>
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-stone-400">
+                  Use the card you want charged. Receipt goes to your email unless you edit it in the payment
+                  form.
+                </p>
+                <p className="mt-6 font-display text-xl font-semibold tracking-tight text-amber-200/95 md:text-2xl">
+                  {paymentAmount.toFixed(2)} USD
+                  <span className="ml-3 text-sm font-sans font-medium uppercase tracking-wider text-stone-500">
+                    today
+                  </span>
+                </p>
+              </header>
+
+              <div className="space-y-8">
+                <div>
+                  <label htmlFor="email" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-stone-400">
+                    Email address
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={email}
+                    onChange={handleInputChange}
+                    className={inputEpic}
+                    placeholder="you@example.com"
+                    required
+                  />
                 </div>
 
-                {error && (
-                    <div className="bg-red-900/20 border border-red-800 rounded-xl p-6 mb-8 flex items-start gap-4">
-                        <AlertTriangle className="text-red-400 flex-shrink-0 mt-1" size={24}/>
-                        <div>
-                            <h3 className="text-lg font-semibold text-red-400 mb-2">Error</h3>
-                            <p className="text-red-300">{error}</p>
-                        </div>
-                    </div>
+                <div>
+                  <label htmlFor="walletAddress" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-stone-400">
+                    Wallet <span className="font-normal normal-case tracking-normal text-stone-600">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="walletAddress"
+                    name="walletAddress"
+                    value={walletAddress}
+                    onChange={handleInputChange}
+                    className={inputEpic}
+                    placeholder="0x…"
+                  />
+                  <p className="mt-2 text-xs leading-relaxed text-stone-500">
+                    Future optional mint only — leave blank if you are here for portraits and lore.
+                  </p>
+                </div>
+
+                {stripeReady && clientSecret ? (
+                  <Elements stripe={stripePromise} options={stripeElementsOptions(clientSecret)}>
+                    <CheckoutFormContent
+                      heroId={effectiveHeroId!}
+                      email={email}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      paymentAmount={paymentAmount}
+                      paymentDescription={paymentDescription}
+                      showExpandedTrust={checkoutTrustVariant === 'expanded'}
+                    />
+                  </Elements>
+                ) : (
+                  <div className="flex min-h-[8rem] items-center justify-center gap-4 rounded-sm border border-dashed border-stone-700 bg-stone-950/60 py-12">
+                    {!error && (
+                      <>
+                        <div className="h-7 w-7 shrink-0 animate-spin rounded-full border-2 border-stone-600 border-t-amber-500/90" />
+                        <span className="font-medium text-stone-400">
+                          Summoning Stripe…
+                        </span>
+                      </>
+                    )}
+                  </div>
                 )}
-
-                <QuotaStatusCheck 
-                    onQuotaExceeded={handleQuotaExceeded}
-                    onQuotaAvailable={handleQuotaAvailable}
-                >
-                    <div className="bg-mystic-900 border border-mystic-800 rounded-xl p-6 mb-8">
-                        <h2 className="text-xl font-medium text-white mb-6">Payment Details</h2>
-
-                        <div className="mb-6">
-                            <label htmlFor="email" className="block text-white font-medium mb-2">
-                                Email Address
-                            </label>
-                            <input
-                                type="email"
-                                id="email"
-                                name="email"
-                                value={email}
-                                onChange={handleInputChange}
-                                className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                                placeholder="your.email@example.com"
-                                required
-                            />
-                        </div>
-
-                        <div className="mb-6">
-                            <div className="flex items-center justify-between mb-2">
-                                <label htmlFor="walletAddress" className="block text-white font-medium">
-                                    Wallet Address <span className="text-gray-400 font-normal">(Optional)</span>
-                                </label>
-                            </div>
-                            <input
-                                type="text"
-                                id="walletAddress"
-                                name="walletAddress"
-                                value={walletAddress}
-                                onChange={handleInputChange}
-                                className="w-full px-4 py-2 bg-mystic-800 border border-mystic-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cosmic-500 focus:border-transparent"
-                                placeholder="0x..."
-                            />
-                            <p className="text-gray-400 text-xs mt-2">
-                                Optional: for a future voluntary on-chain mint, if we offer it (not required today)
-                            </p>
-                        </div>
-
-                        {stripeReady && clientSecret ? (
-                            <Elements stripe={stripePromise} options={stripeElementsOptions(clientSecret)}>
-                                <CheckoutFormContent
-                                    clientSecret={clientSecret}
-                                    heroId={effectiveHeroId}
-                                    email={email}
-                                    walletAddress={walletAddress}
-                                    onSuccess={handlePaymentSuccess}
-                                    onError={handlePaymentError}
-                                    paymentAmount={paymentAmount}
-                                    paymentTitle={paymentTitle}
-                                    paymentDescription={paymentDescription}
-                                    showExpandedTrust={checkoutTrustVariant === 'expanded'}
-                                />
-                            </Elements>
-                        ) : (
-                            <div className="flex justify-center items-center py-8">
-                                {!error && (
-                                    <>
-                                        <div className="mr-3 w-6 h-6 border-4 border-cosmic-500 border-t-transparent rounded-full animate-spin"></div>
-                                        <span className="text-cosmic-300">Initializing payment form...</span>
-                                    </>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </QuotaStatusCheck>
-            </div>
-        </motion.div>
-    );
+              </div>
+            </section>
+          </QuotaStatusCheck>
+        </div>
+      </LandingStyleMain>
+    </LandingStylePageRoot>
+  );
 };
 
 export default CheckoutPage;

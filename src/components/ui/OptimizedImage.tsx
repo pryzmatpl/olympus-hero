@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface OptimizedImageProps {
   src: string;
@@ -11,11 +11,8 @@ interface OptimizedImageProps {
 }
 
 /**
- * OptimizedImage component for better image loading performance
- * - Uses native lazy loading
- * - Provides placeholder during loading
- * - Supports WebP format if browser supports it
- * - Adds appropriate width/height to prevent layout shifts
+ * Responsive cover image helper: placeholder until load, then fades in.
+ * Uses the supplied URL as-is so deployed assets match the repo (no assumed .webp sibling).
  */
 const OptimizedImage: React.FC<OptimizedImageProps> = ({
   src,
@@ -24,75 +21,39 @@ const OptimizedImage: React.FC<OptimizedImageProps> = ({
   height,
   className = '',
   loading = 'lazy',
-  placeholderColor = '#121225'
+  placeholderColor = '#121225',
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
-  const [supportsWebP, setSupportsWebP] = useState(false);
 
-  // Check WebP support on mount
-  useEffect(() => {
-    const checkWebPSupport = async () => {
-      if (!self.createImageBitmap) return false;
-      
-      const webpData = 'data:image/webp;base64,UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA=';
-      const blob = await fetch(webpData).then(r => r.blob());
-      
-      try {
-        return await createImageBitmap(blob).then(() => true, () => false);
-      } catch (e) {
-        return false;
-      }
-    };
-
-    checkWebPSupport().then(setSupportsWebP);
-  }, []);
-
-  // Determine final src based on WebP support
-  const finalSrc = (() => {
-    if (!supportsWebP) return src;
-    
-    // If we have a WebP version available
-    if (src.endsWith('.jpg') || src.endsWith('.jpeg') || src.endsWith('.png')) {
-      const webpSrc = src.substring(0, src.lastIndexOf('.')) + '.webp';
-      // Here we'd need to check if the WebP file exists
-      // For simplicity, we'll assume all images have WebP versions
-      return webpSrc;
-    }
-    
-    return src;
-  })();
-
-  // Style for the placeholder
   const placeholderStyle = {
     backgroundColor: placeholderColor,
     transition: 'opacity 0.3s ease',
     opacity: isLoaded ? 0 : 1,
   };
 
-  // Sanitize alt text for better accessibility
   const sanitizedAlt = alt || 'Image';
 
+  const showImage = () => setIsLoaded(true);
+
   return (
-    <div className={`relative overflow-hidden ${className}`} style={{ width, height }}>
-      {/* Placeholder */}
-      <div 
-        className="absolute inset-0 z-0" 
-        style={placeholderStyle}
-        aria-hidden="true"
-      />
-      
-      {/* Actual image */}
+    <div className={`relative overflow-hidden ${className}`}>
+      <div className="absolute inset-0 z-0" style={placeholderStyle} aria-hidden="true" />
+
       <img
-        src={finalSrc}
+        src={src}
         alt={sanitizedAlt}
         width={width}
         height={height}
         loading={loading}
-        className={`relative z-10 w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-        onLoad={() => setIsLoaded(true)}
+        decoding="async"
+        className={`relative z-10 h-full w-full object-cover transition-opacity duration-300 ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        onLoad={showImage}
+        onError={showImage}
       />
     </div>
   );
 };
 
-export default OptimizedImage; 
+export default OptimizedImage;

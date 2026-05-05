@@ -18,12 +18,16 @@ export const LandingStylePageRoot: React.FC<LandingStylePageRootProps> = ({ chil
   </motion.div>
 );
 
+type LandingStyleLeadStyle = 'bar' | 'plain';
+
 type LandingStyleHeroProps = {
   headingId?: string;
   eyebrow?: string;
   title: React.ReactNode;
   lead?: React.ReactNode;
   actions?: React.ReactNode;
+  /** `bar`: left amber rule (marketing). `plain`: date/meta lines without doubling a quote bar above the essay. */
+  leadStyle?: LandingStyleLeadStyle;
 };
 
 export const LandingStyleHero: React.FC<LandingStyleHeroProps> = ({
@@ -32,6 +36,7 @@ export const LandingStyleHero: React.FC<LandingStyleHeroProps> = ({
   title,
   lead,
   actions,
+  leadStyle = 'bar',
 }) => (
   <section
     aria-labelledby={headingId}
@@ -54,9 +59,15 @@ export const LandingStyleHero: React.FC<LandingStyleHeroProps> = ({
             {title}
           </h1>
           {lead && (
-            <p className="text-stone-400 text-base md:text-lg leading-relaxed max-w-2xl border-l-2 border-amber-600/60 pl-4">
+            <div
+              className={
+                leadStyle === 'bar'
+                  ? 'text-stone-400 text-base md:text-lg leading-relaxed max-w-2xl border-l-2 border-amber-600/60 pl-4'
+                  : 'text-stone-400 text-base md:text-lg leading-relaxed max-w-2xl'
+              }
+            >
               {lead}
-            </p>
+            </div>
           )}
         </div>
         {actions && <div className="shrink-0 flex flex-wrap gap-3 md:justify-end">{actions}</div>}
