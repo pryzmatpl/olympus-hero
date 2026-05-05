@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { Book, Lock, Clock, CreditCard } from 'lucide-react';
 import Button from '../ui/Button';
 import { useHeroStore, useStoryStore } from '../../store/heroStore';
-import { formatMarkdown } from '../../utils/markdownHelper';
 import { formatLiteraryChapter } from '../../utils/literaryFormatter';
 import api from '../../utils/api';
 import { getChapterFrameVariant } from '../../utils/growthExperiments';
@@ -34,19 +33,15 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     setIsPremium,
   } = useStoryStore()
 
-
   const navigate = useNavigate();
   const [activeChapter, setActiveChapter] = useState<number>(1);
   const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
   
-  // Determine if the hero is premium and paid for
   const isPaid = paymentStatus === 'paid';
   const isPremium = storyBook?.is_premium || false;
   
-  // Get the current chapter
   const currentChapter = chapters.find(c => c.chapter_number === activeChapter);
   
-  // Calculate time until next chapter unlock (for premium heroes)
   const calculateTimeUntilNextUnlock = () => {
     if (!storyBook?.initial_chapter_generated_at) return null;
     
@@ -65,12 +60,10 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
   
   const timeUntilNextUnlock = calculateTimeUntilNextUnlock();
   
-  // Handle unlocking 3 more chapters
   const handleUnlockBundle = async () => {
     if (!storyBook || isUnlocking) return;
     
     if (!isPremium) {
-      // Redirect to checkout page if not paid
       navigate(`/checkout/${heroId}?type=chapters`);
       return;
     }
@@ -78,14 +71,9 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     setIsUnlocking(true);
     
     try {
-      // Call API to unlock chapters
       const response = await api.post(`/api/storybook/${storyBook.id}`, { count: 3 });
-      
-      // Update store with new data
       setStoryBook(response.data.storyBook);
       setChapters(response.data.chapters);
-      
-      // Callback to parent component
       onUnlockBundle();
     } catch (error) {
       console.error('Error unlocking chapters:', error);
@@ -94,7 +82,28 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     }
   };
   
-  // If no chapters or loading, show skeleton loader
+  // Helper to add drop cap to first paragraph
+  const addDropCap = (html: string): string => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const firstP = doc.querySelector('p');
+    if (firstP) {
+      const text = firstP.textContent || '';
+      if (text.length > 0) {
+        const firstLetter = text[0];
+        const rest = text.slice(1);
+        firstP.innerHTML = `<span class="drop-cap">${firstLetter}</span>${rest}`;
+      }
+    }
+    return doc.body.innerHTML;
+  };
+
+  // Format chapter content with ornate styling
+  const formatOrnateChapter = (content: string, chapterNumber: number): string => {
+    const baseHtml = formatLiteraryChapter(content, chapterNumber);
+    return addDropCap(baseHtml);
+  };
+  
   if (isLoadingChapters || chapters.length === 0) {
     return (
       <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
@@ -105,23 +114,17 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
             <div className="h-4 w-16 bg-mystic-700 rounded animate-pulse"></div>
           </span>
         </h2>
-        
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-mystic-700 rounded-md"></div>
           <div className="h-40 bg-mystic-700 rounded-md"></div>
-          <div className="space-y-2">
-            <div className="h-4 bg-mystic-700 rounded w-3/4"></div>
-            <div className="h-4 bg-mystic-700 rounded"></div>
-            <div className="h-4 bg-mystic-700 rounded w-5/6"></div>
-          </div>
         </div>
       </div>
     );
   }
   
   return (
-    <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic mt-6 border border-mystic-600/30">
-      {/* Brand typography: cosmic-500 is light yellow — never pair with white text */}
+    <div className="mt-6">
+      {/* Epic Legendary Book Header */}
       <div className="text-center mb-6 pb-5 border-b border-mystic-600/40">
         <p className="font-display text-[0.65rem] sm:text-xs uppercase tracking-[0.35em] text-cosmic-400/90 mb-2">
           Mythic Tome
@@ -134,20 +137,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
         </p>
       </div>
 
-      <h2 className="text-lg font-display font-semibold mb-4 flex flex-wrap items-center gap-2 text-gray-100">
-        <Book className="text-cosmic-400 shrink-0" size={20} />
-        <span>Chapters</span>
-        <span className="text-sm font-normal text-gray-400">
-          {storyBook?.chapters_unlocked_count || 0} of {storyBook?.chapters_total_count || 0}
-        </span>
-        {isPremium && (
-          <span className="text-xs bg-mystic-700 text-cosmic-300 border border-cosmic-500/40 px-2 py-1 rounded-full">
-            Premium Story
-          </span>
-        )}
-      </h2>
-      
-      {/* Chapter tabs — active state uses dark text on cosmic yellow for contrast */}
+      {/* Chapter tabs */}
       <div className="flex flex-wrap gap-2 mb-6 border-b border-mystic-700 pb-4">
         {[...Array(storyBook?.chapters_total_count || 1)].map((_, idx) => {
           const chapterNum = idx + 1;
@@ -181,26 +171,39 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
         })}
       </div>
       
-      {/* Chapter content */}
+      {/* ORNATE CHAPTER CONTENT */}
       {currentChapter ? (
-        <div className="chapter-tome-root">
-          <motion.div
-            key={`chapter-content-${currentChapter.chapter_number}`}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="rounded-lg bg-mystic-900/40 p-4 md:p-8 border border-mystic-600/25 shadow-inner"
-          >
-            <div 
-              className="literary-content chapter-tome-prose"
-              dangerouslySetInnerHTML={{ 
-                __html: formatLiteraryChapter(
-                  currentChapter.content || 'Chapter content is being generated...', 
-                  currentChapter.chapter_number
-                ) 
-              }}
-            />
-          </motion.div>
+        <div className="chapter-tome-ornate">
+          <div className="chapter-ornate-inner">
+            <motion.div
+              key={`chapter-content-${currentChapter.chapter_number}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              {/* Chapter Title with Ornament */}
+              <div className="chapter-title-ornament">
+                <span>❧</span>
+              </div>
+              <h2 className="chapter-title">
+                Chapter {currentChapter.chapter_number}
+              </h2>
+              
+              {/* Chapter Prose */}
+              <div 
+                className="chapter-prose"
+                dangerouslySetInnerHTML={{ 
+                  __html: formatOrnateChapter(
+                    currentChapter.content || 'Chapter content is being generated...', 
+                    currentChapter.chapter_number
+                  ) 
+                }}
+              />
+              
+              {/* Scene break at end */}
+              <div className="scene-break-ornate"></div>
+            </motion.div>
+          </div>
         </div>
       ) : (
         <div className="text-center py-8 text-mystic-300">
@@ -208,11 +211,10 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
         </div>
       )}
       
-      {/* CTA for premium users with locked chapters */}
+      {/* CTA for premium users */}
       {isPremium && storyBook && storyBook.chapters_unlocked_count < storyBook.chapters_total_count && (
         <div className="mt-6 bg-mystic-900/60 border border-cosmic-600/30 p-4 rounded-lg">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-            {/* For paid users - Next unlock info */}
             {isPaid && (
               <div className="flex items-center gap-4 flex-1">
                 <div className="bg-cosmic-600/20 p-3 rounded-full">
@@ -222,10 +224,10 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                   <h3 className="font-semibold text-lg mb-1">Next Chapter Unlocks Soon</h3>
                   {timeUntilNextUnlock ? (
                     <p className="text-gray-400 text-sm">
-                      Next chapter unlocks in {timeUntilNextUnlock.hours}h {timeUntilNextUnlock.minutes}m. Premium chapters are released daily.
+                      Next chapter unlocks in {timeUntilNextUnlock.hours}h {timeUntilNextUnlock.minutes}m.
                     </p>
                   ) : (
-                    <p className="text-gray-400 text-sm">New chapters are unlocked daily for premium users</p>
+                    <p className="text-gray-400 text-sm">New chapters unlock daily for premium users</p>
                   )}
                 </div>
                 <div className="ml-auto">
@@ -233,13 +235,12 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                     onClick={handleUnlockBundle}
                     isLoading={isUnlocking}
                   >
-                    Unlock 3 More Chapters – {CHAPTER_BUNDLE_PRICE_LABEL}
+                    Unlock 3 More – {CHAPTER_BUNDLE_PRICE_LABEL}
                   </Button>
                 </div>
               </div>
             )}
             
-            {/* For unpaid users - Payment CTA */}
             {!isPaid && (
               <div className="flex items-center gap-4 flex-1">
                 <div className="bg-cosmic-600/20 p-3 rounded-full">
@@ -248,14 +249,12 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                 <div>
                   <h3 className="font-semibold text-lg mb-1">Unlock Full Story</h3>
                   <p className="text-gray-400 text-sm">
-                    {chapterFrame === 'progression'
-                      ? 'Advance your serialized saga with the next story beats.'
-                      : 'Unlock the next premium chapters for this hero.'}
+                    Unlock all chapters to continue the saga.
                   </p>
                 </div>
                 <div className="ml-auto">
                   <Button onClick={() => navigate(`/checkout/${heroId}?type=chapters`)}>
-                    Unlock chapters — {CHAPTER_BUNDLE_PRICE_LABEL}
+                    Unlock – {CHAPTER_BUNDLE_PRICE_LABEL}
                   </Button>
                 </div>
               </div>
@@ -263,35 +262,8 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
           </div>
         </div>
       )}
-      
-      {/* CTA for non-premium, paid users to unlock chapters */}
-      {!isPremium && isPaid && (
-        <div className="mt-6 bg-mystic-900/60 border border-cosmic-600/30 p-4 rounded-lg">
-          <div className="flex items-center gap-4">
-            <div className="bg-cosmic-600/20 p-3 rounded-full">
-              <Book className="h-6 w-6 text-cosmic-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg mb-1">Unlock More Chapters</h3>
-              <p className="text-gray-400 text-sm">
-                {chapterFrame === 'progression'
-                  ? 'Keep the narrative arc moving: three more beats now, plus daily releases while you play.'
-                  : 'Add three more chapters now, plus keep receiving daily chapter drops.'}
-              </p>
-            </div>
-            <div className="ml-auto">
-              <Button 
-                onClick={handleUnlockBundle}
-                isLoading={isUnlocking}
-              >
-                Unlock 3 More Chapters – {CHAPTER_BUNDLE_PRICE_LABEL}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default HeroChapters; 
+export default HeroChapters;

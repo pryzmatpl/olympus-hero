@@ -4,13 +4,9 @@ import { motion } from 'framer-motion';
 import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users, RefreshCw } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useHeroStore } from '../store/heroStore';
-import HeroPortrait from '../components/hero/HeroPortrait';
-import HeroBackstory from '../components/hero/HeroBackstory';
 import HeroChapters from '../components/hero/HeroChapters';
-import ZodiacInfo from '../components/hero/ZodiacInfo';
 import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
-import { formatMarkdown } from '../utils/markdownHelper';
 import { formatLiteraryBackstory } from '../utils/literaryFormatter';
 import { useNotification } from '../context/NotificationContext';
 import { track } from '../utils/analytics';
@@ -366,71 +362,51 @@ const HeroPage: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
+        className="text-stone-200 min-h-[60vh] flex items-center justify-center px-4 pt-28 pb-20"
       >
-        <div className="text-center max-w-md w-full bg-mystic-900/80 border border-cosmic-600/30 p-6 rounded-xl shadow-lg">
-          {/* Cosmic animation — spin must be on a child: animate-spin overwrites transform, so mixing translate centering + rotate on one node breaks orbits */}
-          <div className="relative mx-auto mb-6 flex min-h-[16rem] w-full max-w-xs items-center justify-center">
-            {/* Central sun/star */}
-            <div className="absolute top-1/2 left-1/2 z-10 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-300 shadow-glow animate-pulse" />
-
-            {/* Orbiting planets: outer wrapper = center in scene; inner = rotate only */}
+        <div className="relative text-center max-w-md w-full border border-stone-700/90 bg-stone-950/80 backdrop-blur-sm p-8 rounded-sm shadow-2xl shadow-black/40">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(180,83,9,0.12),transparent_55%)] rounded-sm pointer-events-none" />
+          <div className="relative mx-auto mb-8 flex min-h-[14rem] w-full max-w-xs items-center justify-center">
+            <div className="absolute top-1/2 left-1/2 z-10 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-400/90 shadow-lg shadow-amber-900/40 animate-pulse" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
               <div className="h-24 w-24 animate-spin" style={{ animationDuration: '8s' }}>
-                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-500/30">
-                  <div className="absolute top-0 left-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cosmic-500" />
+                <div className="relative h-full w-full rounded-full border border-dashed border-amber-600/25">
+                  <div className="absolute top-0 left-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/80" />
                 </div>
               </div>
             </div>
-
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
               <div className="h-48 w-48 animate-spin" style={{ animationDuration: '15s' }}>
-                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-400/20">
-                  <div className="absolute top-0 left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-500" />
-                </div>
-              </div>
-            </div>
-
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-              <div className="h-64 w-64 animate-spin" style={{ animationDuration: '20s' }}>
-                <div className="relative h-full w-full rounded-full border border-dashed border-cosmic-300/10">
-                  <div className="absolute top-0 left-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500" />
+                <div className="relative h-full w-full rounded-full border border-dashed border-stone-600/40">
+                  <div className="absolute top-0 left-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-mystic-500/80" />
                 </div>
               </div>
             </div>
           </div>
-
-          <h2 className="text-2xl font-semibold text-cosmic-300 mb-3">Aligning the Planets</h2>
-          
-          {/* Rotating cosmic messages */}
-          <div className="h-12 mb-4 flex items-center justify-center">
-            <motion.p 
-              key={Math.random()} 
-              initial={{ opacity: 0, y: 10 }}
+          <p className="text-amber-500/95 font-display text-xs tracking-[0.25em] uppercase mb-2">Mythical Hero</p>
+          <h2 className="text-xl font-display font-semibold text-stone-100 mb-3">The forge is working…</h2>
+          <div className="h-10 mb-4 flex items-center justify-center">
+            <motion.p
+              key={Math.floor(Date.now() / 3000)}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.5 }}
-              className="text-gray-300"
+              transition={{ duration: 0.4 }}
+              className="text-stone-400 text-sm"
             >
               {[
-                "Harmonizing celestial energies...",
-                "Consulting with cosmic entities...",
-                "Decoding astrological patterns...",
-                "Channeling zodiac influences...",
-                "Weaving your cosmic destiny...",
-                "Calculating stellar alignments..."
-              ][Math.floor(Date.now() / 3000) % 6]}
+                'Gathering celestial threads…',
+                'Shaping your legend’s silhouette…',
+                'Inscribing the first verses…',
+                'Tempering art and lore…',
+                'Almost ready to unveil…',
+              ][Math.floor(Date.now() / 3000) % 5]}
             </motion.p>
           </div>
-          
-          {/* Progress bar */}
-          <div className="w-full bg-mystic-800 rounded-full h-2 mb-4">
-            <div className="bg-gradient-to-r from-cosmic-700 via-cosmic-500 to-cosmic-400 h-2 rounded-full animate-pulse"></div>
+          <div className="w-full bg-stone-800 rounded-full h-1.5 mb-4 overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-800 via-amber-500 to-amber-200 h-full rounded-full animate-pulse w-3/5" />
           </div>
-          
-          <p className="text-gray-400 text-sm">
-            Your unique cosmic hero is being crafted from the stars.
-            <br />This usually takes around 30 seconds.
+          <p className="text-stone-500 text-xs leading-relaxed">
+            Portrait and story are being forged. Usually under a minute.
           </p>
         </div>
       </motion.div>
@@ -443,15 +419,19 @@ const HeroPage: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
+        className="text-stone-200 container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
       >
-        <div className="text-center">
-          <div className="bg-red-900/30 p-6 rounded-xl border border-red-800 mb-4">
-            <h2 className="text-2xl font-semibold text-red-200 mb-2">Error Loading Hero</h2>
-            <p className="text-red-300">{error}</p>
+        <div className="text-center max-w-lg">
+          <div className="border border-red-900/50 bg-red-950/40 backdrop-blur-sm p-8 rounded-sm mb-6 shadow-xl shadow-black/30">
+            <h2 className="font-display text-2xl text-stone-100 mb-2">Could not load this hero</h2>
+            <p className="text-red-200/90 text-sm">{error}</p>
           </div>
-          <Button onClick={() => window.location.reload()}>
-            Try Again
+          <Button
+            className="border border-stone-600"
+            variant="outline"
+            onClick={() => window.location.reload()}
+          >
+            Try again
           </Button>
         </div>
       </motion.div>
@@ -465,11 +445,12 @@ const HeroPage: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
+        className="text-stone-200 container mx-auto px-4 pt-32 pb-20 flex items-center justify-center"
       >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cosmic-500 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-semibold">Loading hero data...</h2>
+          <div className="animate-spin rounded-full h-14 w-14 border-2 border-amber-500/60 border-t-transparent mx-auto mb-5" />
+          <p className="font-display text-amber-500/90 text-xs tracking-[0.2em] uppercase mb-2">Mythical Hero</p>
+          <h2 className="font-display text-xl text-stone-100">Gathering hero data…</h2>
         </div>
       </motion.div>
     );
@@ -480,178 +461,191 @@ const HeroPage: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="container mx-auto px-4 pt-32 pb-20"
+      className="text-stone-200"
     >
       {/* Add dynamic meta tags for hero page */}
       {!isLoading && !error && heroName && (
         <MetaTags
-          title={`${heroName} | Cosmic Heroes`}
+          title={`${heroName} | Mythical Hero`}
           description={`Discover the cosmic journey of ${heroName}, a mythical hero with ${zodiacInfo?.western.sign} and ${zodiacInfo?.chinese.sign} zodiac influences.`}
           image={images && images.length > 0 ? images[0].url : '/logo.jpg'}
           type="profile"
           robots="noindex,nofollow"
         />
       )}
-      
-      <div className="max-w-6xl mx-auto">
-        {/* Hero Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-display font-bold mb-2">
-              {heroName}
-            </h1>
-            <p className="text-gray-300 flex flex-wrap items-center gap-2">
-              <span className="bg-mystic-700 px-2 py-1 rounded text-xs">
-                {zodiacInfo?.western.sign} ({zodiacInfo?.western.element})
-              </span>
-              <span className="bg-mystic-700 px-2 py-1 rounded text-xs">
-                {zodiacInfo?.chinese.sign} ({zodiacInfo?.chinese.element})
-              </span>
-            </p>
-          </div>
-          
-          <div className="mt-4 md:mt-0 flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              icon={<Share2 size={16} />}
-              onClick={handleShareClick}
-            >
-              {!isPaid && "Unlock to "} Share
-            </Button>
-            
-            {isPreview ? (
-              <Link to={`/checkout/${id}`}>
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  icon={<ShoppingCart size={16} />}
-                >
-                  {paywallVariant === 'explicit_price' ? 'Unlock premium ($3.99)' : 'Unlock premium'}
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  icon={<Download size={16} />}
-                  onClick={handleDownloadClick}
-                >
-                  {!isPaid && "Unlock to "} Download Assets
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  icon={<Users size={16} />}
-                  onClick={handleJoinClick}
-                >
-                  {!isPaid && "Unlock to "} Join Shared Story
-                </Button>
-              </>
-            )}
+
+      <div className="relative border-b border-stone-800/80 bg-gradient-to-b from-stone-950 via-mystic-950/90 to-mystic-900/40">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-20%,rgba(180,83,9,0.12),transparent)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_50%,rgba(88,28,135,0.2),transparent_50%)] pointer-events-none" />
+        <div className="container mx-auto px-4 pt-28 pb-10 max-w-6xl relative z-10">
+          <p className="text-amber-500/95 font-display text-xs md:text-sm tracking-[0.2em] uppercase mb-3">
+            Mythical Hero · Your legend
+          </p>
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
+            <div>
+              <h1 className="font-display font-bold text-3xl md:text-4xl lg:text-5xl text-stone-100 leading-tight mb-4">
+                {heroName}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="border border-stone-600/80 bg-stone-950/60 px-3 py-1.5 rounded-sm text-xs uppercase tracking-wide text-stone-300">
+                  {zodiacInfo?.western.sign}
+                  <span className="text-amber-600/90"> · </span>
+                  {zodiacInfo?.western.element}
+                </span>
+                <span className="border border-stone-600/80 bg-stone-950/60 px-3 py-1.5 rounded-sm text-xs uppercase tracking-wide text-stone-300">
+                  {zodiacInfo?.chinese.sign}
+                  <span className="text-amber-600/90"> · </span>
+                  {zodiacInfo?.chinese.element}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-stone-600 text-stone-200 hover:bg-stone-900/80"
+                icon={<Share2 size={16} />}
+                onClick={handleShareClick}
+              >
+                {!isPaid && 'Unlock to '}Share
+              </Button>
+
+              {isPreview ? (
+                <Link to={`/checkout/${id}`}>
+                  <Button
+                    size="sm"
+                    className="border border-amber-800/40 shadow-lg shadow-amber-950/20"
+                    variant="secondary"
+                    icon={<ShoppingCart size={16} />}
+                  >
+                    {paywallVariant === 'explicit_price' ? 'Unlock premium ($3.99)' : 'Unlock premium'}
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    className="border border-amber-800/40"
+                    variant="secondary"
+                    icon={<Download size={16} />}
+                    onClick={handleDownloadClick}
+                  >
+                    {!isPaid && 'Unlock to '}Download
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-stone-600 text-stone-200 hover:bg-stone-900/80"
+                    icon={<Users size={16} />}
+                    onClick={handleJoinClick}
+                  >
+                    {!isPaid && 'Unlock to '}Shared story
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
-        
+      </div>
+
+      <div className="container mx-auto px-4 py-12 pb-24 max-w-6xl">
+
         {/* Main content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           {/* Left: Hero Images */}
-          <div className="lg:col-span-2">
-            <div className="relative rounded-xl overflow-hidden bg-mystic-900/60 mb-4">
-              {/* Main Image */}
-              <div className="aspect-square md:aspect-[4/3] relative">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="relative overflow-hidden rounded-sm border border-stone-700/80 bg-stone-950/50 shadow-2xl shadow-black/40">
+              <div className="aspect-square md:aspect-[4/3] relative bg-stone-950">
                 {displayImages.length > 0 ? (
-                  <img 
-                    src={displayImages[activeImage]?.url} 
+                  <img
+                    src={displayImages[activeImage]?.url}
                     alt={`${heroName} illustration`}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-mystic-900">
-                    <p className="text-gray-400">Image is being generated...</p>
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-8 border border-dashed border-stone-700 m-4 rounded-sm">
+                    <p className="font-display text-stone-400 text-sm">Portrait in the forge…</p>
+                    <p className="text-stone-600 text-xs">Check back shortly.</p>
                   </div>
                 )}
-                
-                {/* Watermark for Preview or Unpaid */}
+
                 {(isPreview || !isPaid) && displayImages.length > 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-mystic-900/70 text-white px-4 py-2 rounded-full transform -rotate-45 text-xl font-semibold">
-                      {isPreview ? 'PREVIEW' : 'UNLOCK FULL QUALITY'}
-                    </div>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="bg-stone-950/85 text-amber-100/95 px-5 py-2 border border-amber-800/40 -rotate-[18deg] text-sm font-display font-semibold tracking-wide uppercase shadow-lg">
+                      {isPreview ? 'Preview' : 'Unlock full fidelity'}
+                    </span>
                   </div>
                 )}
               </div>
-              
-              {/* Image number indicator */}
+
               {displayImages.length > 0 && (
-                <div className="absolute top-4 right-4 bg-mystic-900/80 px-3 py-1 rounded-full text-xs">
+                <div className="absolute top-3 right-3 border border-stone-600 bg-stone-950/90 px-2.5 py-1 rounded-sm text-[11px] uppercase tracking-wider text-stone-400">
                   {activeImage + 1} / {displayImages.length}
                 </div>
               )}
             </div>
-            
-            {/* Thumbnails */}
+
             {displayImages.length > 0 && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 {displayImages.map((image, index) => (
                   <button
                     key={index}
-                    onClick={() => isPaid ? setActiveImage(index) : setActiveImage(0)}
+                    type="button"
+                    onClick={() => (isPaid ? setActiveImage(index) : setActiveImage(0))}
                     className={`
-                      aspect-square rounded-lg overflow-hidden border-2 transition-all relative
-                      ${activeImage === index 
-                        ? 'border-cosmic-500 shadow-cosmic' 
-                        : 'border-mystic-700 opacity-70 hover:opacity-100'}
+                      aspect-square rounded-sm overflow-hidden border transition-all relative
+                      ${activeImage === index
+                        ? 'border-amber-500/90 ring-1 ring-amber-500/30 shadow-lg shadow-black/50'
+                        : 'border-stone-700 hover:border-stone-500 opacity-85 hover:opacity-100'}
                     `}
                   >
-                    <img 
-                      src={image.url} 
+                    <img
+                      src={image.url}
                       alt={`Thumbnail ${index + 1}`}
-                      className={`w-full h-full object-cover ${index > 0 && !isPaid ? 'blur-sm' : ''}`}
+                      className={`w-full h-full object-cover ${index > 0 && !isPaid ? 'blur-sm scale-105' : ''}`}
                     />
-                    
-                    {/* Lock icon for thumbnails after the first one if not paid */}
                     {index > 0 && !isPaid && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-mystic-900/50">
-                        <Lock size={20} className="text-cosmic-500" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-stone-950/55">
+                        <Lock size={20} className="text-amber-500/85" />
                       </div>
                     )}
                   </button>
                 ))}
               </div>
             )}
-            
-            {/* CTA for unpaid users */}
+
             {!isPaid && (
               <div
                 ref={paywallImpressionRef}
-                className="mt-6 bg-mystic-800/80 border border-cosmic-600/30 p-4 rounded-lg"
+                className="border border-amber-900/45 bg-gradient-to-br from-amber-950/25 to-stone-950 p-5 rounded-sm"
               >
-                <div className="flex items-center gap-4">
-                  <div className="bg-cosmic-600/20 p-3 rounded-full">
-                    <CreditCard className="h-6 w-6 text-cosmic-400" />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm border border-amber-800/40 bg-stone-950/80">
+                    <CreditCard className="h-5 w-5 text-amber-500/90" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg mb-1">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-display font-semibold text-stone-100 mb-1">
                       {paywallVariant === 'explicit_price'
                         ? 'Unlock full-quality art ($3.99)'
                         : 'Unlock full-quality images'}
                     </h3>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-stone-400 text-sm leading-relaxed">
                       {paywallVariant === 'explicit_price'
                         ? 'One-time upgrade for this hero: all angles, full resolution, full story, download & shared story access.'
                         : 'Get high-resolution images and access to all views'}
                     </p>
                   </div>
-                  <div className="ml-auto">
+                  <div className="shrink-0">
                     <Link
                       to={`/checkout/${id}`}
                       onClick={() =>
-                        track('checkout_open', { from: 'paywall_strip', heroId: String(id).replace('preview-', '') })
+                        track('checkout_open', {
+                          from: 'paywall_strip',
+                          heroId: String(id).replace('preview-', ''),
+                        })
                       }
                     >
-                      <Button size="sm">
+                      <Button size="sm" className="border border-amber-900/40">
                         {paywallVariant === 'explicit_price' ? 'Unlock — $3.99' : 'Unlock now'}
                       </Button>
                     </Link>
@@ -660,72 +654,85 @@ const HeroPage: React.FC = () => {
               </div>
             )}
             
-            {/* Hero Chapters (only shown on desktop view) */}
-            <div className="hidden lg:block pt-6">
+            <div className="hidden lg:block pt-2">
               {!isPreview && heroId && (
-                <HeroChapters 
-                  heroId={heroId} 
-                  onUnlockBundle={handleChaptersUnlocked} 
-                />
+                <div className="rounded-sm border border-stone-700/85 bg-stone-950/35 p-5 shadow-lg shadow-black/30">
+                  <HeroChapters heroId={heroId} onUnlockBundle={handleChaptersUnlocked} />
+                </div>
               )}
             </div>
           </div>
           
           {/* Right: Hero Info */}
-          <div className="lg:col-span-1">
-            <div className="bg-mystic-800 rounded-xl p-6 mb-6 shadow-mystic">
-              <h2 className="text-xl font-display font-semibold mb-4">Hero Traits</h2>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <div className="lg:col-span-1 space-y-6">
+            <div className="border border-stone-700/90 bg-stone-950/60 backdrop-blur-sm rounded-sm p-6 shadow-xl shadow-black/35">
+              <h2 className="font-display text-lg text-stone-100 mb-1">Hero traits</h2>
+              <p className="text-stone-500 text-xs uppercase tracking-wider mb-5">Forged from your signs</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                 {heroTraits.map((trait, index) => (
-                  <li key={index} className="flex items-center gap-2 list-none">
-                    <BadgeCheck size={18} className="text-cosmic-500 flex-shrink-0" />
-                    <span className="capitalize">{trait}</span>
-                  </li>
+                  <div key={index} className="flex items-start gap-2">
+                    <BadgeCheck size={18} className="text-amber-500/85 shrink-0 mt-0.5" />
+                    <span className="capitalize text-stone-300 text-sm leading-snug">{trait}</span>
+                  </div>
                 ))}
               </div>
-              
-              {/* Western Zodiac Strengths & Weaknesses */}
+
               {zodiacInfo?.western?.strengths && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Strengths:</h3>
+                <div className="mt-8">
+                  <h3 className="text-[11px] font-medium text-stone-500 uppercase tracking-wider mb-2">
+                    Strengths
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {zodiacInfo.western.strengths.map((strength, idx) => (
-                      <span key={idx} className="bg-cosmic-500/20 text-cosmic-200 px-2 py-1 rounded-full text-xs capitalize">
+                      <span
+                        key={idx}
+                        className="border border-amber-900/35 bg-amber-950/30 text-amber-100/90 px-2.5 py-1 rounded-sm text-xs capitalize"
+                      >
                         {strength}
                       </span>
                     ))}
                   </div>
                 </div>
               )}
-              
+
               {zodiacInfo?.western?.weaknesses && (
                 <div className="mt-4">
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Weaknesses:</h3>
+                  <h3 className="text-[11px] font-medium text-stone-500 uppercase tracking-wider mb-2">
+                    Weaknesses
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                     {zodiacInfo.western.weaknesses.map((weakness, idx) => (
-                      <span key={idx} className="bg-mystic-700 text-mystic-200 px-2 py-1 rounded-full text-xs capitalize">
+                      <span
+                        key={idx}
+                        className="border border-stone-600 bg-stone-900/80 text-stone-300 px-2.5 py-1 rounded-sm text-xs capitalize"
+                      >
                         {weakness}
                       </span>
                     ))}
                   </div>
                 </div>
               )}
-              
-              {/* Chinese Zodiac Compatibility */}
+
               {zodiacInfo?.chinese?.compatibility && (
                 <div className="mt-6">
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Compatible With:</h3>
-                  <p className="text-cosmic-300">{zodiacInfo.chinese.compatibility.join(", ")}</p>
+                  <h3 className="text-[11px] font-medium text-stone-500 uppercase tracking-wider mb-2">
+                    Compatible with
+                  </h3>
+                  <p className="text-stone-300 text-sm">{zodiacInfo.chinese.compatibility.join(', ')}</p>
                 </div>
               )}
-              
-              {/* Purchase CTA if not paid */}
+
               {!isPaid && (
-                <div className="mt-6 pt-6 border-t border-mystic-700">
-                  <div className="flex items-center justify-between">
-                    <span className="text-cosmic-300 font-medium">Premium Access</span>
+                <div className="mt-8 pt-6 border-t border-stone-700/90">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-amber-200/90 font-medium text-sm font-display">
+                      Legend access
+                    </span>
                     <Link to={`/checkout/${id}`}>
-                      <Button icon={<ShoppingCart className="h-4 w-4" />}>
+                      <Button
+                        icon={<ShoppingCart className="h-4 w-4" />}
+                        className="border border-amber-900/40"
+                      >
                         Unlock
                       </Button>
                     </Link>
@@ -733,12 +740,12 @@ const HeroPage: React.FC = () => {
                 </div>
               )}
             </div>
-            
-            <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
-              <h2 className="text-xl font-display font-semibold mb-4">Backstory</h2>
+
+            <div className="border border-stone-700/90 bg-stone-950/60 backdrop-blur-sm rounded-sm p-6 shadow-xl shadow-black/35">
+              <h2 className="font-display text-lg text-stone-100 mb-4">Backstory</h2>
 
               {showRegenerateHeroContent && (
-                <div className="mb-4 p-3 rounded-lg bg-amber-900/25 border border-amber-700/40">
+                <div className="mb-4 p-4 rounded-sm bg-amber-950/35 border border-amber-900/35">
                   <p className="text-amber-100/90 text-sm mb-3">
                     {status === 'error'
                       ? 'Generation failed or was interrupted.'
@@ -751,6 +758,7 @@ const HeroPage: React.FC = () => {
                     type="button"
                     variant="secondary"
                     size="sm"
+                    className="border border-amber-900/30"
                     icon={<RefreshCw size={16} />}
                     isLoading={regeneratingHero}
                     disabled={regeneratingHero}
@@ -761,33 +769,34 @@ const HeroPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="prose prose-invert prose-sm max-w-none">
+              <div className="prose prose-invert prose-sm max-w-none prose-headings:text-stone-100 prose-p:text-stone-400 prose-li:text-stone-400 prose-strong:text-stone-200">
                 {!safeBackstory && status !== 'error' && !showRegenerateHeroContent ? (
-                  <p className="text-cosmic-400">Backstory is being generated...</p>
+                  <p className="text-amber-200/75 text-sm">Backstory is being woven…</p>
                 ) : !safeBackstory && showRegenerateHeroContent ? (
-                  <p className="text-cosmic-400 text-sm">Use the button above to generate your backstory.</p>
+                  <p className="text-stone-500 text-sm">Use the button above to generate your backstory.</p>
                 ) : !isPaid && safeBackstory.length > 300 ? (
                   <>
-                    <div 
+                    <div
                       className="literary-content backstory-content"
                       dangerouslySetInnerHTML={{ __html: formatLiteraryBackstory(backstoryPreview) }}
                     />
-                    <div className="relative pt-10 mt-4">
-                      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-mystic-800 flex items-end justify-center pb-4">
+                    <div className="relative pt-12 mt-2">
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-stone-950/40 to-stone-950 flex items-end justify-center pb-3">
                         <Link to={`/checkout/${id}`}>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
+                            className="border-stone-500 text-stone-100"
                             icon={<Lock size={16} />}
                           >
-                            Unlock Full Backstory
+                            Unlock full backstory
                           </Button>
                         </Link>
                       </div>
                     </div>
                   </>
                 ) : (
-                  <div 
+                  <div
                     className="literary-content backstory-content"
                     dangerouslySetInnerHTML={{ __html: formatLiteraryBackstory(safeBackstory) }}
                   />
@@ -798,12 +807,11 @@ const HeroPage: React.FC = () => {
         </div>
         
         {/* Hero Chapters (mobile/tablet view) */}
-        <div className="lg:hidden mt-8">
+        <div className="lg:hidden mt-10">
           {!isPreview && heroId && (
-            <HeroChapters 
-              heroId={heroId} 
-              onUnlockBundle={handleChaptersUnlocked} 
-            />
+            <div className="rounded-sm border border-stone-700/85 bg-stone-950/35 p-5 shadow-lg shadow-black/30">
+              <HeroChapters heroId={heroId} onUnlockBundle={handleChaptersUnlocked} />
+            </div>
           )}
         </div>
 

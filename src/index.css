@@ -4,6 +4,7 @@
 
 /* Import literary styles */
 @import './styles/literaryStyles.css';
+@import './styles/ornateChapters.css';
 
 /* Markdown Content Styling */
 .markdown-content {
