@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Book, Lock, Clock, CreditCard } from 'lucide-react';
 import Button from '../ui/Button';
-import { useHeroStore, useStoryStore } from '../../store/heroStore';
+import { useHeroStore } from '../../store/heroStore';
 import { formatLiteraryChapter } from '../../utils/literaryFormatter';
 import api from '../../utils/api';
-import { getChapterFrameVariant } from '../../utils/growthExperiments';
 
 const CHAPTER_BUNDLE_PRICE_LABEL = '$1.99';
 
@@ -16,7 +15,6 @@ interface HeroChaptersProps {
 }
 
 const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) => {
-  const chapterFrame = getChapterFrameVariant();
   const { 
     storyBook, 
     chapters, 
@@ -25,13 +23,6 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
     setChapters,
     setStoryBook 
   } = useHeroStore();
-
-  const {
-    chapters_unlocked_count,
-    setChaptersUnlockedCount,
-    is_premium,
-    setIsPremium,
-  } = useStoryStore()
 
   const navigate = useNavigate();
   const [activeChapter, setActiveChapter] = useState<number>(1);
@@ -106,17 +97,17 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
   
   if (isLoadingChapters || chapters.length === 0) {
     return (
-      <div className="bg-mystic-800 rounded-xl p-6 shadow-mystic">
-        <h2 className="text-xl font-display font-semibold mb-6 flex items-center">
-          <Book className="mr-2 text-cosmic-500" size={20} />
+      <div className="rounded-sm border border-stone-700/85 bg-stone-950/50 p-6">
+        <h2 className="text-xl font-display font-semibold mb-6 flex items-center text-stone-200">
+          <Book className="mr-2 text-amber-500/85" size={20} />
           Chapters
           <span className="ml-2 text-sm">
-            <div className="h-4 w-16 bg-mystic-700 rounded animate-pulse"></div>
+            <div className="h-4 w-16 bg-stone-700 rounded-sm animate-pulse" />
           </span>
         </h2>
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-mystic-700 rounded-md"></div>
-          <div className="h-40 bg-mystic-700 rounded-md"></div>
+          <div className="h-8 bg-stone-800 rounded-sm" />
+          <div className="h-40 bg-stone-800/90 rounded-sm" />
         </div>
       </div>
     );
@@ -125,20 +116,19 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
   return (
     <div className="mt-6">
       {/* Epic Legendary Book Header */}
-      <div className="text-center mb-6 pb-5 border-b border-mystic-600/40">
-        <p className="font-display text-[0.65rem] sm:text-xs uppercase tracking-[0.35em] text-cosmic-400/90 mb-2">
-          Mythic Tome
+      <div className="text-center mb-6 pb-5 border-b border-stone-700/60">
+        <p className="font-display text-[0.65rem] sm:text-xs uppercase tracking-[0.35em] text-amber-500/90 mb-2">
+          Illuminated tome
         </p>
-        <h3 className="font-display text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 drop-shadow-[0_1px_12px_rgba(250,204,21,0.15)]">
-          Epic Legendary Book
+        <h3 className="font-display text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-stone-100">
+          Epic legendary book
         </h3>
-        <p className="mt-2 text-sm text-gray-400 font-sans max-w-md mx-auto">
-          Your hero&apos;s serialized saga — one chapter at a time.
+        <p className="mt-2 text-sm text-stone-500 max-w-md mx-auto leading-relaxed">
+          Chapters rendered as illuminated manuscript spreads — parchment, initials, rubricated lines.
         </p>
       </div>
 
-      {/* Chapter tabs */}
-      <div className="flex flex-wrap gap-2 mb-6 border-b border-mystic-700 pb-4">
+      <div className="flex flex-wrap gap-2 mb-6 border-b border-stone-700/70 pb-4">
         {[...Array(storyBook?.chapters_total_count || 1)].map((_, idx) => {
           const chapterNum = idx + 1;
           const isUnlocked = chapterNum <= (storyBook?.chapters_unlocked_count || 1);
@@ -149,12 +139,12 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
               type="button"
               onClick={() => isUnlocked && setActiveChapter(chapterNum)}
               className={`
-                relative rounded-md px-3 py-1.5 text-sm transition-all font-medium
+                relative rounded-sm px-3 py-1.5 text-sm transition-all font-medium
                 ${activeChapter === chapterNum 
-                  ? 'bg-cosmic-500 text-mystic-900 shadow-[0_0_0_1px_rgba(58,16,120,0.25)] ring-2 ring-cosmic-400/80' 
+                  ? 'bg-amber-500/95 text-stone-950 shadow-md shadow-black/40 ring-2 ring-amber-400/50' 
                   : isUnlocked 
-                    ? 'bg-mystic-700 text-gray-100 hover:bg-mystic-600 hover:text-white border border-mystic-600' 
-                    : 'bg-mystic-900/60 text-gray-500 cursor-not-allowed border border-mystic-700'}
+                    ? 'bg-stone-800 text-stone-200 hover:bg-stone-700 border border-stone-600' 
+                    : 'bg-stone-950/70 text-stone-600 cursor-not-allowed border border-stone-800'}
               `}
               disabled={!isUnlocked}
             >
@@ -200,34 +190,35 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
                 }}
               />
               
-              {/* Scene break at end */}
-              <div className="scene-break-ornate"></div>
+              <div className="scene-break-ornate" aria-hidden>
+                <span className="scene-break-mark">☙ ❧ ☙</span>
+              </div>
             </motion.div>
           </div>
         </div>
       ) : (
-        <div className="text-center py-8 text-mystic-300">
+        <div className="text-center py-10 text-stone-500 rounded-sm border border-stone-800 bg-stone-950/40">
           <p>No chapter content available</p>
         </div>
       )}
       
       {/* CTA for premium users */}
       {isPremium && storyBook && storyBook.chapters_unlocked_count < storyBook.chapters_total_count && (
-        <div className="mt-6 bg-mystic-900/60 border border-cosmic-600/30 p-4 rounded-lg">
+        <div className="mt-6 rounded-sm border border-stone-700/85 bg-stone-950/50 p-4">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
             {isPaid && (
               <div className="flex items-center gap-4 flex-1">
-                <div className="bg-cosmic-600/20 p-3 rounded-full">
-                  <Clock className="h-6 w-6 text-cosmic-400" />
+                <div className="p-3 rounded-full border border-amber-900/40 bg-amber-950/30">
+                  <Clock className="h-6 w-6 text-amber-500/85" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-1">Next Chapter Unlocks Soon</h3>
+                  <h3 className="font-display font-semibold text-stone-100 mb-1">Next chapter unlocks soon</h3>
                   {timeUntilNextUnlock ? (
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-stone-500 text-sm">
                       Next chapter unlocks in {timeUntilNextUnlock.hours}h {timeUntilNextUnlock.minutes}m.
                     </p>
                   ) : (
-                    <p className="text-gray-400 text-sm">New chapters unlock daily for premium users</p>
+                    <p className="text-stone-500 text-sm">New chapters unlock daily for premium users</p>
                   )}
                 </div>
                 <div className="ml-auto">
@@ -243,12 +234,12 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
             
             {!isPaid && (
               <div className="flex items-center gap-4 flex-1">
-                <div className="bg-cosmic-600/20 p-3 rounded-full">
-                  <CreditCard className="h-6 w-6 text-cosmic-400" />
+                <div className="p-3 rounded-full border border-amber-900/40 bg-amber-950/30">
+                  <CreditCard className="h-6 w-6 text-amber-500/85" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-1">Unlock Full Story</h3>
-                  <p className="text-gray-400 text-sm">
+                  <h3 className="font-display font-semibold text-stone-100 mb-1">Unlock full story</h3>
+                  <p className="text-stone-500 text-sm">
                     Unlock all chapters to continue the saga.
                   </p>
                 </div>

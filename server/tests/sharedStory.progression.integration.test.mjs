@@ -8,7 +8,12 @@ import { __testControls } from './openai-stub.mjs';
 import { makeHero, makeUser } from './factories.mjs';
 import { heroDb, userDb, sharedStoryRoomDb, storyBookDb } from '../db.js';
 import { createStoryBook } from '../storybook.js';
-import { createSharedStoryRoom, getSharedStoryRoom } from '../sharedStory.js';
+import {
+  createSharedStoryRoom,
+  getSharedStoryRoom,
+  generateSharedStoryPrompt,
+  summarizeStoryArcForRoom,
+} from '../sharedStory.js';
 import { applyProgressEvent } from '../progression.js';
 
 beforeEach(async () => {
@@ -37,6 +42,38 @@ test('createSharedStoryRoom persists room in MongoDB', async () => {
 
   const loaded = await getSharedStoryRoom(roomId);
   assert.ok(loaded?.messages?.length >= 2);
+});
+
+test('createSharedStoryRoom with storyArcId sets storyArcState and shapes prompts', async () => {
+  const user = makeUser();
+  await userDb.createUser(user);
+  const hero = makeHero({
+    userid: user.id,
+    paymentStatus: 'paid',
+    birthdate: new Date('1990-04-15'),
+    westernZodiac: { sign: 'Aries', element: 'Fire', traits: [] },
+    chineseZodiac: { sign: 'Horse', element: 'Metal', traits: [] },
+  });
+  await heroDb.createHero(hero);
+
+  const roomId = await createSharedStoryRoom(hero, {
+    mode: 'shared_story',
+    storyArcId: 'starfall_conspiracy',
+  });
+  const raw = await sharedStoryRoomDb.findById(roomId);
+  assert.equal(raw.mode, 'shared_story');
+  assert.ok(raw.storyArcState?.templateId, 'storyArcState.templateId');
+  assert.equal(raw.storyArcState.templateId, 'starfall_conspiracy');
+  assert.equal(raw.storyArcState.stepIndex, 0);
+
+  const loaded = await getSharedStoryRoom(roomId);
+  const summary = summarizeStoryArcForRoom(loaded);
+  assert.ok(summary);
+  assert.equal(summary.templateId, 'starfall_conspiracy');
+
+  const prompt = await generateSharedStoryPrompt(loaded);
+  assert.ok(prompt.includes('STRUCTURED STORY ARC'));
+  assert.ok(prompt.includes('Starfall'));
 });
 
 test('applyProgressEvent links level-up to storybook chapter unlock', async () => {

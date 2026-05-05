@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, Share2, ShoppingCart, BadgeCheck, CreditCard, Lock, Users, RefreshCw } from 'lucide-react';
+import {
+  Download,
+  Share2,
+  ShoppingCart,
+  BadgeCheck,
+  CreditCard,
+  Lock,
+  Users,
+  RefreshCw,
+  Bot,
+} from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useHeroStore } from '../store/heroStore';
 import HeroChapters from '../components/hero/HeroChapters';
@@ -544,6 +554,24 @@ const HeroPage: React.FC = () => {
                 </>
               )}
             </div>
+            {isPaid && !isPreview ? (
+              <div className="mt-5 flex gap-3 rounded-sm border border-amber-900/35 bg-gradient-to-r from-stone-950/90 to-amber-950/25 px-4 py-3 shadow-inner shadow-black/20">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border border-amber-800/35 bg-stone-950/90">
+                  <Bot className="h-5 w-5 text-amber-400/95" aria-hidden />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-display text-sm font-semibold text-amber-100/95 tracking-wide">
+                    Agent Drive — drive this hero from your own AI agent
+                  </p>
+                  <p className="text-stone-400 text-xs sm:text-sm leading-relaxed mt-1">
+                    In Shared Story, open or host a session: enable Agent Drive, mint a token, and plug it into
+                    Cursor or any MCP-compatible client. Your automation proposes moves;{' '}
+                    <strong className="text-stone-300 font-medium">you approve each post</strong> in the room
+                    before it goes live.
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -631,7 +659,7 @@ const HeroPage: React.FC = () => {
                     </h3>
                     <p className="text-stone-400 text-sm leading-relaxed">
                       {paywallVariant === 'explicit_price'
-                        ? 'One-time upgrade for this hero: all angles, full resolution, full story, download & shared story access.'
+                        ? 'One-time upgrade for this hero: all angles, full resolution, full story, download, shared story access & Agent Drive (drive your hero from your own agent with in-app approval).'
                         : 'Get high-resolution images and access to all views'}
                     </p>
                   </div>

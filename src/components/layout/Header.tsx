@@ -81,7 +81,12 @@ const Header: React.FC = () => {
                 to="/shared-story" 
                 isActive={location.pathname.startsWith('/shared-story')}
               >
-                Shared Story
+                <span className="flex flex-col items-start leading-tight gap-0">
+                  <span>Shared Story</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-cosmic-400/95">
+                    Agent Drive
+                  </span>
+                </span>
               </NavLink>
             </>
           )}
@@ -168,7 +173,12 @@ const Header: React.FC = () => {
                   isActive={location.pathname.startsWith('/shared-story')}
                   isMobile={true}
                 >
-                  Shared Story
+                  <span className="flex flex-col items-start leading-tight gap-0.5">
+                    <span>Shared Story</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-cosmic-400">
+                      Agent Drive
+                    </span>
+                  </span>
                 </NavLink>
                 <NavLink
                   to="/profile"

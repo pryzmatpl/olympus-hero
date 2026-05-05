@@ -10,8 +10,78 @@ import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
 import { formatLiterarySharedStory } from '../utils/literaryFormatter';
-import { Plus, Send, Share2, User, Users, ArrowLeft, Copy, Sparkles, Sun, Moon, Star, Loader2 } from 'lucide-react';
+import {
+  Plus,
+  Send,
+  Share2,
+  User,
+  Users,
+  ArrowLeft,
+  Copy,
+  Sparkles,
+  Sun,
+  Moon,
+  Star,
+  Loader2,
+  Bot,
+  Shield,
+} from 'lucide-react';
 import { getSocketUrl } from '../utils/api';
+
+const agentDriveSpotlightClass =
+  'rounded-xl border-2 border-cosmic-400/50 bg-gradient-to-br from-cosmic-950/95 via-mystic-950/90 to-cosmic-950/80 p-6 md:p-7 shadow-2xl shadow-cosmic-950/50 ring-1 ring-cosmic-400/25';
+
+function AgentDriveLobbyCallout() {
+  return (
+    <section
+      className={agentDriveSpotlightClass + ' mb-8'}
+      aria-labelledby="agent-drive-lobby-heading"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cosmic-500/20 border border-cosmic-400/50">
+          <Bot className="h-8 w-8 text-cosmic-200" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cosmic-300">
+              Your hero, your agent
+            </p>
+            <h2
+              id="agent-drive-lobby-heading"
+              className="font-display text-2xl md:text-3xl font-bold text-white mt-1.5 tracking-tight"
+            >
+              Agent Drive
+            </h2>
+          </div>
+          <p className="text-gray-100 text-base md:text-lg leading-relaxed font-medium">
+            <strong className="text-white">Drive this hero from your own AI agent.</strong> After you open a
+            room as host, enable Agent Drive and mint a scoped token. Plug it into Cursor, an MCP client,
+            or your scripts — your automation proposes what your hero says or does next,{' '}
+            <em className="text-cosmic-200 not-italic font-semibold underline decoration-cosmic-500/60">
+              and you approve every post in this app before it goes live
+            </em>
+            .
+          </p>
+          <ul className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-400">
+            <li className="inline-flex items-center gap-2">
+              <Shield className="w-4 h-4 text-cosmic-400 shrink-0" aria-hidden />
+              Human-in-the-loop by design
+            </li>
+            <li className="inline-flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-cosmic-400 shrink-0" aria-hidden />
+              Works with MCP-compatible tooling
+            </li>
+          </ul>
+          <p className="text-sm text-gray-500 border-t border-cosmic-800/60 pt-3">
+            <span className="text-cosmic-400 font-medium">When you&apos;re in a session:</span> only the{' '}
+            <strong className="text-gray-400">room owner</strong> can turn Agent Drive on and create tokens —
+            scroll to Agent Drive controls at the top of the room once you&apos;ve launched an adventure.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 // Animation variants
 const pageVariants = {
@@ -178,6 +248,23 @@ interface Participant {
   isPremium: boolean;
 }
 
+interface StoryArcSummary {
+  templateId: string;
+  arcName: string;
+  tagline: string;
+  stepIndex: number;
+  totalSteps: number;
+  currentBeatTitle: string;
+  currentBeatKey: string;
+}
+
+interface StoryArcChoice {
+  id: string;
+  name: string;
+  tagline: string;
+  beatCount: number;
+}
+
 interface SharedRoom {
   roomId: string;
   title: string;
@@ -186,6 +273,7 @@ interface SharedRoom {
   mode?: string;
   agentDriveEnabled?: boolean;
   ownerUserId?: string;
+  storyArc?: StoryArcSummary | null;
 }
 
 // Interface for room list items
@@ -263,6 +351,10 @@ const SharedStoryPage: React.FC = () => {
   }>({});
   const [fetchingZodiac, setFetchingZodiac] = useState<boolean>(false);
   const [createMode, setCreateMode] = useState<'shared_story' | 'skirmish' | 'scripted_story'>('shared_story');
+  const [storyArcChoices, setStoryArcChoices] = useState<StoryArcChoice[]>([]);
+  /** Empty string = freeform shared story (no fixed arc). Non-empty = template id. */
+  const [chosenStoryArcId, setChosenStoryArcId] = useState<string>('generic_arc');
+  const heroIdRef = useRef<string | null>(heroId);
   const [pendingProposal, setPendingProposal] = useState<{
     roomId: string;
     proposal: { id: string; heroId: string; actionText: string; createdAt?: string };
@@ -272,6 +364,10 @@ const SharedStoryPage: React.FC = () => {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    heroIdRef.current = heroId;
+  }, [heroId]);
   
   // Set premium status when hero is loaded - improved version to handle payment updates
   useEffect(() => {
@@ -394,6 +490,8 @@ const SharedStoryPage: React.FC = () => {
                 data.agentDriveEnabled !== undefined
                   ? data.agentDriveEnabled
                   : prev.agentDriveEnabled,
+              storyArc:
+                data.storyArc !== undefined ? data.storyArc : prev.storyArc,
             }
           : prev
       );
@@ -437,6 +535,31 @@ const SharedStoryPage: React.FC = () => {
     socketIo.on('narrator_typing', () => {
       setIsNarratorTyping(true);
     });
+
+    socketIo.on(
+      'story_arc_updated',
+      (summary: StoryArcSummary | null) => {
+        setRoom((prev) =>
+          prev ? { ...prev, storyArc: summary ?? prev.storyArc } : prev
+        );
+      }
+    );
+
+    socketIo.on(
+      'hero_progression',
+      (p: {
+        heroId: string;
+        level: number;
+        xp: number;
+        xpToNextLevel: number;
+      }) => {
+        if (p.heroId !== heroIdRef.current) return;
+        const st = useHeroStore.getState();
+        st.setLevel(p.level);
+        st.setXp(p.xp);
+        st.setXpToNextLevel(p.xpToNextLevel);
+      }
+    );
     
     socketIo.on('error', (error) => {
       console.error('Socket error:', error);
@@ -473,6 +596,7 @@ const SharedStoryPage: React.FC = () => {
           mode: d.mode,
           agentDriveEnabled: d.agentDriveEnabled,
           ownerUserId: d.ownerUserId,
+          storyArc: d.storyArc ?? null,
         });
       } catch (error) {
         console.error('Error fetching room details:', error);
@@ -485,6 +609,19 @@ const SharedStoryPage: React.FC = () => {
     fetchRoomDetails();
   }, [roomId]);
   
+  useEffect(() => {
+    const loadArcs = async () => {
+      if (roomId) return;
+      try {
+        const r = await api.get<{ arcs: StoryArcChoice[] }>('/api/shared-story/story-arcs');
+        setStoryArcChoices(r.data.arcs || []);
+      } catch {
+        setStoryArcChoices([]);
+      }
+    };
+    void loadArcs();
+  }, [roomId]);
+
   // Fetch active rooms when no roomId is provided
   useEffect(() => {
     const fetchActiveRooms = async () => {
@@ -547,12 +684,22 @@ const SharedStoryPage: React.FC = () => {
       setError(null);
       console.log('Creating room with heroId:', heroId);
       
-      const response = await api.post('/api/shared-story/create', {
-        heroId,
-        mode: createMode,
-      });
+      const body: Record<string, unknown> = { heroId, mode: createMode };
+      if (createMode === 'scripted_story') {
+        body.storyArcId = chosenStoryArcId || 'generic_arc';
+      } else if (createMode === 'shared_story' && chosenStoryArcId) {
+        body.storyArcId = chosenStoryArcId;
+      }
+      const response = await api.post('/api/shared-story/create', body);
       console.log('Room created successfully:', response.data);
-      
+
+      try {
+        const hres = await api.get(`/api/heroes/${heroId}`);
+        loadHeroFromAPI(hres.data);
+      } catch {
+        /* optional */
+      }
+
       // Navigate to the new room
       navigate(`/shared-story/${response.data.roomId}`);
     } catch (error: unknown) {
@@ -629,6 +776,16 @@ const SharedStoryPage: React.FC = () => {
       await api.post(`/api/shared-story/${roomId}/scripted/advance`, { heroId });
       const hres = await api.get(`/api/heroes/${heroId}`);
       loadHeroFromAPI(hres.data);
+      const rr = await api.get(`/api/shared-story/${roomId}`);
+      setRoom((prev) =>
+        prev
+          ? {
+              ...prev,
+              storyArc: rr.data.storyArc ?? prev.storyArc,
+              mode: rr.data.mode ?? prev.mode,
+            }
+          : prev
+      );
     } catch (e) {
       console.error(e);
       setError('Could not advance script');
@@ -776,6 +933,8 @@ const SharedStoryPage: React.FC = () => {
           </Link>
           
           <PageTitle>Shared Story Adventures</PageTitle>
+
+          <AgentDriveLobbyCallout />
           
           <div className="mt-8 bg-mystic-900/60 rounded-xl p-6 border border-mystic-700">
             <h2 className="text-2xl font-semibold mb-4">Selected Hero</h2>
@@ -830,7 +989,11 @@ const SharedStoryPage: React.FC = () => {
             
             <div className="mt-8">
               <p className="mb-4">
-                Create a new shared story room where your hero can embark on a grand adventure with other heroes. Premium heroes can actively participate, while non-premium heroes can spectate.
+                Create a new shared story room where your hero can embark on a grand adventure with other heroes.
+                Premium heroes can actively participate, while non-premium heroes can spectate.{' '}
+                <strong className="text-cosmic-300 font-semibold">
+                  Premium hosts unlock Agent Drive: drive your hero from your own agent with full approval flow.
+                </strong>
               </p>
 
               <div className="flex flex-wrap gap-2 mb-4">
@@ -838,7 +1001,12 @@ const SharedStoryPage: React.FC = () => {
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setCreateMode(m)}
+                    onClick={() => {
+                      setCreateMode(m);
+                      if (m === 'scripted_story' && !chosenStoryArcId) {
+                        setChosenStoryArcId('generic_arc');
+                      }
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-sm border ${
                       createMode === m
                         ? 'border-cosmic-500 bg-cosmic-900/40 text-cosmic-200'
@@ -853,6 +1021,40 @@ const SharedStoryPage: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              {(createMode === 'shared_story' || createMode === 'scripted_story') &&
+                storyArcChoices.length > 0 && (
+                  <div className="mb-4">
+                    <label htmlFor="story-arc-select" className="block text-sm text-gray-400 mb-1">
+                      {createMode === 'scripted_story' ? 'Scripted spine' : 'Story spine'}{' '}
+                      <span className="text-xs text-gray-500">
+                        (predefined arcs give each narrator beat a clearer goal)
+                      </span>
+                    </label>
+                    <select
+                      id="story-arc-select"
+                      className="w-full max-w-xl bg-mystic-800 border border-mystic-700 rounded-lg px-3 py-2 text-sm text-gray-200"
+                      value={chosenStoryArcId}
+                      onChange={(e) => setChosenStoryArcId(e.target.value)}
+                    >
+                      {createMode === 'shared_story' && (
+                        <option value="">
+                          Free improvisation (no scripted beats — narrator roams freely)
+                        </option>
+                      )}
+                      {storyArcChoices.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.beatCount} beats)
+                        </option>
+                      ))}
+                    </select>
+                    {chosenStoryArcId ? (
+                      <p className="text-xs text-gray-500 mt-2 max-w-xl">
+                        {storyArcChoices.find((c) => c.id === chosenStoryArcId)?.tagline}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
               
               <Button 
                 onClick={handleCreateRoom}
@@ -946,14 +1148,14 @@ const SharedStoryPage: React.FC = () => {
       {room ? (
         <MetaTags
           title={`${room.title} | Cosmic Heroes Shared Story`}
-          description={`Join a cosmic adventure with heroes from across the zodiac. Experience an epic shared story in a mystical realm where celestial powers converge.`}
+          description={`Collaborative cosmic RPG: play together, guided arcs — and Agent Drive lets the room owner connect their hero to their own AI agent (Cursor, MCP, automation) with in-app approval before each post.`}
           image="/logo.jpg"
           type="article"
         />
       ) : (
         <MetaTags
           title="Shared Stories | Cosmic Heroes"
-          description="Embark on collaborative cosmic adventures with heroes from across the stars. Join or create a shared story and weave epic tales together!"
+          description="Shared Story RPG adventures with guided arcs — plus Agent Drive: drive your premium hero from your own AI agent, with human approval before every in-world post."
           image="/logo.jpg"
           type="website"
         />
@@ -1005,9 +1207,115 @@ const SharedStoryPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Agent Drive — primary feature surface */}
+        <section
+          className={agentDriveSpotlightClass + ' mb-6'}
+          aria-labelledby="agent-drive-room-heading"
+        >
+          <div className="flex flex-col md:flex-row md:items-start gap-5">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cosmic-500/25 border border-cosmic-300/35">
+              <Bot className="h-8 w-8 text-cosmic-100" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1 space-y-4">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cosmic-300">
+                  Featured capability
+                </p>
+                {room?.agentDriveEnabled ? (
+                  <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Agent Drive on
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-400 border border-gray-600/40">
+                    Agent Drive off
+                  </span>
+                )}
+              </div>
+              <h2
+                id="agent-drive-room-heading"
+                className="font-display text-2xl md:text-4xl font-bold text-white tracking-tight"
+              >
+                Agent Drive
+              </h2>
+              <p className="text-gray-100 text-base md:text-lg leading-relaxed max-w-3xl">
+                <strong className="text-white text-lg md:text-xl">Drive your hero with your own agent.</strong>{' '}
+                Connect Claude, Cursor, or any MCP client using a scoped token. Your tooling proposes dialogue
+                and actions for <em className="text-cosmic-200 font-semibold not-italic">{heroName || 'your hero'}</em>
+                — you keep the reins: proposals appear here for your approval before they post to the shared
+                chronicle.
+              </p>
+
+              {!isPremium ? (
+                <div className="rounded-lg bg-black/25 border border-amber-800/40 p-4 text-sm text-amber-200/95">
+                  <strong className="text-amber-100">Premium required.</strong> Upgrade your hero to host rooms,
+                  enable Agent Drive, and mint automation tokens.
+                  {heroId ? (
+                    <Link to={`/checkout/${heroId}`} className="ml-2 underline font-medium">
+                      Unlock this hero
+                    </Link>
+                  ) : null}
+                </div>
+              ) : userId && room?.ownerUserId === userId ? (
+                <div className="space-y-4 pt-1">
+                  <p className="text-sm text-cosmic-200/95 font-medium flex items-start gap-2">
+                    <Shield className="w-4 h-4 shrink-0 mt-0.5 text-cosmic-400" aria-hidden />
+                    You are session host — only you can toggle Agent Drive and create tokens for this room.
+                  </p>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <Button
+                      variant={room?.agentDriveEnabled ? 'secondary' : 'primary'}
+                      type="button"
+                      onClick={handleToggleAgentDrive}
+                      className={!room?.agentDriveEnabled ? 'ring-2 ring-cosmic-400/50 ring-offset-2 ring-offset-mystic-950' : ''}
+                    >
+                      {room?.agentDriveEnabled ? 'Turn off Agent Drive' : 'Turn on Agent Drive'}
+                    </Button>
+                    <Button size="sm" variant="outline" type="button" onClick={handleCreateAgentToken}>
+                      Mint new agent token
+                    </Button>
+                  </div>
+                  {agentTokenReveal && (
+                    <p className="text-xs text-amber-300 break-all bg-black/30 rounded-md p-3 border border-amber-800/30">
+                      <strong className="text-amber-200">Copy now — shown once:</strong> {agentTokenReveal}
+                    </p>
+                  )}
+                  {agentTokens.length > 0 ? (
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Active tokens</p>
+                      <ul className="text-xs text-gray-400 space-y-1.5">
+                        {agentTokens.map((t) => (
+                          <li key={t.id}>
+                            {t.id.slice(0, 8)}… {t.revokedAt ? 'revoked' : 'active'}
+                            {t.expiresAt ? ` · exp ${new Date(t.expiresAt).toLocaleDateString()}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      No tokens yet. Turn Agent Drive on, then mint a token and configure your MCP client (see{' '}
+                      <code className="text-gray-400 bg-black/40 px-1 rounded">agentDriveServer.mjs</code> in this
+                      project).
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-lg bg-black/25 border border-cosmic-800/60 p-4 text-sm text-gray-300 leading-relaxed">
+                  <strong className="text-white">Watching or playing as guest?</strong>{' '}
+                  Only this session&apos;s host can enable Agent Drive and issue tokens from their dashboard
+                  section here. Invite them to toggle it on so their hero automation can propose turns —{' '}
+                  <strong className="text-cosmic-200">nothing posts without host approval.</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         {pendingProposal && userId && room?.ownerUserId === userId && (
           <div className="bg-amber-900/30 border border-amber-700 rounded-lg p-4 mb-6">
-            <p className="text-sm font-medium text-amber-200 mb-2">Agent action pending approval</p>
+            <p className="text-sm font-medium text-amber-200 mb-2">
+              Agent Drive — proposed hero action (needs your approval)
+            </p>
             <p className="text-white mb-4 whitespace-pre-wrap">{pendingProposal.proposal.actionText}</p>
             <div className="flex gap-2">
               <Button size="sm" type="button" onClick={() => handleProposalDecision('approve')}>
@@ -1043,37 +1351,25 @@ const SharedStoryPage: React.FC = () => {
           </div>
         </div>
 
-        {userId && room?.ownerUserId === userId && (
-          <div className="bg-mystic-800/60 border border-cosmic-800/40 rounded-lg p-4 mb-6 space-y-3">
-            <h3 className="text-lg font-medium text-cosmic-300">Agent Drive</h3>
-            <div className="flex flex-wrap gap-2 items-center">
-              <Button
-                size="sm"
-                variant={room?.agentDriveEnabled ? 'secondary' : 'outline'}
-                type="button"
-                onClick={handleToggleAgentDrive}
-              >
-                {room?.agentDriveEnabled ? 'Disable' : 'Enable'} Agent Drive
-              </Button>
-              <Button size="sm" variant="outline" type="button" onClick={handleCreateAgentToken}>
-                New agent token
-              </Button>
-            </div>
-            {agentTokenReveal && (
-              <p className="text-xs text-amber-300 break-all">
-                Copy now — shown once: {agentTokenReveal}
+        {room?.storyArc ? (
+          <div className="bg-cosmic-950/40 border border-cosmic-800/60 rounded-lg p-4 mb-6">
+            <p className="text-xs text-cosmic-300 uppercase tracking-wide mb-1">
+              Guided arc — beat {room.storyArc.stepIndex + 1} / {room.storyArc.totalSteps}
+            </p>
+            <p className="text-lg font-medium text-white">{room.storyArc.arcName}</p>
+            <p className="text-gray-400 text-sm mt-1">{room.storyArc.tagline}</p>
+            <p className="text-cosmic-200 text-sm mt-3">
+              <span className="text-gray-500">Now playing: </span>
+              <span className="font-medium">{room.storyArc.currentBeatTitle}</span>
+              <span className="text-gray-600 text-xs ml-2">({room.storyArc.currentBeatKey})</span>
+            </p>
+            {room.mode === 'shared_story' ? (
+              <p className="text-xs text-gray-500 mt-2">
+                The arc advances automatically when the Cosmic Narrator speaks (every third hero post).
               </p>
-            )}
-            <ul className="text-xs text-gray-500 space-y-1">
-              {agentTokens.map((t) => (
-                <li key={t.id}>
-                  {t.id.slice(0, 8)}… {t.revokedAt ? 'revoked' : 'active'}
-                  {t.expiresAt ? ` · exp ${new Date(t.expiresAt).toLocaleDateString()}` : ''}
-                </li>
-              ))}
-            </ul>
+            ) : null}
           </div>
-        )}
+        ) : null}
 
         {room?.mode === 'skirmish' && (
           <div className="flex flex-wrap gap-2 mb-4">

@@ -1,10 +1,66 @@
 import { v4 as uuidv4 } from 'uuid';
 import { generateChatCompletionWithOpenAI } from './openai.js';
 import { sharedStoryRoomDb } from './db.js';
+import { getStoryArcTemplate, getBeatAtStep, listStoryArcSummaries } from './storyArcs.js';
+import { applyProgressEvent } from './progression.js';
 
 /** @typedef {'shared_story'|'skirmish'|'scripted_story'} SharedStoryMode */
 
+/** @deprecated Prefer story arc templates; kept for older clients/tests. */
 export const SCRIPTED_STORY_BEATS = ['intro', 'conflict', 'twist', 'climax', 'resolution'];
+
+export { listStoryArcSummaries };
+
+/**
+ * Resolved beat + template for narrator prompts (shared + scripted modes).
+ * @param {object} room
+ */
+export function resolveNarrativeBeatContext(room) {
+  if (room.mode === 'scripted_story' && room.scriptedState?.templateId) {
+    const template = getStoryArcTemplate(room.scriptedState.templateId);
+    const step = Math.max(0, room.scriptedState.stepIndex ?? 0);
+    const beat = getBeatAtStep(template, step);
+    if (!beat) return null;
+    return { template, step, beat };
+  }
+  if (room.mode === 'shared_story' && room.storyArcState?.templateId) {
+    const template = getStoryArcTemplate(room.storyArcState.templateId);
+    const step = Math.max(0, room.storyArcState.stepIndex ?? 0);
+    const beat = getBeatAtStep(template, step);
+    if (!beat) return null;
+    return { template, step, beat };
+  }
+  return null;
+}
+
+/** Advance arc step after a Cosmic Narrator beat (shared_story only). */
+export function advanceSharedStoryArcStep(room) {
+  if (room.mode !== 'shared_story' || !room.storyArcState?.templateId) return;
+  const template = getStoryArcTemplate(room.storyArcState.templateId);
+  const maxIdx = template.beats.length - 1;
+  const cur = room.storyArcState.stepIndex ?? 0;
+  room.storyArcState = {
+    ...room.storyArcState,
+    stepIndex: Math.min(maxIdx, cur + 1),
+  };
+}
+
+/**
+ * @param {object} room
+ */
+export function summarizeStoryArcForRoom(room) {
+  const ctx = resolveNarrativeBeatContext(room);
+  if (!ctx) return null;
+  return {
+    templateId: ctx.template.id,
+    arcName: ctx.template.name,
+    tagline: ctx.template.tagline,
+    stepIndex: ctx.step,
+    totalSteps: ctx.template.beats.length,
+    currentBeatTitle: ctx.beat.title,
+    currentBeatKey: ctx.beat.key,
+  };
+}
 
 /**
  * Normalize Mongo-loaded room (dates, defaults).
@@ -21,6 +77,7 @@ export function normalizeSharedStoryRoom(doc) {
   if (!Array.isArray(room.messages)) room.messages = [];
   if (room.pendingAgentActions === undefined) room.pendingAgentActions = [];
   if (room.agentDriveEnabled === undefined) room.agentDriveEnabled = false;
+  if (room.storyArcState === undefined) room.storyArcState = null;
   room.messages = room.messages.map((m) => ({
     ...m,
     timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
@@ -45,7 +102,7 @@ async function persistRoom(room) {
 /**
  * Create a new shared story room
  * @param {Object} hero - The hero object of the creator
- * @param {{ mode?: SharedStoryMode, scriptTemplateId?: string }} [options]
+ * @param {{ mode?: SharedStoryMode, scriptTemplateId?: string, storyArcId?: string }} [options]
  * @returns {Promise<string>} - The ID of the created room
  */
 export const createSharedStoryRoom = async (hero, options = {}) => {
@@ -55,16 +112,33 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
       ? options.mode
       : 'shared_story';
 
+  const arcIdFromOptions = options.storyArcId || options.scriptTemplateId;
+  const scriptedTemplate =
+    mode === 'scripted_story' ? getStoryArcTemplate(arcIdFromOptions) : null;
+  const sharedArcTemplate =
+    mode === 'shared_story' && typeof options.storyArcId === 'string' && options.storyArcId.trim()
+      ? getStoryArcTemplate(options.storyArcId)
+      : null;
+
   const formattedBackstory = hero.backstory
     ? formatBackstoryForDisplay(hero.backstory.substring(0, 300) + '...')
     : '';
 
   const scriptedState =
-    mode === 'scripted_story'
+    mode === 'scripted_story' && scriptedTemplate
       ? {
-          templateId: options.scriptTemplateId || 'generic_arc',
+          templateId: scriptedTemplate.id,
           stepIndex: 0,
-          beats: [...SCRIPTED_STORY_BEATS],
+          beats: scriptedTemplate.beats.map((b) => b.key),
+        }
+      : null;
+
+  const storyArcState =
+    mode === 'shared_story' && sharedArcTemplate
+      ? {
+          templateId: sharedArcTemplate.id,
+          stepIndex: 0,
+          beatKeys: sharedArcTemplate.beats.map((b) => b.key),
         }
       : null;
 
@@ -108,6 +182,7 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
     agentDriveEnabled: false,
     pendingAgentActions: [],
     scriptedState,
+    storyArcState,
     skirmishState,
   };
 
@@ -142,6 +217,16 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
   });
 
   await sharedStoryRoomDb.insertRoom(room);
+
+  try {
+    await applyProgressEvent(hero.id, 'shared_story_session_open', {
+      source: 'shared_story_room_create',
+      roomId,
+    });
+  } catch (e) {
+    console.error('shared_story_session_open progression:', e?.message || e);
+  }
+
   return roomId;
 };
 
@@ -259,6 +344,18 @@ export const generateSharedStoryPrompt = async (room) => {
     .filter((p) => p.backstory)
     .map((p) => `${p.name}'s Backstory: ${p.backstory.substring(0, 500)}...`);
 
+  const beatCtx = resolveNarrativeBeatContext(room);
+  const arcBlock = beatCtx
+    ? `
+STRUCTURED STORY ARC — this spine is mandatory; do not skip or merge beats:
+- Arc title: "${beatCtx.template.name}"
+- Arc logline: ${beatCtx.template.tagline}
+- Current beat (${beatCtx.step + 1} of ${beatCtx.template.beats.length}): **${beatCtx.beat.title}** [${beatCtx.beat.key}]
+- What you must deliver in this response: ${beatCtx.beat.directive}
+- Plant subtle hooks toward the next beat without resolving it; keep player agency high.
+`
+    : '';
+
   const systemPrompt = `
 You are the Cosmic Narrator, a masterful storyteller guiding a group of heroes through an epic shared adventure. 
 Your task is to weave an engaging literary narrative that incorporates all the players and their unique backstories.
@@ -268,7 +365,7 @@ ${room.participants.map((p) => `- ${p.name}`).join('\n')}
 
 Their backstories:
 ${backstories.join('\n\n')}
-
+${arcBlock}
 Guidelines for your narrative:
 1. Write in a rich, immersive literary style reminiscent of classic fantasy authors
 2. Use vivid, sensory descriptions that bring the cosmic landscape to life

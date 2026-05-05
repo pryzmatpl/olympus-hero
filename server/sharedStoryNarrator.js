@@ -3,6 +3,8 @@ import {
   getSharedStoryRoom,
   mutateSharedStoryRoom,
   appendMessagesAndSave,
+  advanceSharedStoryArcStep,
+  summarizeStoryArcForRoom,
   generateSharedStoryPrompt,
   generateSharedStoryResponse,
 } from './sharedStory.js';
@@ -47,6 +49,28 @@ export async function appendUserMessageAndMaybeNarrator(
   });
 
   io.to(roomId).emit('message', newMessage);
+
+  if (
+    heroIdForProgression &&
+    typeof plainContent === 'string' &&
+    plainContent.trim().length >= 20
+  ) {
+    try {
+      const voiceProg = await applyProgressEvent(heroIdForProgression, 'shared_story_voice', {
+        source: 'shared_story_post',
+        roomId,
+      });
+      io.to(roomId).emit('hero_progression', {
+        heroId: heroIdForProgression,
+        level: voiceProg.hero.level,
+        xp: voiceProg.hero.xp,
+        xpToNextLevel: voiceProg.hero.xpToNextLevel,
+        levelUps: voiceProg.levelUps,
+      });
+    } catch (e) {
+      console.error('progression shared_story_voice:', e);
+    }
+  }
 
   const room = await getSharedStoryRoom(roomId);
   if (!room) return;
@@ -101,10 +125,36 @@ export async function appendUserMessageAndMaybeNarrator(
     await appendMessagesAndSave(roomId, [aiMessage]);
     io.to(roomId).emit('message', aiMessage);
 
-    await applyProgressEvent(heroIdForProgression, 'narrator_beat', {
-      source: 'shared_story',
-      roomId,
-    }).catch((e) => console.error('progression narrator_beat:', e));
+    let narratorProg = null;
+    if (heroIdForProgression) {
+      try {
+        narratorProg = await applyProgressEvent(heroIdForProgression, 'narrator_beat', {
+          source: 'shared_story',
+          roomId,
+        });
+      } catch (e) {
+        console.error('progression narrator_beat:', e);
+      }
+    }
+
+    await mutateSharedStoryRoom(roomId, (r) => {
+      advanceSharedStoryArcStep(r);
+    }).catch((e) => console.error('advance arc:', e));
+
+    const refreshed = await getSharedStoryRoom(roomId);
+    if (refreshed) {
+      io.to(roomId).emit('story_arc_updated', summarizeStoryArcForRoom(refreshed));
+    }
+
+    if (heroIdForProgression && narratorProg?.hero) {
+      io.to(roomId).emit('hero_progression', {
+        heroId: heroIdForProgression,
+        level: narratorProg.hero.level,
+        xp: narratorProg.hero.xp,
+        xpToNextLevel: narratorProg.hero.xpToNextLevel,
+        levelUps: narratorProg.levelUps,
+      });
+    }
   } catch (aiError) {
     console.error('Error generating AI response:', aiError);
 

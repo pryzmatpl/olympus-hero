@@ -17,6 +17,7 @@ import {
   verifyAgentDriveToken,
 } from './agentAuth.js';
 import { applyProgressEvent } from './progression.js';
+import { getStoryArcTemplate } from './storyArcs.js';
 import { moderateProposalText } from './moderation.js';
 import { appendUserMessageAndMaybeNarrator } from './sharedStoryNarrator.js';
 import { insertAnalyticsEvent, parseAnalyticsBody } from './analytics.js';
@@ -27,7 +28,9 @@ import {
   leaveSharedStoryRoom,
   getSharedStoryRoom,
   listSharedStoryRooms,
+  listStoryArcSummaries,
   mutateSharedStoryRoom,
+  summarizeStoryArcForRoom,
 } from './sharedStory.js';
 import {
   createStoryBook,
@@ -1209,7 +1212,7 @@ async function startServer() {
     // Shared Story Routes
     app.post('/api/shared-story/create', authMiddleware, async (req, res) => {
       try {
-        const { heroId, mode, scriptTemplateId } = req.body;
+        const { heroId, mode, scriptTemplateId, storyArcId } = req.body;
         const userId = req.user.userId;
         
         if (!heroId) {
@@ -1235,6 +1238,7 @@ async function startServer() {
         const roomId = await createSharedStoryRoom(hero, {
           mode,
           scriptTemplateId,
+          storyArcId,
         });
         
         return res.status(201).json({ 
@@ -1244,6 +1248,15 @@ async function startServer() {
       } catch (error) {
         console.error('Error creating shared story room:', error);
         return res.status(500).json({ error: 'Failed to create shared story room' });
+      }
+    });
+
+    app.get('/api/shared-story/story-arcs', async (_req, res) => {
+      try {
+        return res.json({ arcs: listStoryArcSummaries() });
+      } catch (e) {
+        console.error('story-arcs:', e);
+        return res.status(500).json({ error: 'Failed to list story arcs' });
       }
     });
 
@@ -1273,7 +1286,8 @@ async function startServer() {
             avatar: p.avatar,
             isPremium: p.isPremium
           })),
-          created: room.created
+          created: room.created,
+          storyArc: summarizeStoryArcForRoom(room),
         });
       } catch (error) {
         console.error('Error getting shared story room:', error);
@@ -1488,7 +1502,15 @@ async function startServer() {
             if (!r.scriptedState) {
               r.scriptedState = { templateId: 'generic_arc', stepIndex: 0, beats: [] };
             }
-            r.scriptedState.stepIndex = (r.scriptedState.stepIndex || 0) + 1;
+            const tmpl = getStoryArcTemplate(r.scriptedState.templateId);
+            if (!Array.isArray(r.scriptedState.beats) || r.scriptedState.beats.length === 0) {
+              r.scriptedState.beats = tmpl.beats.map((b) => b.key);
+            }
+            const maxIdx = Math.max(0, tmpl.beats.length - 1);
+            r.scriptedState.stepIndex = Math.min(
+              maxIdx,
+              (r.scriptedState.stepIndex || 0) + 1
+            );
           });
           progression = await applyProgressEvent(heroId, 'scripted_beat', {
             source: 'scripted_story',
@@ -1942,6 +1964,7 @@ async function startServer() {
             messages: result.messages,
             mode: result.mode || 'shared_story',
             agentDriveEnabled: !!result.agentDriveEnabled,
+            storyArc: summarizeStoryArcForRoom(result),
           });
           
           // Notify other users in the room
