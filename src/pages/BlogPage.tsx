@@ -21,7 +21,7 @@ const BlogPage: React.FC = () => {
       <MetaTags
         title="Cosmic Heroes Blog - Zodiac & AI Fantasy Storytelling Insights"
         description="Explore articles about zodiac influences, AI-generated stories, and personalized fantasy adventures in the Cosmic Heroes blog."
-        image="/blog-cover.jpg"
+        image="/blog-cover.png"
       />
 
       <section className="py-12">
@@ -45,7 +45,7 @@ const BlogPage: React.FC = () => {
           >
             <div className="relative h-60 overflow-hidden">
               <OptimizedImage 
-                src="/blog-zodiac-archetypes.jpg" 
+                src="/front.png" 
                 alt="Zodiac Signs and Hero Archetypes"
                 className="w-full h-full"
                 loading="lazy"
@@ -90,7 +90,7 @@ const BlogPage: React.FC = () => {
           >
             <div className="relative h-60 overflow-hidden">
               <OptimizedImage 
-                src="/blog-ai-storytelling.jpg" 
+                src="/action.png" 
                 alt="AI-Driven Storytelling"
                 className="w-full h-full"
                 loading="lazy"

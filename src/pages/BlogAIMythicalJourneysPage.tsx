@@ -28,7 +28,7 @@ const BlogAIMythicalJourneysPage: React.FC = () => {
         logo: { '@type': 'ImageObject', url: `${SITE_ORIGIN}/logo.jpg` },
       },
       mainEntityOfPage: articleUrl,
-      image: `${SITE_ORIGIN}/blog-ai-storytelling.jpg`,
+      image: `${SITE_ORIGIN}/action.png`,
     }),
     [articleUrl]
   );
@@ -43,7 +43,7 @@ const BlogAIMythicalJourneysPage: React.FC = () => {
       <MetaTags
         title="Exploring Mythical Journeys Through AI | Cosmic Heroes"
         description="Discover how AI is revolutionizing personalized fantasy storytelling and creating unique hero journeys. Learn about AI-driven character creation and storytelling."
-        image="/blog-ai-storytelling.jpg"
+        image="/action.png"
         canonical={articleUrl}
       />
       <JsonLd id="jsonld-blog-ai-mythical" data={jsonLd} />
@@ -65,7 +65,7 @@ const BlogAIMythicalJourneysPage: React.FC = () => {
         <article className="bg-gradient-to-b from-mystic-800 to-mystic-900 rounded-xl overflow-hidden shadow-lg">
           <div className="relative h-80 overflow-hidden">
             <OptimizedImage 
-              src="/blog-ai-storytelling.jpg" 
+              src="/action.png" 
               alt="AI-Driven Storytelling"
               className="w-full h-full"
               width={1200}

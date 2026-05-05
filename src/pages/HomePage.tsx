@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
@@ -19,6 +19,20 @@ import { DEFAULT_META_DESCRIPTION, DEFAULT_META_TITLE } from '../constants/brand
 import { track } from '../utils/analytics';
 
 const CREATE_PATH = '/create';
+const ATTENTION_GRABBERS = [
+  {
+    title: 'Commence with glory.',
+    lead: 'Forge your AI fantasy hero — art, lore, and identity in one flow.',
+  },
+  {
+    title: 'Summon your legend.',
+    lead: 'Turn a birth sign and a name into a hero worth remembering.',
+  },
+  {
+    title: 'Claim your myth.',
+    lead: 'Create cinematic portraits and a story voice that feels truly yours.',
+  },
+] as const;
 
 /** Featured heroes — companion-style presentation (structured like classic RPG marketing pages). */
 const FEATURED_LEGENDS = [
@@ -50,12 +64,20 @@ const FEATURED_LEGENDS = [
 
 const HomePage: React.FC = () => {
   const { isAuthenticated } = useContext(AuthContext);
+  const [grabberIndex, setGrabberIndex] = useState(0);
 
   const primaryTo = isAuthenticated ? CREATE_PATH : '/register';
   const primaryState = isAuthenticated ? undefined : { from: { pathname: CREATE_PATH } };
 
   const metaTitle = DEFAULT_META_TITLE;
   const metaDescription = DEFAULT_META_DESCRIPTION;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setGrabberIndex((prev) => (prev + 1) % ATTENTION_GRABBERS.length);
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <motion.div
@@ -83,18 +105,36 @@ const HomePage: React.FC = () => {
             <p className="text-amber-500/95 font-display text-sm md:text-base tracking-[0.2em] uppercase mb-4">
               Mythical Hero
             </p>
-            <motion.h1
-              id="hero-heading"
-              initial={{ opacity: 0, y: 12 }}
+            <motion.div
+              key={ATTENTION_GRABBERS[grabberIndex].title}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="font-display font-bold text-4xl md:text-5xl lg:text-6xl text-stone-100 leading-[1.1] mb-2"
+              transition={{ duration: 0.35 }}
+              className="mb-4"
             >
-              Commence with glory.
-            </motion.h1>
-            <p className="font-display text-xl md:text-2xl text-amber-100/90 mb-6">
-              Forge your AI fantasy hero — art, lore, and identity in one flow.
-            </p>
+              <h1
+                id="hero-heading"
+                className="font-display font-bold text-4xl md:text-5xl lg:text-6xl text-stone-100 leading-[1.1] mb-2"
+              >
+                {ATTENTION_GRABBERS[grabberIndex].title}
+              </h1>
+              <p className="font-display text-xl md:text-2xl text-amber-100/90 mb-2">
+                {ATTENTION_GRABBERS[grabberIndex].lead}
+              </p>
+            </motion.div>
+            <div className="flex items-center gap-2 mb-6">
+              {ATTENTION_GRABBERS.map((slide, idx) => (
+                <button
+                  key={slide.title}
+                  type="button"
+                  onClick={() => setGrabberIndex(idx)}
+                  className={`h-1.5 rounded-full transition-all ${
+                    idx === grabberIndex ? 'w-8 bg-amber-500/90' : 'w-3 bg-stone-500/60'
+                  }`}
+                  aria-label={`Show headline ${idx + 1}`}
+                />
+              ))}
+            </div>
             <p className="text-stone-400 text-base md:text-lg leading-relaxed mb-8 border-l-2 border-amber-600/60 pl-4">
               Gather your birth sign and a name that fits your tale. Mythical Hero weaves them into
               portraits you can share and a backstory worth reading — no illustration or prose skills

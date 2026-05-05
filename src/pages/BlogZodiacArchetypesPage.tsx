@@ -28,7 +28,7 @@ const BlogZodiacArchetypesPage: React.FC = () => {
         logo: { '@type': 'ImageObject', url: `${SITE_ORIGIN}/logo.jpg` },
       },
       mainEntityOfPage: articleUrl,
-      image: `${SITE_ORIGIN}/blog-zodiac-archetypes.jpg`,
+      image: `${SITE_ORIGIN}/front.png`,
     }),
     [articleUrl]
   );
@@ -43,7 +43,7 @@ const BlogZodiacArchetypesPage: React.FC = () => {
       <MetaTags
         title="The Influence of Zodiac Signs on Hero Archetypes | Cosmic Heroes"
         description="Explore how zodiac signs shape character archetypes in fantasy storytelling. Learn about zodiac-based character creation for your personalized hero journey."
-        image="/blog-zodiac-archetypes.jpg"
+        image="/front.png"
         canonical={articleUrl}
       />
       <JsonLd id="jsonld-blog-zodiac-archetypes" data={jsonLd} />
@@ -65,7 +65,7 @@ const BlogZodiacArchetypesPage: React.FC = () => {
         <article className="bg-gradient-to-b from-mystic-800 to-mystic-900 rounded-xl overflow-hidden shadow-lg">
           <div className="relative h-80 overflow-hidden">
             <OptimizedImage 
-              src="/blog-zodiac-archetypes.jpg" 
+              src="/front.png" 
               alt="Zodiac Signs and Hero Archetypes"
               className="w-full h-full"
               width={1200}
