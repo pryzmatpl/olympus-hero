@@ -5,6 +5,19 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach } from 'vitest';
 
+// Framer Motion `whileInView` uses IntersectionObserver; jsdom does not provide it.
+if (typeof globalThis.IntersectionObserver === 'undefined') {
+  globalThis.IntersectionObserver = class implements IntersectionObserver {
+    readonly root: Element | null = null;
+    readonly rootMargin = '';
+    readonly thresholds: readonly number[] = [];
+    observe = () => {};
+    unobserve = () => {};
+    disconnect = () => {};
+    takeRecords = () => [];
+  } as unknown as typeof IntersectionObserver;
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   if (typeof window !== 'undefined') {
