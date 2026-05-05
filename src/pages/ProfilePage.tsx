@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import api from '../utils/api';
 import { AuthContext } from '../App';
+import Button from '../components/ui/Button';
+import {
+  LandingStyleHero,
+  LandingStyleMain,
+  LandingStylePageRoot,
+} from '../components/layout/LandingStyleLayout';
 
-const pageVariants = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1, transition: { duration: 0.5 } },
-  exit: { opacity: 0, transition: { duration: 0.3 } }
-};
-
-// Updated Hero interface to match the data structure from the API
-interface Hero {
+interface HeroItem {
   id: string;
   name: string;
   images: Array<{ angle: string; url: string }>;
@@ -33,9 +31,12 @@ interface SharedLink {
   isActive: boolean;
 }
 
+const cardShell =
+  'border border-stone-700/90 bg-stone-950/50 rounded-sm p-6 shadow-lg shadow-black/30';
+
 const ProfilePage = () => {
   const { user, token, logout } = useContext(AuthContext);
-  const [heroes, setHeroes] = useState<Hero[]>([]);
+  const [heroes, setHeroes] = useState<HeroItem[]>([]);
   const [sharedLinks, setSharedLinks] = useState<SharedLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,21 +46,18 @@ const ProfilePage = () => {
       try {
         setLoading(true);
 
-        // Get heroes from API
         const heroesResponse = await api.get('/api/user/heroes', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        // Get shared links from API
         const sharesResponse = await api.get('/api/user/shares', {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        // Fixed: Correctly accessing the heroes data from the response
         setHeroes(heroesResponse.data.heroes || []);
         setSharedLinks(sharesResponse.data.sharedLinks || []);
         setError(null);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error fetching user data:', err);
         setError('Failed to load your hero data. We are working on it.');
       } finally {
@@ -73,175 +71,182 @@ const ProfilePage = () => {
   const handleCopyShareLink = (shareUrl: string) => {
     const fullUrl = `${window.location.origin}${shareUrl}`;
     navigator.clipboard.writeText(fullUrl);
-    // In a real app, you might want to show a notification here
   };
 
   return (
-      <motion.div
-          className="container mx-auto px-4 py-8"
-          variants={pageVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-      >
-        <div className="max-w-5xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Your Profile</h1>
+    <LandingStylePageRoot>
+      <LandingStyleHero
+        eyebrow="Mythical Hero"
+        title="Your profile"
+        lead="Account, roster, and the links you have cast into the world — gathered in one hall."
+      />
 
+      <LandingStyleMain>
+        <div className="max-w-5xl mx-auto space-y-10">
           {error && (
-              <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-8">
-                <p className="text-red-400">{error}</p>
-              </div>
+            <div className="border border-red-800/70 bg-red-950/35 rounded-sm p-4">
+              <p className="text-red-300 text-sm">{error}</p>
+            </div>
           )}
 
-          <div className="bg-mystic-800/60 rounded-lg p-6 border border-mystic-700 mb-8">
-            <div className="flex flex-wrap items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">{user?.name}</h2>
-                <p className="text-cosmic-400">{user?.email}</p>
-              </div>
-
-              <button
-                  onClick={logout}
-                  className="px-4 py-2 bg-mystic-700 hover:bg-mystic-600 rounded-lg mt-4 sm:mt-0"
-              >
-                Log Out
-              </button>
+          <div className={`${cardShell} flex flex-wrap items-start justify-between gap-6`}>
+            <div>
+              <p className="text-amber-500/85 text-xs uppercase tracking-[0.2em] mb-2">Account</p>
+              <h2 className="font-display text-xl md:text-2xl text-stone-100">{user?.name}</h2>
+              <p className="text-stone-400 mt-1 text-sm">{user?.email}</p>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={logout}
+              className="rounded-full border-stone-600 text-stone-200 hover:bg-stone-900/80"
+            >
+              Log out
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             <div>
-              <h2 className="text-2xl font-semibold mb-4">Your Mythical Heroes</h2>
+              <h2 className="font-display font-bold text-xl text-stone-100 mb-6">Your heroes</h2>
 
               {loading ? (
-                  <div className="bg-mystic-800/60 rounded-lg p-6 border border-mystic-700">
-                    <p className="text-center">Loading heroes...</p>
-                  </div>
+                <div className={`${cardShell}`}>
+                  <p className="text-center text-stone-400 text-sm">Loading heroes...</p>
+                </div>
               ) : heroes.length === 0 ? (
-                  <div className="bg-mystic-800/60 rounded-lg p-6 border border-mystic-700">
-                    <p className="text-center mb-4">You haven't created any heroes yet.</p>
-                    <div className="text-center">
-                      <Link
-                          to="/create"
-                          className="inline-block px-4 py-2 bg-cosmic-600 hover:bg-cosmic-500 rounded-lg transition-colors"
-                      >
-                        Create Your First Hero
+                <div className={`${cardShell} text-center`}>
+                  <p className="text-stone-400 text-sm mb-5">You have not created any heroes yet.</p>
+                  <Link to="/create">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      className="border border-amber-700/40 shadow-lg shadow-amber-950/30"
+                    >
+                      Create your first hero
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {heroes.map((hero) => (
+                    <div
+                      key={hero.id}
+                      className="border border-stone-700/90 bg-stone-950/40 rounded-sm p-4 flex items-center gap-4"
+                    >
+                      {hero.images.length > 0 && (
+                        <img
+                          src={hero.images[0].url}
+                          alt={hero.name}
+                          className="w-16 h-16 object-cover rounded-sm border border-stone-800 shrink-0"
+                        />
+                      )}
+                      <div className="flex-grow min-w-0">
+                        <h3 className="font-display font-medium text-stone-100 truncate">{hero.name}</h3>
+                        <p className="text-sm text-stone-500">
+                          {hero.westernZodiac?.sign || 'Unknown'} · {hero.chineseZodiac?.sign || 'Unknown'}
+                        </p>
+                      </div>
+                      <Link to={`/hero/${hero.id}`}>
+                        <Button variant="outline" size="sm" className="rounded-full border-stone-600 shrink-0">
+                          View
+                        </Button>
                       </Link>
                     </div>
-                  </div>
-              ) : (
-                  <div className="space-y-4">
-                    {heroes.map((hero) => (
-                        <div
-                            key={hero.id}
-                            className="bg-mystic-800/60 rounded-lg p-4 border border-mystic-700 flex items-center gap-4"
-                        >
-                          {hero.images.length > 0 && (
-                              <img
-                                  src={hero.images[0].url}
-                                  alt={hero.name}
-                                  className="w-16 h-16 object-cover rounded-lg"
-                              />
-                          )}
-                          <div className="flex-grow">
-                            <h3 className="font-semibold">{hero.name}</h3>
-                            <p className="text-sm text-cosmic-400">
-                              {hero.westernZodiac?.sign || 'Unknown'} • {hero.chineseZodiac?.sign || 'Unknown'}
-                            </p>
-                          </div>
-                          <Link
-                              to={`/hero/${hero.id}`}
-                              className="px-3 py-1 bg-mystic-700 hover:bg-mystic-600 rounded-lg text-sm"
-                          >
-                            View
-                          </Link>
-                        </div>
-                    ))}
-                  </div>
+                  ))}
+                </div>
               )}
             </div>
 
             <div>
-              <h2 className="text-2xl font-semibold mb-4">Shared Links</h2>
+              <h2 className="font-display font-bold text-xl text-stone-100 mb-6">Shared links</h2>
 
               {loading ? (
-                  <div className="bg-mystic-800/60 rounded-lg p-6 border border-mystic-700">
-                    <p className="text-center">Loading shared links...</p>
-                  </div>
+                <div className={`${cardShell}`}>
+                  <p className="text-center text-stone-400 text-sm">Loading shared links...</p>
+                </div>
               ) : sharedLinks.length === 0 ? (
-                  <div className="bg-mystic-800/60 rounded-lg p-6 border border-mystic-700">
-                    <p className="text-center">You haven't shared any heroes yet.</p>
-                  </div>
+                <div className={`${cardShell}`}>
+                  <p className="text-center text-stone-400 text-sm">You have not shared any heroes yet.</p>
+                </div>
               ) : (
-                  <div className="space-y-4">
-                    {sharedLinks.map((link) => {
-                      const hero = heroes.find(h => h.id === link.heroId);
-                      return (
-                          <div
-                              key={link.id}
-                              className="bg-mystic-800/60 rounded-lg p-4 border border-mystic-700"
-                          >
-                            <div className="flex items-center gap-4 mb-3">
-                              {hero && hero.images.length > 0 && (
-                                  <img
-                                      src={hero.images[0].url}
-                                      alt={hero?.name}
-                                      className="w-12 h-12 object-cover rounded-lg"
-                                  />
-                              )}
-                              <div className="flex-grow">
-                                <h3 className="font-semibold">{hero?.name || 'Unknown Hero'}</h3>
-                                <p className="text-xs text-cosmic-400">
-                                  Shared {new Date(link.createdAt).toLocaleDateString()} •
-                                  {link.accessCount} view{link.accessCount !== 1 ? 's' : ''}
-                                </p>
-                              </div>
-                              <span
-                                  className={`px-2 py-1 rounded-full text-xs ${
-                                      link.isActive
-                                          ? 'bg-green-900/30 text-green-400 border border-green-700'
-                                          : 'bg-red-900/30 text-red-400 border border-red-700'
-                                  }`}
-                              >
-                          {link.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <input
-                                  type="text"
-                                  readOnly
-                                  value={`${window.location.origin}${link.shareUrl}`}
-                                  className="flex-grow bg-mystic-900 border border-mystic-700 rounded-lg p-2 text-sm"
-                              />
-                              <button
-                                  onClick={() => handleCopyShareLink(link.shareUrl)}
-                                  className="px-3 py-2 bg-mystic-700 hover:bg-mystic-600 rounded-lg"
-                              >
-                                Copy
-                              </button>
-                            </div>
+                <div className="space-y-4">
+                  {sharedLinks.map((link) => {
+                    const hero = heroes.find((h) => h.id === link.heroId);
+                    return (
+                      <div key={link.id} className={`${cardShell} p-4`}>
+                        <div className="flex items-start gap-3 mb-4">
+                          {hero && hero.images.length > 0 && (
+                            <img
+                              src={hero.images[0].url}
+                              alt={hero?.name}
+                              className="w-12 h-12 object-cover rounded-sm border border-stone-800 shrink-0"
+                            />
+                          )}
+                          <div className="flex-grow min-w-0">
+                            <h3 className="font-medium text-stone-100 truncate">
+                              {hero?.name || 'Unknown hero'}
+                            </h3>
+                            <p className="text-xs text-stone-500 mt-0.5">
+                              Shared {new Date(link.createdAt).toLocaleDateString()} · {link.accessCount} view
+                              {link.accessCount !== 1 ? 's' : ''}
+                            </p>
                           </div>
-                      );
-                    })}
-                  </div>
+                          <span
+                            className={`shrink-0 px-2 py-0.5 rounded-sm text-xs border ${
+                              link.isActive
+                                ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60'
+                                : 'bg-red-950/50 text-red-300 border-red-800/60'
+                            }`}
+                          >
+                            {link.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={`${window.location.origin}${link.shareUrl}`}
+                            className="flex-grow bg-stone-950/80 border border-stone-700/90 rounded-sm px-3 py-2 text-sm text-stone-300"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="rounded-full border-stone-600 whitespace-nowrap"
+                            onClick={() => handleCopyShareLink(link.shareUrl)}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
 
-              <div className="mt-8">
-                <h2 className="text-2xl font-semibold mb-4">Actions</h2>
-                <div className="bg-mystic-800/60 rounded-lg p-6 border border-mystic-700 space-y-4">
+              <div className="mt-10">
+                <h2 className="font-display font-bold text-xl text-stone-100 mb-4">Forge</h2>
+                <div className="border border-stone-800 bg-stone-900/50 rounded-sm p-6">
+                  <Link to="/create" className="block">
+                    <Button variant="primary" size="md" fullWidth className="border border-amber-700/40 shadow-lg shadow-amber-950/30">
+                      Create new hero
+                    </Button>
+                  </Link>
                   <Link
-                      to="/create"
-                      className="block w-full py-3 bg-cosmic-600 hover:bg-cosmic-500 rounded-lg text-center transition-colors"
+                    to="/heroes"
+                    className="block mt-3 text-center text-sm text-amber-200/90 hover:text-amber-100 transition-colors"
                   >
-                    Create New Hero
+                    Browse all legends →
                   </Link>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </motion.div>
+      </LandingStyleMain>
+    </LandingStylePageRoot>
   );
 };
 
