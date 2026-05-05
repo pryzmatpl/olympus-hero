@@ -29,7 +29,7 @@ function ensureStoryBookLegendary(sb) {
 /**
  * Single source of truth for hero XP/level and Epic Legendary Book chapter growth.
  * @param {string} heroId
- * @param {'skirmish_win'|'scripted_beat'|'xp_grant'|'narrator_beat'} eventType
+ * @param {'skirmish_win'|'scripted_beat'|'xp_grant'|'narrator_beat'|'shared_story_session_open'|'shared_story_voice'} eventType
  * @param {{ xp?: number, source?: string, roomId?: string }} [payload]
  * @returns {Promise<{ hero: object, storyBook: object|null, levelUps: number[], avatarRegenerated: boolean, progressEventId: string }>}
  */
@@ -42,9 +42,13 @@ export async function applyProgressEvent(heroId, eventType, payload = {}) {
         ? 35
         : eventType === 'narrator_beat'
           ? 15
-          : eventType === 'xp_grant'
-            ? xpGain
-            : 10;
+          : eventType === 'shared_story_session_open'
+            ? 12
+            : eventType === 'shared_story_voice'
+              ? 4
+              : eventType === 'xp_grant'
+                ? xpGain
+                : 10;
 
   const xpAdd = eventType === 'xp_grant' ? xpGain : baseXp;
 
