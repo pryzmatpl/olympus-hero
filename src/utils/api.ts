@@ -145,15 +145,31 @@ api.interceptors.response.use(
       error.message = 'Network error. Please check your connection and try again.';
     }
 
-    // Nginx 502/503/504: upstream (Node) unreachable, crashed, or overloaded — not an app JSON body
+    // Nginx 502/503/504 can also carry app-level JSON (e.g. narration provider errors).
+    // Preserve those messages; only inject generic copy when no structured message exists.
     const st = error.response?.status;
     if (st === 502 || st === 503 || st === 504) {
+      const requestUrl = String(error.config?.url || '');
+      const isNarrationEndpoint = requestUrl.includes('/narration');
+      const responseData = error.response?.data;
+      const hasStructuredMessage =
+        responseData &&
+        typeof responseData === 'object' &&
+        !Array.isArray(responseData) &&
+        typeof (responseData as { message?: unknown }).message === 'string';
       const msg =
         st === 502
           ? 'The API did not respond (bad gateway). The server may be restarting or unreachable—try again in a moment.'
           : 'Service temporarily unavailable. Please try again shortly.';
-      error.message = msg;
-      if (error.response && (typeof error.response.data === 'string' || error.response.data == null)) {
+      if (!isNarrationEndpoint && !hasStructuredMessage) {
+        error.message = msg;
+      }
+      if (
+        error.response &&
+        !isNarrationEndpoint &&
+        !hasStructuredMessage &&
+        (typeof error.response.data === 'string' || error.response.data == null)
+      ) {
         error.response.data = { error: 'upstream_error', message: msg };
       }
     }

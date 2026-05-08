@@ -32,11 +32,18 @@ function elevenOutputFormat() {
       : '';
   return raw || 'mp3_44100_128';
 }
+function elevenTimeoutMs() {
+  const raw =
+    typeof process.env.ELEVENLABS_TIMEOUT_MS === 'string'
+      ? Number(process.env.ELEVENLABS_TIMEOUT_MS)
+      : NaN;
+  if (!Number.isFinite(raw)) return 90_000;
+  return Math.min(300_000, Math.max(10_000, Math.trunc(raw)));
+}
 const DEFAULT_VOICE_ID = 'MKlLqCItoCkvdhrxgtLv';
 const DEFAULT_MODEL_ID = 'eleven_multilingual_v2';
 /** Multilingual v2 hard caps single requests; 4500 leaves headroom for whitespace. */
 const MAX_SPOKEN_CHARS = 4500;
-const ELEVENLABS_TIMEOUT_MS = 20_000;
 
 const NARRATION_DIR = path.join(process.cwd(), 'storage', 'narration');
 
@@ -153,7 +160,7 @@ async function synthesizeFromElevenLabs(text) {
   ttsUrl.searchParams.set('output_format', elevenOutputFormat());
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ELEVENLABS_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), elevenTimeoutMs());
   let response;
   try {
     response = await fetch(ttsUrl, {
@@ -194,6 +201,26 @@ async function synthesizeFromElevenLabs(text) {
       throw new NarrationError(
         `ElevenLabs quota or credits (${response.status}): ${body.slice(0, 240)}`,
         { code: 'ELEVENLABS_QUOTA_EXHAUSTED', status: response.status }
+      );
+    }
+    if (response.status === 401) {
+      const normalized = body.toLowerCase();
+      const code = normalized.includes('invalid_api_key')
+        ? 'ELEVENLABS_INVALID_API_KEY'
+        : 'ELEVENLABS_REQUEST_UNAUTHORIZED';
+      throw new NarrationError(
+        `ElevenLabs authorization failed (${response.status}): ${body.slice(0, 240)}`,
+        { code, status: response.status }
+      );
+    }
+    if (response.status === 403) {
+      const normalized = body.toLowerCase();
+      const code = normalized.includes('voice')
+        ? 'ELEVENLABS_VOICE_ACCESS_DENIED'
+        : 'ELEVENLABS_REQUEST_FORBIDDEN';
+      throw new NarrationError(
+        `ElevenLabs forbidden (${response.status}): ${body.slice(0, 240)}`,
+        { code, status: response.status }
       );
     }
     throw new NarrationError(

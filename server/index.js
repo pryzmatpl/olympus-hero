@@ -1453,8 +1453,16 @@ async function startServer() {
           let message = 'The Cosmic Narrator could not voice this passage right now.';
           if (code === 'ELEVENLABS_NOT_CONFIGURED') {
             message = 'Voice provider is not configured on this server.';
+          } else if (code === 'ELEVENLABS_INVALID_API_KEY') {
+            message =
+              'Voice provider rejected the server API key. Update ELEVENLABS_API_KEY (or XI_API_KEY) and recreate the server container.';
+          } else if (code === 'ELEVENLABS_VOICE_ACCESS_DENIED') {
+            message =
+              'Configured ElevenLabs voice is unavailable for this account. Set ELEVENLABS_VOICE_ID to a voice from your ElevenLabs workspace.';
           } else if (
-            code === 'ELEVENLABS_REQUEST_FAILED' &&
+            (code === 'ELEVENLABS_REQUEST_FAILED' ||
+              code === 'ELEVENLABS_REQUEST_UNAUTHORIZED' ||
+              code === 'ELEVENLABS_REQUEST_FORBIDDEN') &&
             (upstreamStatus === 401 || upstreamStatus === 403)
           ) {
             message = 'Voice provider authentication failed on the server.';

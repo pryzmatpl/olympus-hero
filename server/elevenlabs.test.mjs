@@ -211,3 +211,46 @@ test('getOrSynthesizeNarration maps ElevenLabs HTTP 402 to quota error', async (
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('getOrSynthesizeNarration maps invalid API key signature to dedicated code', async () => {
+  const prevCwd = process.cwd();
+  const prevEleven = process.env.ELEVENLABS_API_KEY;
+  const prevFetch = globalThis.fetch;
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'olympus-elevenlabs-401-'));
+
+  try {
+    process.chdir(tmpDir);
+    process.env.ELEVENLABS_API_KEY = 'test-key';
+    const unique = Date.now().toString(36);
+    const roomId = `room-401-${unique}`;
+    const messageId = `msg-401-${unique}`;
+
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 401,
+      text: async () => '{"detail":{"status":"invalid_api_key"}}',
+    });
+
+    await assert.rejects(
+      () =>
+        getOrSynthesizeNarration({
+          roomId,
+          messageId,
+          text: 'Short line for TTS.',
+        }),
+      (err) =>
+        err instanceof NarrationError &&
+        err.code === 'ELEVENLABS_INVALID_API_KEY' &&
+        err.status === 401
+    );
+  } finally {
+    process.chdir(prevCwd);
+    if (prevEleven === undefined) {
+      delete process.env.ELEVENLABS_API_KEY;
+    } else {
+      process.env.ELEVENLABS_API_KEY = prevEleven;
+    }
+    globalThis.fetch = prevFetch;
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
