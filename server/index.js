@@ -1379,7 +1379,6 @@ async function startServer() {
 
     app.get(
       '/api/shared-story/:roomId/messages/:messageId/narration',
-      authMiddleware,
       async (req, res) => {
         try {
           const { roomId, messageId } = req.params;

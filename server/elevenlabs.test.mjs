@@ -115,6 +115,9 @@ test('getOrSynthesizeNarration caches synthesized mp3 by room and message', asyn
   try {
     process.chdir(tmpDir);
     process.env.ELEVENLABS_API_KEY = 'test-key';
+    const unique = Date.now().toString(36);
+    const roomId = `room-${unique}`;
+    const messageId = `msg-${unique}`;
 
     let calls = 0;
     globalThis.fetch = async () => {
@@ -126,13 +129,13 @@ test('getOrSynthesizeNarration caches synthesized mp3 by room and message', asyn
     };
 
     const first = await getOrSynthesizeNarration({
-      roomId: 'room-1',
-      messageId: 'msg-1',
+      roomId,
+      messageId,
       text: 'The stars sing softly tonight.',
     });
     const second = await getOrSynthesizeNarration({
-      roomId: 'room-1',
-      messageId: 'msg-1',
+      roomId,
+      messageId,
       text: 'The stars sing softly tonight.',
     });
 
