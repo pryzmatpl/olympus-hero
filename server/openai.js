@@ -1,5 +1,6 @@
 import { OpenAI } from 'openai';
 import { downloadImage } from './utils.js';
+import { formatLoreForPrompt } from './heroLore.js';
 
 const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
 
@@ -439,6 +440,8 @@ These abilities shape ${heroName}'s approach to challenges, with their ${western
  */
 export async function generateChapter(heroName, heroData, userPrompt, chapterNumber, previousChapterSummary = null) {
   console.log(`Generating chapter ${chapterNumber} for ${heroName}...`);
+
+  const loreBlock = formatLoreForPrompt(heroData);
   
   // Create a prompt for the chapter generation
   let chapterPrompt = '';
@@ -450,6 +453,7 @@ You are a masterful storyteller writing chapter 1 of an epic fantasy novel about
 This is the beginning of their adventure based on the following backstory:
 
 ${heroData.backstory}
+${loreBlock}
 
 The hero has the following zodiac traits:
 - Western Zodiac: ${heroData.westernZodiac.sign} (${heroData.westernZodiac.element})
@@ -476,14 +480,19 @@ Voice and craft:
 End with a compelling hook for chapter 2.
 
 The chapter should establish their personality, showcase their abilities, and draw the reader into their world.
+Honor any player-contributed lore snippets above as intentional canon texture (motivations, habits, omens) without breaking continuity with the backstory.
     `;
   } else {
     // Subsequent chapter prompt - uses previous chapter summary for continuity
+    const bs = typeof heroData.backstory === 'string' ? heroData.backstory : '';
+    const backstoryPreview =
+      bs.length > 300 ? `${bs.substring(0, 300)}...` : bs || '(No backstory on file.)';
     chapterPrompt = `
 You are a masterful storyteller writing chapter ${chapterNumber} in an ongoing epic fantasy novel about a cosmic hero named ${heroName}.
 
 Hero backstory summary:
-${heroData.backstory.substring(0, 300)}...
+${backstoryPreview}
+${loreBlock}
 
 Previous chapter summary:
 ${previousChapterSummary || "The hero began their cosmic journey."}
@@ -509,6 +518,7 @@ Your chapter should:
 
 Remember that this is chapter ${chapterNumber} out of a planned multi-chapter story arc, so pace the narrative appropriately.
 Do not include preambles like "Here's the next chapter" - begin directly with the chapter title.
+Honor any player-contributed lore snippets above as intentional canon texture when they fit the scene.
     `;
   }
   

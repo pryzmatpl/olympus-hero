@@ -21,7 +21,7 @@ import { formatLiteraryBackstory } from '../utils/literaryFormatter';
 import { useNotification } from '../context/NotificationContext';
 import { track } from '../utils/analytics';
 import { getPaywallCopyVariant } from '../utils/growthExperiments';
-import DailyCosmicPulse from '../components/engagement/DailyCosmicPulse';
+import HeroLoreJournal from '../components/hero/HeroLoreJournal';
 
 const HERO_POLL_INTERVAL_MS = 2500;
 const HERO_MAX_POLLS = 52;
@@ -843,7 +843,7 @@ const HeroPage: React.FC = () => {
           )}
         </div>
 
-        {isPaid && !isPreview && heroId && <DailyCosmicPulse heroId={heroId} />}
+        {!isPreview && heroId && <HeroLoreJournal heroId={heroId} />}
       </div>
     </motion.div>
   );

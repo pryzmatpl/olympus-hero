@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { ZodiacInfo } from '../hooks/useZodiac';
 import api from '../utils/api';
 
+export interface HeroLoreEntry {
+  id: string;
+  text: string;
+  kind: 'pulse' | 'note';
+  pulseDay?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Chapter {
   id: string;
   storyBookId: string;
@@ -142,6 +151,7 @@ interface HeroState {
   storyBook: StoryBook | null;
   chapters: Chapter[];
   isLoadingChapters: boolean;
+  loreJournal: HeroLoreEntry[];
   
   // Actions
   setHeroId: (id: string | null) => void;
@@ -160,6 +170,7 @@ interface HeroState {
   setStoryBook: (storyBook: StoryBook | null) => void;
   setChapters: (chapters: Chapter[]) => void;
   setIsLoadingChapters: (isLoading: boolean) => void;
+  setLoreJournal: (entries: HeroLoreEntry[]) => void;
   resetHero: () => void;
   loadHeroFromAPI: (heroData: Record<string, unknown>) => void;
 }
@@ -181,6 +192,7 @@ export const useHeroStore = create<HeroState>((set) => ({
   storyBook: null,
   chapters: [],
   isLoadingChapters: false,
+  loreJournal: [],
   
   // Actions
   setHeroId: (id) => set({ heroId: id }),
@@ -199,6 +211,7 @@ export const useHeroStore = create<HeroState>((set) => ({
   setStoryBook: (storyBook) => set({ storyBook }),
   setChapters: (chapters) => set({ chapters }),
   setIsLoadingChapters: (isLoading) => set({ isLoadingChapters: isLoading }),
+  setLoreJournal: (loreJournal) => set({ loreJournal }),
   resetHero: () => set({
     heroId: null,
     heroName: '',
@@ -215,7 +228,8 @@ export const useHeroStore = create<HeroState>((set) => ({
     avatarVersion: 1,
     storyBook: null,
     chapters: [],
-    isLoadingChapters: false
+    isLoadingChapters: false,
+    loreJournal: [],
   }),
   loadHeroFromAPI: (heroData: Record<string, unknown>) => {
     const rawStatus = heroData.status as string | undefined;
@@ -229,6 +243,21 @@ export const useHeroStore = create<HeroState>((set) => ({
     const chinese = heroData.chineseZodiac as ZodiacInfo['chinese'] | undefined;
     const rawImages = heroData.images;
     const imagesArr = Array.isArray(rawImages) ? rawImages : [];
+    const rawLore = heroData.loreJournal;
+    let loreJournal: HeroLoreEntry[] = [];
+    if (Array.isArray(rawLore)) {
+      loreJournal = rawLore
+        .filter((e): e is Record<string, unknown> => e != null && typeof e === 'object')
+        .map((e) => ({
+          id: String(e.id ?? ''),
+          text: typeof e.text === 'string' ? e.text : '',
+          kind: e.kind === 'pulse' ? ('pulse' as const) : ('note' as const),
+          pulseDay: typeof e.pulseDay === 'string' ? e.pulseDay : undefined,
+          createdAt: typeof e.createdAt === 'string' ? e.createdAt : '',
+          updatedAt: typeof e.updatedAt === 'string' ? e.updatedAt : '',
+        }))
+        .filter((e) => e.id.length > 0 && e.createdAt.length > 0 && e.updatedAt.length > 0);
+    }
     return set({
       heroId: typeof heroData.id === 'string' ? heroData.id : null,
       heroName: typeof heroData.name === 'string' ? heroData.name : '',
@@ -264,6 +293,7 @@ export const useHeroStore = create<HeroState>((set) => ({
       xp: typeof heroData.xp === 'number' ? heroData.xp : 0,
       xpToNextLevel: typeof heroData.xpToNextLevel === 'number' ? heroData.xpToNextLevel : 100,
       avatarVersion: typeof heroData.avatarVersion === 'number' ? heroData.avatarVersion : 1,
+      loreJournal,
     });
   }
 }));

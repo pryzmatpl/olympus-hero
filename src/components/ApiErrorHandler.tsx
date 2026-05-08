@@ -38,11 +38,11 @@ const ApiErrorHandler: React.FC = () => {
     
     // Initialize socket with the server URL
     const socketIo = io(serverUrl, {
-      withCredentials: true, // Enable if your server requires credentials
+      path: '/socket.io/',
+      withCredentials: true,
       autoConnect: true,
       reconnection: true,
-      // Add secure parameter to prefer HTTPS
-      secure: true
+      transports: ['polling', 'websocket'],
     });
 
     // Listen for API errors from socket.io

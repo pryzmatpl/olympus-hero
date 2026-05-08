@@ -14,6 +14,7 @@ import {
   generateSharedStoryPrompt,
   summarizeStoryArcForRoom,
 } from '../sharedStory.js';
+import { appendInitialRoomNarrator } from '../sharedStoryNarrator.js';
 import { applyProgressEvent } from '../progression.js';
 
 beforeEach(async () => {
@@ -34,6 +35,8 @@ test('createSharedStoryRoom persists room in MongoDB', async () => {
   await heroDb.createHero(hero);
 
   const roomId = await createSharedStoryRoom(hero);
+  await appendInitialRoomNarrator(null, roomId);
+
   const raw = await sharedStoryRoomDb.findById(roomId);
   assert.ok(raw);
   assert.equal(raw.id, roomId);
@@ -60,6 +63,8 @@ test('createSharedStoryRoom with storyArcId sets storyArcState and shapes prompt
     mode: 'shared_story',
     storyArcId: 'starfall_conspiracy',
   });
+  await appendInitialRoomNarrator(null, roomId);
+
   const raw = await sharedStoryRoomDb.findById(roomId);
   assert.equal(raw.mode, 'shared_story');
   assert.ok(raw.storyArcState?.templateId, 'storyArcState.templateId');
@@ -74,6 +79,36 @@ test('createSharedStoryRoom with storyArcId sets storyArcState and shapes prompt
   const prompt = await generateSharedStoryPrompt(loaded);
   assert.ok(prompt.includes('STRUCTURED STORY ARC'));
   assert.ok(prompt.includes('Starfall'));
+});
+
+test('generateSharedStoryPrompt includes contributed lore from hero records', async () => {
+  const user = makeUser();
+  await userDb.createUser(user);
+  const token = 'UNIQUE_LORE_TOKEN_XYZZY';
+  const hero = makeHero({
+    userid: user.id,
+    paymentStatus: 'paid',
+    birthdate: new Date('1990-04-15'),
+    westernZodiac: { sign: 'Aries', element: 'Fire', traits: [], strengths: [], weaknesses: [] },
+    chineseZodiac: { sign: 'Horse', element: 'Metal', traits: [] },
+    loreJournal: [
+      {
+        id: 'journal-lore-test-1',
+        text: `${token} keeps a spare button in their boot.`,
+        kind: 'note',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  });
+  await heroDb.createHero(hero);
+
+  const roomId = await createSharedStoryRoom(hero);
+  const loaded = await getSharedStoryRoom(roomId);
+  const prompt = await generateSharedStoryPrompt(loaded);
+
+  assert.ok(prompt.includes(token));
+  assert.ok(prompt.includes('Contributed lore journals'));
 });
 
 test('applyProgressEvent links level-up to storybook chapter unlock', async () => {

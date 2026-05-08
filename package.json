@@ -16,7 +16,7 @@
     "test-bcrypt": "node server/testBcrypt.js",
     "health-check": "node server/health-check.js",
     "mcp:agent-drive": "node server/mcp/agentDriveServer.mjs",
-    "test:unit": "node --test server/analytics.test.mjs",
+    "test:unit": "node --test server/analytics.test.mjs server/elevenlabs.test.mjs",
     "test:integration": "node --import ./server/tests/setup.mjs --test server/tests/*.integration.test.mjs",
     "test:server": "npm run test:unit && npm run test:integration",
     "test:web": "vitest run",
