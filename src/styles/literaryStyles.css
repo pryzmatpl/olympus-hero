@@ -181,7 +181,7 @@
 }
 
 .shared-story-content::before {
-  content: """;
+  content: "<";
   font-family: 'Georgia', serif;
   font-size: 6rem;
   position: absolute;

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { generateChatCompletionWithOpenAI } from './openai.js';
-import { sharedStoryRoomDb } from './db.js';
+import { sharedStoryRoomDb, heroDb } from './db.js';
+import { formatLoreForPrompt } from './heroLore.js';
 import { getStoryArcTemplate, getBeatAtStep, listStoryArcSummaries } from './storyArcs.js';
 import { applyProgressEvent } from './progression.js';
 
@@ -77,6 +78,7 @@ export function normalizeSharedStoryRoom(doc) {
   if (!Array.isArray(room.messages)) room.messages = [];
   if (room.pendingAgentActions === undefined) room.pendingAgentActions = [];
   if (room.agentDriveEnabled === undefined) room.agentDriveEnabled = false;
+  if (room.initialNarratorPending === undefined) room.initialNarratorPending = false;
   if (room.storyArcState === undefined) room.storyArcState = null;
   room.messages = room.messages.map((m) => ({
     ...m,
@@ -152,6 +154,8 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
         }
       : null;
 
+  const avatarUrl = hero.images?.[0]?.url ?? null;
+
   const room = {
     id: roomId,
     title: `${hero.name}'s Cosmic Adventure`,
@@ -159,7 +163,7 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
       id: hero.id,
       userId: hero.userid,
       name: hero.name,
-      avatar: hero.images[0]?.url || null,
+      avatar: avatarUrl,
       backstory: hero.backstory,
       isPremium: hero.paymentStatus === 'paid',
     },
@@ -168,7 +172,7 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
         id: hero.id,
         userId: hero.userid,
         name: hero.name,
-        avatar: hero.images[0]?.url || null,
+        avatar: avatarUrl,
         backstory: hero.backstory,
         isPremium: hero.paymentStatus === 'paid',
       },
@@ -180,6 +184,7 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
     mode,
     ownerUserId: hero.userid,
     agentDriveEnabled: false,
+    initialNarratorPending: true,
     pendingAgentActions: [],
     scriptedState,
     storyArcState,
@@ -202,19 +207,8 @@ export const createSharedStoryRoom = async (hero, options = {}) => {
     timestamp: new Date(),
   });
 
-  const initialPrompt = await generateSharedStoryPrompt(room);
-  const initialResponse = await generateSharedStoryResponse(initialPrompt);
-
-  room.messages.push({
-    id: uuidv4(),
-    sender: {
-      id: 'system',
-      name: 'Cosmic Narrator',
-      avatar: '/storage/aries2.webp',
-    },
-    content: initialResponse,
-    timestamp: new Date(),
-  });
+  // Opening narrator prose runs after HTTP 201 (see appendInitialRoomNarrator) so reverse-proxy
+  // timeouts (e.g. nginx default ~60s) cannot kill POST /api/shared-story/create while OpenAI runs.
 
   await sharedStoryRoomDb.insertRoom(room);
 
@@ -344,6 +338,22 @@ export const generateSharedStoryPrompt = async (room) => {
     .filter((p) => p.backstory)
     .map((p) => `${p.name}'s Backstory: ${p.backstory.substring(0, 500)}...`);
 
+  /** Fresh from DB so new journal lines appear on later narrator beats. */
+  const loreByHero = [];
+  for (const p of room.participants) {
+    try {
+      const freshHero = await heroDb.findHeroById(p.id);
+      const block = formatLoreForPrompt(freshHero);
+      if (block) loreByHero.push(`${p.name}:${block}`);
+    } catch (e) {
+      console.error('generateSharedStoryPrompt lore hydrate:', p?.id, e?.message || e);
+    }
+  }
+  const loreSection =
+    loreByHero.length > 0
+      ? `\nContributed lore journals (player-written lines; weave as character truth, never as a recited checklist):\n${loreByHero.join('\n')}\n`
+      : '';
+
   const beatCtx = resolveNarrativeBeatContext(room);
   const arcBlock = beatCtx
     ? `
@@ -365,12 +375,12 @@ ${room.participants.map((p) => `- ${p.name}`).join('\n')}
 
 Their backstories:
 ${backstories.join('\n\n')}
-${arcBlock}
+${loreSection}${arcBlock}
 Guidelines for your narrative:
 1. Write in a rich, immersive literary style reminiscent of classic fantasy authors
 2. Use vivid, sensory descriptions that bring the cosmic landscape to life
 3. Create epic challenges that showcase each hero's unique abilities and character
-4. Incorporate elements from their backstories into the narrative
+4. Incorporate elements from their backstories and contributed lore journals into the narrative
 5. Format your response with a professional typographic structure:
    - Use clear paragraph breaks (double line breaks) for a clean, book-like appearance
    - Create proper indentation for new paragraphs or dialogue (use a single tab or 2-4 spaces)
@@ -424,7 +434,10 @@ export const generateSharedStoryResponse = async (prompt) => {
 const formatStoryContentForDisplay = (content) => {
   if (!content) return '';
 
+  const dialoguePattern = /(^|[\s([{\u2014-])"([^"\n]+)"(?=[\s)\]}\u2014.,!?;:]|$)/g;
+
   let formatted = content
+    .replace(dialoguePattern, '$1<span class="dialogue">"$2"</span>')
     .replace(/\n\n/g, '</p><p class="story-paragraph">')
     .replace(/\n/g, '<br>')
     .replace(/\*\*\*/g, '<hr class="scene-break">')
@@ -437,7 +450,6 @@ const formatStoryContentForDisplay = (content) => {
       return match;
     })
     .replace(/--/g, '&mdash;')
-    .replace(/"([^"]+)"/g, '<span class="dialogue">"$1"</span>')
     .replace(
       /<p class="story-paragraph">(?!<span class="dialogue">)/g,
       '<p class="story-paragraph indented">'
@@ -458,13 +470,15 @@ const formatStoryContentForDisplay = (content) => {
 const formatBackstoryForDisplay = (backstory) => {
   if (!backstory) return '';
 
+  const dialoguePattern = /(^|[\s([{\u2014-])"([^"\n]+)"(?=[\s)\]}\u2014.,!?;:]|$)/g;
+
   let formatted = backstory
+    .replace(dialoguePattern, '$1<span class="dialogue">"$2"</span>')
     .replace(/\n\n/g, '</p><p class="backstory-paragraph">')
     .replace(/\n/g, '<br>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/--/g, '&mdash;')
-    .replace(/"([^"]+)"/g, '<span class="dialogue">"$1"</span>');
+    .replace(/--/g, '&mdash;');
 
   if (!formatted.startsWith('<p')) {
     formatted = '<p class="backstory-paragraph">' + formatted;
@@ -488,13 +502,15 @@ export const listSharedStoryRooms = async () => {
 export const formatUserMessageForDisplay = (content) => {
   if (!content) return '';
 
+  const dialoguePattern = /(^|[\s([{\u2014-])"([^"\n]+)"(?=[\s)\]}\u2014.,!?;:]|$)/g;
+
   let formatted = content
+    .replace(dialoguePattern, '$1<span class="dialogue">"$2"</span>')
     .replace(/\n\n/g, '</p><p class="user-paragraph">')
     .replace(/\n/g, '<br>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/--/g, '&mdash;')
-    .replace(/"([^"]+)"/g, '<span class="dialogue">"$1"</span>');
+    .replace(/--/g, '&mdash;');
 
   if (!formatted.startsWith('<p')) {
     formatted = '<p class="user-paragraph">' + formatted;

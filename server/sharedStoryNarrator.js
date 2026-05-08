@@ -8,6 +8,9 @@ import {
   generateSharedStoryPrompt,
   generateSharedStoryResponse,
 } from './sharedStory.js';
+
+/** Cosmic Narrator avatar on persisted system messages (matches sharedStory room creation). */
+const NARRATOR_AVATAR = '/storage/aries2.webp';
 import {
   isOpenAIQuotaError,
   checkOpenAIQuotaExceeded,
@@ -116,7 +119,7 @@ export async function appendUserMessageAndMaybeNarrator(
       sender: {
         id: 'system',
         name: 'Cosmic Narrator',
-        avatar: null,
+        avatar: NARRATOR_AVATAR,
       },
       content: responseContent,
       timestamp: new Date(),
@@ -175,5 +178,116 @@ export async function appendUserMessageAndMaybeNarrator(
       await appendMessagesAndSave(roomId, [errorMessage]);
       io.to(roomId).emit('message', errorMessage);
     }
+  }
+}
+
+/**
+ * First Cosmic Narrator reply after room creation. Run without blocking POST /api/shared-story/create
+ * so proxies (nginx default ~60s read timeout) do not return 502 while OpenAI runs.
+ * @param {import('socket.io').Server | null | undefined} io - omit in tests; optional broadcast
+ * @param {string} roomId
+ */
+export async function appendInitialRoomNarrator(io, roomId) {
+  const room = await getSharedStoryRoom(roomId);
+  if (!room) return;
+  if (room.messages.length !== 1) {
+    await mutateSharedStoryRoom(roomId, (r) => {
+      r.initialNarratorPending = false;
+    }).catch(() => {});
+    return;
+  }
+
+  if (checkOpenAIQuotaExceeded()) {
+    const errorMessage = {
+      id: uuidv4(),
+      sender: {
+        id: 'system',
+        name: 'System',
+        avatar: null,
+      },
+      content:
+        'The Cosmic Narrator is taking a brief rest. Our cosmic energies (API quota) have been temporarily depleted. Please try again later.',
+      timestamp: new Date(),
+      isError: true,
+    };
+    await appendMessagesAndSave(roomId, [errorMessage]);
+    await mutateSharedStoryRoom(roomId, (r) => {
+      r.initialNarratorPending = false;
+    });
+    io?.to(roomId).emit('message', errorMessage);
+    return;
+  }
+
+  io?.to(roomId).emit('narrator_typing');
+
+  const prompt = await generateSharedStoryPrompt(room);
+  const startTime = Date.now();
+
+  try {
+    const responseContent = await generateSharedStoryResponse(prompt);
+    const responseTime = Date.now() - startTime;
+    const MIN_TYPING_TIME = 3500;
+    if (responseTime < MIN_TYPING_TIME) {
+      await new Promise((resolve) => setTimeout(resolve, MIN_TYPING_TIME - responseTime));
+    }
+
+    const aiMessage = {
+      id: uuidv4(),
+      sender: {
+        id: 'system',
+        name: 'Cosmic Narrator',
+        avatar: NARRATOR_AVATAR,
+      },
+      content: responseContent,
+      timestamp: new Date(),
+    };
+
+    await appendMessagesAndSave(roomId, [aiMessage]);
+    await mutateSharedStoryRoom(roomId, (r) => {
+      r.initialNarratorPending = false;
+    });
+    io?.to(roomId).emit('message', aiMessage);
+  } catch (aiError) {
+    console.error('appendInitialRoomNarrator:', aiError);
+
+    if (isOpenAIQuotaError(aiError)) {
+      setOpenAIQuotaExceeded(true);
+      const errorMessage = {
+        id: uuidv4(),
+        sender: {
+          id: 'system',
+          name: 'System',
+          avatar: null,
+        },
+        content:
+          'The Cosmic Narrator is taking a brief rest. Our cosmic energies (API quota) have been temporarily depleted. Please try again later.',
+        timestamp: new Date(),
+        isError: true,
+      };
+      await appendMessagesAndSave(roomId, [errorMessage]);
+      await mutateSharedStoryRoom(roomId, (r) => {
+        r.initialNarratorPending = false;
+      });
+      io?.to(roomId).emit('message', errorMessage);
+      return;
+    }
+
+    const fallback = {
+      id: uuidv4(),
+      sender: {
+        id: 'system',
+        name: 'System',
+        avatar: null,
+      },
+      content:
+        'The opening narration could not be generated right now. You can still play — say something in chat to continue, or reload the page in a moment.',
+      timestamp: new Date(),
+      isError: true,
+    };
+    await appendMessagesAndSave(roomId, [fallback]);
+    await mutateSharedStoryRoom(roomId, (r) => {
+      r.initialNarratorPending = false;
+    });
+    io?.to(roomId).emit('message', fallback);
   }
 }

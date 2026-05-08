@@ -19,7 +19,16 @@ import {
 import { applyProgressEvent } from './progression.js';
 import { getStoryArcTemplate } from './storyArcs.js';
 import { moderateProposalText } from './moderation.js';
-import { appendUserMessageAndMaybeNarrator } from './sharedStoryNarrator.js';
+import { postHeroLore, patchHeroLore, deleteHeroLore, normalizeLoreJournal } from './heroLore.js';
+import {
+  appendUserMessageAndMaybeNarrator,
+  appendInitialRoomNarrator,
+} from './sharedStoryNarrator.js';
+import {
+  isElevenLabsConfigured,
+  narratorHtmlToSpokenText,
+  getOrSynthesizeNarration,
+} from './elevenlabs.js';
 import { insertAnalyticsEvent, parseAnalyticsBody } from './analytics.js';
 import { ensureStorageDirectories, createHeroZip } from './utils.js';
 import {
@@ -144,6 +153,32 @@ if (args.includes('--migrate-passwords')) {
   startServer();
 }
 
+/**
+ * Allow apex + www for production domain, localhost in dev (Express + Socket.IO CORS).
+ * @param {string | undefined} origin
+ * @param {(err: Error | null, allow?: boolean) => void} callback
+ */
+function corsAllowMythicalHero(origin, callback) {
+  try {
+    if (!origin) {
+      return callback(null, true);
+    }
+    const { hostname } = new URL(origin);
+    const base = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+    if (base === 'mythicalhero.me') {
+      return callback(null, true);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return callback(null, true);
+      }
+    }
+    return callback(null, false);
+  } catch {
+    return callback(null, false);
+  }
+}
+
 async function startServer() {
   try {
     // Only require JWT_SECRET as absolutely essential
@@ -194,14 +229,12 @@ async function startServer() {
     // Configure Socket.IO to work with HTTPS
     const io = new Server(httpServer, {
       cors: {
-        origin: process.env.NODE_ENV === 'production' ? ['https://mythicalhero.me'] : ['https://mythicalhero.me', 'http://mythicalhero.me', 'http://localhost:9001', 'http://127.0.0.1:9001'],
+        origin: corsAllowMythicalHero,
         methods: ['GET', 'POST'],
-        credentials: true
+        credentials: true,
       },
-      // Add transport policy to enforce secure connections in production
       transports: ['websocket', 'polling'],
-      // Honor proxy headers (important if behind a reverse proxy like nginx)
-      allowEIO3: true
+      allowEIO3: true,
     });
     
     const PORT = process.env.PORT || 9002;
@@ -209,38 +242,26 @@ async function startServer() {
     // Enable CORS debugging
     console.log('Setting up CORS middleware...');
 
-    // CORS middleware
-    app.use((req, res, next) => {
-      console.log(`${req.method} request for ${req.url}`);
-      // Get protocol and host from request headers
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      const host = req.headers.host;
-      console.log(`Request protocol: ${protocol}, host: ${host}`);
-      
-      // For preflight requests
-      if (req.method === 'OPTIONS') {
-        console.log('Handling OPTIONS preflight request');
-        res.header('Access-Control-Allow-Origin', protocol === 'https' ? 'https://mythicalhero.me' : 'http://localhost:9001');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
-        res.header('Access-Control-Allow-Credentials', 'true');
-        return res.status(204).send();
-      }
-      next();
-    });
-
-    // Main CORS middleware
-    app.use(cors({
-      origin: ['https://mythicalhero.me', 'http://mythicalhero.me', 'http://localhost:9001', 'http://127.0.0.1:9001'],
+    const expressCorsOptions = {
+      origin: corsAllowMythicalHero,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true,
       allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
       preflightContinue: false,
-      optionsSuccessStatus: 204
-    }));
+      optionsSuccessStatus: 204,
+    };
 
-    // Add explicit handling for OPTIONS requests
-    app.options('*', cors());
+    // Request logging (do not handle OPTIONS here — it hardcoded Allow-Origin and broke www + Socket.IO)
+    app.use((req, res, next) => {
+      console.log(`${req.method} request for ${req.url}`);
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers.host;
+      console.log(`Request protocol: ${protocol}, host: ${host}`);
+      next();
+    });
+
+    app.use(cors(expressCorsOptions));
+    app.options('*', cors(expressCorsOptions));
 
     app.use(express.json());
 
@@ -814,7 +835,56 @@ async function startServer() {
         return res.status(403).json({ error: 'You do not have permission to view this hero' });
       }
       
-      return res.json(hero);
+      return res.json({
+        ...hero,
+        loreJournal: normalizeLoreJournal(hero),
+      });
+    });
+
+    app.post('/api/heroes/:id/lore', authMiddleware, async (req, res) => {
+      const { id } = req.params;
+      const userId = req.user.userId;
+      if (typeof userId !== 'string') {
+        return res.status(400).json({ error: 'invalid_session' });
+      }
+      const result = await postHeroLore({
+        heroDb,
+        heroId: id,
+        userId,
+        body: req.body,
+      });
+      return res.status(result.status).json(result.body);
+    });
+
+    app.patch('/api/heroes/:id/lore/:loreId', authMiddleware, async (req, res) => {
+      const { id, loreId } = req.params;
+      const userId = req.user.userId;
+      if (typeof userId !== 'string') {
+        return res.status(400).json({ error: 'invalid_session' });
+      }
+      const result = await patchHeroLore({
+        heroDb,
+        heroId: id,
+        userId,
+        loreId,
+        body: req.body,
+      });
+      return res.status(result.status).json(result.body);
+    });
+
+    app.delete('/api/heroes/:id/lore/:loreId', authMiddleware, async (req, res) => {
+      const { id, loreId } = req.params;
+      const userId = req.user.userId;
+      if (typeof userId !== 'string') {
+        return res.status(400).json({ error: 'invalid_session' });
+      }
+      const result = await deleteHeroLore({
+        heroDb,
+        heroId: id,
+        userId,
+        loreId,
+      });
+      return res.status(result.status).json(result.body);
     });
 
     app.post('/api/heroes/setpremium/:id', authMiddleware, async (req, res) => {
@@ -1247,10 +1317,14 @@ async function startServer() {
           scriptTemplateId,
           storyArcId,
         });
-        
-        return res.status(201).json({ 
+
+        appendInitialRoomNarrator(io, roomId).catch((err) => {
+          console.error('Initial shared-story narrator:', err?.message || err);
+        });
+
+        return res.status(201).json({
           roomId,
-          message: 'Shared story room created successfully' 
+          message: 'Shared story room created successfully',
         });
       } catch (error) {
         console.error('Error creating shared story room:', error);
@@ -1295,12 +1369,67 @@ async function startServer() {
           })),
           created: room.created,
           storyArc: summarizeStoryArcForRoom(room),
+          voiceNarrationAvailable: isElevenLabsConfigured(),
         });
       } catch (error) {
         console.error('Error getting shared story room:', error);
         return res.status(500).json({ error: 'Failed to get shared story room details' });
       }
     });
+
+    app.get(
+      '/api/shared-story/:roomId/messages/:messageId/narration',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { roomId, messageId } = req.params;
+          if (!isElevenLabsConfigured()) {
+            return res.status(503).json({
+              error: 'narration_unavailable',
+              message: 'Voice narration is not configured on this server.',
+            });
+          }
+          const room = await getSharedStoryRoom(roomId);
+          if (!room) {
+            return res.status(404).json({ error: 'Room not found' });
+          }
+          const message = (room.messages || []).find((m) => m.id === messageId);
+          if (!message) {
+            return res.status(404).json({ error: 'Message not found' });
+          }
+          if (message.sender?.id !== 'system' || message.sender?.name !== 'Cosmic Narrator') {
+            return res
+              .status(400)
+              .json({ error: 'Only Cosmic Narrator passages can be voiced' });
+          }
+          const text = narratorHtmlToSpokenText(message.content);
+          if (!text) {
+            return res.status(400).json({ error: 'No narratable text in this passage' });
+          }
+          const audio = await getOrSynthesizeNarration({ roomId, messageId, text });
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Length', String(audio.length));
+          res.setHeader('Cache-Control', 'private, max-age=86400');
+          res.setHeader('Accept-Ranges', 'none');
+          return res.end(audio);
+        } catch (error) {
+          console.error('shared-story narration error:', error?.message || error);
+          const status =
+            typeof error?.status === 'number' && error.status >= 400 && error.status < 600
+              ? error.status >= 500
+                ? 502
+                : error.status
+              : 500;
+          if (!res.headersSent) {
+            return res.status(status).json({
+              error: 'narration_failed',
+              message: 'The Cosmic Narrator could not voice this passage right now.',
+            });
+          }
+          return res.end();
+        }
+      }
+    );
 
     // List all active shared story rooms
     app.get('/api/shared-story', async (req, res) => {
@@ -1980,6 +2109,7 @@ async function startServer() {
             messages: result.messages,
             mode: result.mode || 'shared_story',
             agentDriveEnabled: !!result.agentDriveEnabled,
+            initialNarratorPending: !!result.initialNarratorPending,
             storyArc: summarizeStoryArcForRoom(result),
           });
           

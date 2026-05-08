@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import { AuthContext } from '../App';
 import { useHeroStore } from '../store/heroStore';
 import Button from '../components/ui/Button';
-import PageTitle from '../components/ui/PageTitle';
 import MetaTags from '../components/ui/MetaTags';
 import api from '../utils/api';
 import { formatMarkdown } from '../utils/markdownHelper';
@@ -25,11 +24,47 @@ import {
   Loader2,
   Bot,
   Shield,
+  Play,
+  Pause,
+  Volume2,
 } from 'lucide-react';
 import { getSocketUrl } from '../utils/api';
 
+/** Agent Drive spotlight — amber/stone frame to match HomePage RPG marketing panels. */
 const agentDriveSpotlightClass =
-  'rounded-xl border-2 border-cosmic-400/50 bg-gradient-to-br from-cosmic-950/95 via-mystic-950/90 to-cosmic-950/80 p-6 md:p-7 shadow-2xl shadow-cosmic-950/50 ring-1 ring-cosmic-400/25';
+  'rounded-sm border-2 border-amber-700/45 bg-gradient-to-br from-stone-950/97 via-mystic-950/93 to-stone-900/85 p-6 md:p-7 shadow-2xl shadow-black/45 ring-1 ring-amber-500/20';
+
+/** Full-page backdrop and content stack aligned with landing (`HomePage`). */
+const sharedStoryPageMotionClass =
+  'relative overflow-hidden min-h-[min(100dvh,1420px)] bg-gradient-to-b from-stone-950 via-mystic-950 to-mystic-900 border-b border-stone-800/80 text-stone-200';
+
+const panelSurfaceClass =
+  'border border-stone-700/85 bg-stone-950/55 shadow-lg shadow-black/30 rounded-sm';
+
+const panelSurfaceMutedClass =
+  'border border-stone-800/90 bg-stone-900/40 rounded-sm shadow-md shadow-black/20';
+
+function SharedStoryChrome({
+  children,
+  mainClassName = 'container mx-auto px-4 pt-24 pb-16',
+}: {
+  children: React.ReactNode;
+  mainClassName?: string;
+}) {
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_-18%,rgba(180,83,9,0.11),transparent)]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_58%,rgba(88,28,135,0.18),transparent_55%)]"
+        aria-hidden
+      />
+      <div className={`relative z-10 ${mainClassName}`}>{children}</div>
+    </>
+  );
+}
 
 function AgentDriveLobbyCallout() {
   return (
@@ -38,43 +73,43 @@ function AgentDriveLobbyCallout() {
       aria-labelledby="agent-drive-lobby-heading"
     >
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cosmic-500/20 border border-cosmic-400/50">
-          <Bot className="h-8 w-8 text-cosmic-200" aria-hidden />
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-sm bg-amber-900/35 border border-amber-600/45">
+          <Bot className="h-8 w-8 text-amber-100" aria-hidden />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cosmic-300">
+            <p className="text-amber-500/95 font-display text-[11px] font-bold uppercase tracking-[0.22em]">
               Your hero, your agent
             </p>
             <h2
               id="agent-drive-lobby-heading"
-              className="font-display text-2xl md:text-3xl font-bold text-white mt-1.5 tracking-tight"
+              className="font-display text-2xl md:text-3xl font-bold text-stone-100 mt-1.5 tracking-tight"
             >
               Agent Drive
             </h2>
           </div>
-          <p className="text-gray-100 text-base md:text-lg leading-relaxed font-medium">
-            <strong className="text-white">Drive this hero from your own AI agent.</strong> After you open a
+          <p className="text-stone-200 text-base md:text-lg leading-relaxed font-medium">
+            <strong className="text-stone-100">Drive this hero from your own AI agent.</strong> After you open a
             room as host, enable Agent Drive and mint a scoped token. Plug it into Cursor, an MCP client,
             or your scripts — your automation proposes what your hero says or does next,{' '}
-            <em className="text-cosmic-200 not-italic font-semibold underline decoration-cosmic-500/60">
+            <em className="text-amber-200/95 not-italic font-semibold underline decoration-amber-600/55">
               and you approve every post in this app before it goes live
             </em>
             .
           </p>
-          <ul className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-400">
+          <ul className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-stone-400">
             <li className="inline-flex items-center gap-2">
-              <Shield className="w-4 h-4 text-cosmic-400 shrink-0" aria-hidden />
+              <Shield className="w-4 h-4 text-amber-500/85 shrink-0" aria-hidden />
               Human-in-the-loop by design
             </li>
             <li className="inline-flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-cosmic-400 shrink-0" aria-hidden />
+              <Sparkles className="w-4 h-4 text-amber-500/85 shrink-0" aria-hidden />
               Works with MCP-compatible tooling
             </li>
           </ul>
-          <p className="text-sm text-gray-500 border-t border-cosmic-800/60 pt-3">
-            <span className="text-cosmic-400 font-medium">When you&apos;re in a session:</span> only the{' '}
-            <strong className="text-gray-400">room owner</strong> can turn Agent Drive on and create tokens —
+          <p className="text-sm text-stone-500 border-t border-stone-700/80 pt-3">
+            <span className="text-amber-400/95 font-medium">When you&apos;re in a session:</span> only the{' '}
+            <strong className="text-stone-400">room owner</strong> can turn Agent Drive on and create tokens —
             scroll to Agent Drive controls at the top of the room once you&apos;ve launched an adventure.
           </p>
         </div>
@@ -156,23 +191,23 @@ const CosmicNarratorLoading = () => (
   <div className="relative p-10 flex items-center justify-center my-6">
     {/* Outer glow */}
     <motion.div 
-      className="absolute w-60 h-60 rounded-full bg-cosmic-500/10 blur-xl"
+      className="absolute w-60 h-60 rounded-full bg-amber-600/10 blur-xl"
       variants={glowVariants}
       initial="initial"
       animate="animate"
     />
     
-    {/* Main cosmic orb */}
+    {/* Main orb */}
     <motion.div 
-      className="absolute w-40 h-40 rounded-full bg-gradient-to-tr from-cosmic-900 via-cosmic-700 to-cosmic-500 blur-md"
+      className="absolute w-40 h-40 rounded-full bg-gradient-to-tr from-mystic-900 via-amber-900/80 to-amber-700/60 blur-md"
       variants={cosmicPulseVariants}
       initial="initial"
       animate="animate"
     />
     
-    {/* Divine rays */}
+    {/* Rays */}
     <motion.div 
-      className="absolute w-56 h-56 bg-gradient-to-tr from-cosmic-500/0 via-cosmic-400/10 to-cosmic-300/30"
+      className="absolute w-56 h-56 bg-gradient-to-tr from-amber-500/0 via-amber-400/12 to-amber-300/25"
       style={{ 
         clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
         transform: 'scale(1.5)'
@@ -187,7 +222,7 @@ const CosmicNarratorLoading = () => (
       <motion.div 
         key={`orb-${i}`}
         className={`absolute w-3 h-3 rounded-full ${
-          i % 2 === 0 ? 'bg-purple-400' : 'bg-cosmic-300'
+          i % 2 === 0 ? 'bg-amber-400/90' : 'bg-amber-200/80'
         }`}
         custom={i}
         variants={orbVariants}
@@ -205,7 +240,7 @@ const CosmicNarratorLoading = () => (
     {[...Array(20)].map((_, i) => (
       <motion.div 
         key={`star-${i}`}
-        className="absolute w-1 h-1 bg-white rounded-full shadow-lg shadow-cosmic-300"
+        className="absolute w-1 h-1 bg-amber-100 rounded-full shadow-lg shadow-amber-500/40"
         custom={i}
         variants={starVariants}
         initial="initial"
@@ -218,13 +253,13 @@ const CosmicNarratorLoading = () => (
     ))}
     
     {/* Center content */}
-    <div className="z-10 text-center backdrop-blur-sm bg-mystic-900/30 rounded-lg p-3 border border-cosmic-800/50">
+    <div className="z-10 text-center backdrop-blur-sm bg-stone-950/55 rounded-sm p-3 border border-stone-700/80">
       <div className="flex items-center justify-center mb-2">
-        <Sparkles className="text-cosmic-300 w-6 h-6 mr-2" />
-        <span className="text-cosmic-300 font-display font-semibold">Cosmic Narrator</span>
-        <Sparkles className="text-cosmic-300 w-6 h-6 ml-2" />
+        <Sparkles className="text-amber-400/95 w-6 h-6 mr-2" />
+        <span className="text-amber-100 font-display font-semibold">Cosmic Narrator</span>
+        <Sparkles className="text-amber-400/95 w-6 h-6 ml-2" />
       </div>
-      <p className="text-cosmic-400 text-sm">Channeling cosmic wisdom...</p>
+      <p className="text-stone-400 text-sm">Channeling the tale...</p>
     </div>
   </div>
 );
@@ -274,6 +309,15 @@ interface SharedRoom {
   agentDriveEnabled?: boolean;
   ownerUserId?: string;
   storyArc?: StoryArcSummary | null;
+  voiceNarrationAvailable?: boolean;
+}
+
+type NarrationStatus = 'idle' | 'loading' | 'playing' | 'error';
+
+interface NarrationState {
+  messageId: string | null;
+  status: NarrationStatus;
+  error?: string;
 }
 
 // Interface for room list items
@@ -302,6 +346,54 @@ const westernZodiacIcons: Record<string, { color: string }> = {
   'Aquarius': { color: 'text-blue-300' },
   'Pisces': { color: 'text-purple-400' }
 };
+
+function NarratorPlayButton({
+  messageId,
+  narration,
+  onToggle,
+}: {
+  messageId: string;
+  narration: NarrationState;
+  onToggle: (messageId: string) => void;
+}) {
+  const isActive = narration.messageId === messageId;
+  const status: NarrationStatus = isActive ? narration.status : 'idle';
+  const isPlaying = status === 'playing';
+  const isLoading = status === 'loading';
+
+  const label = isPlaying
+    ? 'Pause narration'
+    : isLoading
+      ? 'Summoning the narrator…'
+      : 'Listen to this passage';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(messageId)}
+      disabled={isLoading}
+      aria-label={label}
+      title={label}
+      className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+        isPlaying
+          ? 'border-amber-500/65 bg-amber-900/45 text-amber-100 hover:bg-amber-900/60'
+          : 'border-amber-700/50 bg-stone-950/70 text-amber-200/95 hover:border-amber-500/70 hover:text-amber-100'
+      } disabled:cursor-wait disabled:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60`}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+      ) : isPlaying ? (
+        <Pause className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <Play className="h-3.5 w-3.5" aria-hidden />
+      )}
+      <Volume2 className="h-3.5 w-3.5 opacity-80" aria-hidden />
+      <span>
+        {isPlaying ? 'Pause' : isLoading ? 'Summoning' : 'Listen'}
+      </span>
+    </button>
+  );
+}
 
 const SharedStoryPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -361,9 +453,13 @@ const SharedStoryPage: React.FC = () => {
   } | null>(null);
   const [agentTokenReveal, setAgentTokenReveal] = useState<string | null>(null);
   const [agentTokens, setAgentTokens] = useState<Array<{ id: string; revokedAt: string | null; expiresAt: string }>>([]);
-  
+  const [narration, setNarration] = useState<NarrationState>({ messageId: null, status: 'idle' });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const narrationBlobUrlRef = useRef<string | null>(null);
+  const narrationAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     heroIdRef.current = heroId;
@@ -431,14 +527,15 @@ const SharedStoryPage: React.FC = () => {
     // Get the server URL from our secure socket helper
     const serverUrl = getSocketUrl();
     
-    // Connect to socket with proper configuration
     const socketIo = io(serverUrl, {
-      withCredentials: true, // Enable if your server requires credentials
+      path: '/socket.io/',
+      withCredentials: true,
       autoConnect: true,
       reconnection: true,
-      timeout: 20000, // Increase timeout to avoid premature disconnections
-      secure: true, // Prefer HTTPS connections
-      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 8,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+      transports: ['polling', 'websocket'],
     });
     
     socketRef.current = socketIo;
@@ -448,16 +545,25 @@ const SharedStoryPage: React.FC = () => {
     socketIo.on('connect', () => {
       console.log('Connected to socket.io server');
       setIsConnected(true);
-      
+      setError((prev) =>
+        prev?.includes('connect to') && prev?.includes('story server') ? null : prev
+      );
+
       // Authenticate
       if (token && heroId) {
         socketIo.emit('authenticate', { token, heroId });
       }
     });
-    
+
     socketIo.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
-      setError(`Failed to connect to the story server: ${error.message}`);
+      // First attempts often fail while upgrading transport; surface only after retries give up.
+    });
+
+    socketIo.on('reconnect_failed', () => {
+      setError(
+        'Could not connect to the live story server (after several tries). Refresh the page, or try again without a VPN/ad-blocker blocking WebSockets.'
+      );
       setIsLoading(false);
     });
     
@@ -481,6 +587,7 @@ const SharedStoryPage: React.FC = () => {
       setIsLoading(false);
       setIsPremium(data.isPremium);
       setUserRole(data.role);
+      setIsNarratorTyping(Boolean(data.initialNarratorPending));
       setRoom((prev) =>
         prev
           ? {
@@ -597,6 +704,7 @@ const SharedStoryPage: React.FC = () => {
           agentDriveEnabled: d.agentDriveEnabled,
           ownerUserId: d.ownerUserId,
           storyArc: d.storyArc ?? null,
+          voiceNarrationAvailable: Boolean(d.voiceNarrationAvailable),
         });
       } catch (error) {
         console.error('Error fetching room details:', error);
@@ -704,8 +812,14 @@ const SharedStoryPage: React.FC = () => {
       navigate(`/shared-story/${response.data.roomId}`);
     } catch (error: unknown) {
       console.error('Error creating room:', error);
-      const ax = error as { response?: { data?: { error?: string } } };
-      const errorMessage = ax.response?.data?.error || 'Failed to create room';
+      const ax = error as {
+        response?: { data?: { error?: string; message?: string } };
+      };
+      const d = ax.response?.data;
+      const errorMessage =
+        d?.error === 'upstream_error' && d?.message
+          ? d.message
+          : d?.error || 'Failed to create room';
       console.error('Error message:', errorMessage);
       setError(errorMessage);
       setIsLoading(false);
@@ -792,6 +906,146 @@ const SharedStoryPage: React.FC = () => {
     }
   };
   
+  const ensureAudioElement = useCallback((): HTMLAudioElement => {
+    if (audioRef.current) return audioRef.current;
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.addEventListener('ended', () => {
+      setNarration((prev) =>
+        prev.status === 'playing' ? { messageId: null, status: 'idle' } : prev
+      );
+    });
+    audio.addEventListener('error', () => {
+      setNarration((prev) => ({
+        messageId: prev.messageId,
+        status: 'error',
+        error: 'Audio playback failed.',
+      }));
+    });
+    audioRef.current = audio;
+    return audio;
+  }, []);
+
+  const releaseNarrationBlob = useCallback(() => {
+    if (narrationBlobUrlRef.current) {
+      URL.revokeObjectURL(narrationBlobUrlRef.current);
+      narrationBlobUrlRef.current = null;
+    }
+  }, []);
+
+  const stopNarration = useCallback(() => {
+    narrationAbortRef.current?.abort();
+    narrationAbortRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute('src');
+      audioRef.current.load();
+    }
+    releaseNarrationBlob();
+    setNarration({ messageId: null, status: 'idle' });
+  }, [releaseNarrationBlob]);
+
+  const handleNarrationToggle = useCallback(
+    async (messageId: string) => {
+      if (!roomId) return;
+      const audio = ensureAudioElement();
+
+      if (narration.messageId === messageId) {
+        if (narration.status === 'playing') {
+          audio.pause();
+          setNarration({ messageId, status: 'idle' });
+          return;
+        }
+        if (narration.status === 'loading') {
+          return;
+        }
+        if (narration.status === 'idle' && audio.src) {
+          try {
+            await audio.play();
+            setNarration({ messageId, status: 'playing' });
+          } catch (e) {
+            console.error('Narration resume failed:', e);
+            setNarration({ messageId, status: 'error', error: 'Could not resume playback.' });
+          }
+          return;
+        }
+      }
+
+      audio.pause();
+      releaseNarrationBlob();
+      narrationAbortRef.current?.abort();
+      const controller = new AbortController();
+      narrationAbortRef.current = controller;
+      setNarration({ messageId, status: 'loading' });
+
+      try {
+        const response = await api.get(
+          `/api/shared-story/${roomId}/messages/${messageId}/narration`,
+          { responseType: 'blob', signal: controller.signal }
+        );
+        if (controller.signal.aborted) return;
+        const url = URL.createObjectURL(response.data as Blob);
+        narrationBlobUrlRef.current = url;
+        audio.src = url;
+        await audio.play();
+        if (controller.signal.aborted) return;
+        setNarration({ messageId, status: 'playing' });
+      } catch (e: unknown) {
+        const ax = e as {
+          code?: string;
+          name?: string;
+          response?: { status?: number; data?: Blob | { message?: string; error?: string } };
+        };
+        if (controller.signal.aborted || ax.code === 'ERR_CANCELED' || ax.name === 'CanceledError') {
+          return;
+        }
+        let message = 'Could not voice this passage. Please try again.';
+        const data = ax.response?.data;
+        if (data instanceof Blob) {
+          try {
+            const parsed = JSON.parse(await data.text());
+            if (parsed?.message || parsed?.error) {
+              message = String(parsed.message || parsed.error);
+            }
+          } catch {
+            /* opaque error payload — keep default copy */
+          }
+        } else if (data && typeof data === 'object') {
+          message = data.message || data.error || message;
+        }
+        if (ax.response?.status === 503) {
+          message = 'Voice narration is not configured on this server.';
+        }
+        console.error('Narration request failed:', e);
+        releaseNarrationBlob();
+        setNarration({ messageId, status: 'error', error: message });
+      }
+    },
+    [roomId, narration.messageId, narration.status, ensureAudioElement, releaseNarrationBlob]
+  );
+
+  useEffect(() => {
+    return () => {
+      narrationAbortRef.current?.abort();
+      narrationAbortRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      }
+      if (narrationBlobUrlRef.current) {
+        URL.revokeObjectURL(narrationBlobUrlRef.current);
+        narrationBlobUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!roomId) {
+      stopNarration();
+    }
+  }, [roomId, stopNarration]);
+
   // Handler for sending messages
   const handleSendMessage = () => {
     if (!socket || !message.trim() || !isConnected) return;
@@ -860,28 +1114,30 @@ const SharedStoryPage: React.FC = () => {
   
   // Helper function to get the color for a zodiac sign
   const getZodiacColor = (sign: string | undefined): string => {
-    if (!sign) return 'text-cosmic-300';
+    if (!sign) return 'text-amber-200/95';
     const zodiacInfo = westernZodiacIcons[sign];
-    return zodiacInfo?.color || 'text-cosmic-300';
+    return zodiacInfo?.color || 'text-amber-200/95';
   };
   
   // Loading state
   if (isLoading) {
     return (
       <motion.div
-        className="container mx-auto px-4 pt-20 pb-10"
+        className={sharedStoryPageMotionClass}
         variants={pageVariants}
         initial="initial"
         animate="animate"
         exit="exit"
       >
-        <div className="flex flex-col items-center justify-center h-[60vh]">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cosmic-500 mx-auto mb-4"></div>
-          <h2 className="text-2xl font-semibold">
-            {roomId ? 'Joining shared story...' : 'Creating new shared story...'}
-          </h2>
-          <p className="text-gray-400 mt-2">Please wait as we align the cosmic forces.</p>
-        </div>
+        <SharedStoryChrome>
+          <div className="flex flex-col items-center justify-center min-h-[55vh]">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-amber-600/85 mx-auto mb-4"></div>
+            <h2 className="text-2xl font-display font-semibold text-stone-100">
+              {roomId ? 'Joining shared story...' : 'Creating new shared story...'}
+            </h2>
+            <p className="text-stone-400 mt-2">Please wait — connecting your session.</p>
+          </div>
+        </SharedStoryChrome>
       </motion.div>
     );
   }
@@ -890,16 +1146,17 @@ const SharedStoryPage: React.FC = () => {
   if (error) {
     return (
       <motion.div
-        className="container mx-auto px-4 pt-20 pb-10"
+        className={sharedStoryPageMotionClass}
         variants={pageVariants}
         initial="initial"
         animate="animate"
         exit="exit"
       >
-        <div className="flex flex-col items-center justify-center h-[60vh]">
-          <div className="bg-red-900/30 p-6 rounded-xl border border-red-800 mb-4 max-w-md w-full">
-            <h2 className="text-2xl font-semibold text-red-200 mb-2">Error</h2>
-            <p className="text-red-300">{error}</p>
+        <SharedStoryChrome>
+          <div className="flex flex-col items-center justify-center min-h-[55vh]">
+          <div className="bg-red-950/40 p-6 rounded-sm border border-red-900/60 mb-4 max-w-md w-full shadow-lg shadow-black/30">
+            <h2 className="text-2xl font-display font-semibold text-red-200 mb-2">Error</h2>
+            <p className="text-red-300/95">{error}</p>
             
             <div className="mt-6 flex gap-4 justify-center">
               <Button onClick={() => window.location.reload()} variant="outline">
@@ -911,7 +1168,8 @@ const SharedStoryPage: React.FC = () => {
               </Link>
             </div>
           </div>
-        </div>
+          </div>
+        </SharedStoryChrome>
       </motion.div>
     );
   }
@@ -920,28 +1178,43 @@ const SharedStoryPage: React.FC = () => {
   if (!roomId) {
     return (
       <motion.div
-        className="container mx-auto px-4 pt-20 pb-10"
+        className={sharedStoryPageMotionClass}
         variants={pageVariants}
         initial="initial"
         animate="animate"
         exit="exit"
       >
+        <SharedStoryChrome mainClassName="container mx-auto px-4 pt-24 pb-16">
         <div className="max-w-4xl mx-auto">
-          <Link to="/heroes" className="inline-flex items-center gap-2 text-cosmic-400 mb-6 hover:text-cosmic-300 transition-colors">
+          <Link
+            to="/heroes"
+            className="inline-flex items-center gap-2 text-amber-400/90 mb-8 hover:text-amber-300 transition-colors font-medium text-sm md:text-base"
+          >
             <ArrowLeft size={16} />
             Back to Heroes
           </Link>
-          
-          <PageTitle>Shared Story Adventures</PageTitle>
+
+          <header className="mb-10">
+            <p className="text-amber-500/95 font-display text-xs md:text-sm tracking-[0.2em] uppercase mb-3">
+              Mythical Hero
+            </p>
+            <h1 className="font-display font-bold text-3xl md:text-4xl text-stone-100 mb-4 leading-tight">
+              Shared story adventures
+            </h1>
+            <p className="text-stone-400 text-base md:text-lg leading-relaxed max-w-2xl border-l-2 border-amber-600/55 pl-4">
+              Create a room, pick a spine, and play with friends — Agent Drive hooks your hero to tooling you
+              trust, with you approving every beat.
+            </p>
+          </header>
 
           <AgentDriveLobbyCallout />
           
-          <div className="mt-8 bg-mystic-900/60 rounded-xl p-6 border border-mystic-700">
-            <h2 className="text-2xl font-semibold mb-4">Selected Hero</h2>
+          <div className={`mt-8 p-6 md:p-8 ${panelSurfaceClass}`}>
+            <h2 className="font-display text-2xl font-semibold text-stone-100 mb-6">Selected hero</h2>
             
             {heroId && heroName ? (
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-mystic-800 rounded-full overflow-hidden">
+                <div className="w-16 h-16 bg-stone-900 rounded-full overflow-hidden border border-stone-700/80">
                   {images && images.length > 0 ? (
                     <img 
                       src={images[0]?.url} 
@@ -956,12 +1229,12 @@ const SharedStoryPage: React.FC = () => {
                 </div>
                 
                 <div>
-                  <h3 className="text-xl font-medium">{heroName}</h3>
+                  <h3 className="text-xl font-medium text-stone-100">{heroName}</h3>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${
                       isPremium 
-                        ? 'bg-cosmic-900/60 text-cosmic-400 border border-cosmic-800' 
-                        : 'bg-mystic-800/60 text-gray-400 border border-mystic-700'
+                        ? 'bg-amber-950/50 text-amber-200/95 border border-amber-700/45' 
+                        : 'bg-stone-800/70 text-stone-400 border border-stone-600/55'
                     }`}>
                       {isPremium ? 'Premium Hero' : 'Non-Premium Hero'}
                     </span>
@@ -974,8 +1247,8 @@ const SharedStoryPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-mystic-800/60 p-4 rounded-lg">
-                <p className="text-gray-400">
+              <div className="bg-stone-900/55 p-4 rounded-sm border border-stone-700/70">
+                <p className="text-stone-400">
                   No hero selected. Please choose a hero first.
                 </p>
                 
@@ -988,10 +1261,10 @@ const SharedStoryPage: React.FC = () => {
             )}
             
             <div className="mt-8">
-              <p className="mb-4">
+              <p className="mb-4 text-stone-300 leading-relaxed">
                 Create a new shared story room where your hero can embark on a grand adventure with other heroes.
                 Premium heroes can actively participate, while non-premium heroes can spectate.{' '}
-                <strong className="text-cosmic-300 font-semibold">
+                <strong className="text-amber-200/95 font-semibold">
                   Premium hosts unlock Agent Drive: drive your hero from your own agent with full approval flow.
                 </strong>
               </p>
@@ -1007,10 +1280,10 @@ const SharedStoryPage: React.FC = () => {
                         setChosenStoryArcId('generic_arc');
                       }
                     }}
-                    className={`px-3 py-1.5 rounded-lg text-sm border ${
+                    className={`px-3 py-1.5 rounded-sm text-sm border transition-colors ${
                       createMode === m
-                        ? 'border-cosmic-500 bg-cosmic-900/40 text-cosmic-200'
-                        : 'border-mystic-700 bg-mystic-900/40 text-gray-400'
+                        ? 'border-amber-600/70 bg-amber-950/45 text-amber-100'
+                        : 'border-stone-700 bg-stone-950/40 text-stone-500 hover:border-stone-600'
                     }`}
                   >
                     {m === 'shared_story'
@@ -1025,15 +1298,15 @@ const SharedStoryPage: React.FC = () => {
               {(createMode === 'shared_story' || createMode === 'scripted_story') &&
                 storyArcChoices.length > 0 && (
                   <div className="mb-4">
-                    <label htmlFor="story-arc-select" className="block text-sm text-gray-400 mb-1">
+                    <label htmlFor="story-arc-select" className="block text-sm text-stone-400 mb-1">
                       {createMode === 'scripted_story' ? 'Scripted spine' : 'Story spine'}{' '}
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-stone-500">
                         (predefined arcs give each narrator beat a clearer goal)
                       </span>
                     </label>
                     <select
                       id="story-arc-select"
-                      className="w-full max-w-xl bg-mystic-800 border border-mystic-700 rounded-lg px-3 py-2 text-sm text-gray-200"
+                      className="w-full max-w-xl bg-stone-900 border border-stone-700 rounded-sm px-3 py-2 text-sm text-stone-200 focus:outline-none focus:ring-1 focus:ring-amber-600/45"
                       value={chosenStoryArcId}
                       onChange={(e) => setChosenStoryArcId(e.target.value)}
                     >
@@ -1049,7 +1322,7 @@ const SharedStoryPage: React.FC = () => {
                       ))}
                     </select>
                     {chosenStoryArcId ? (
-                      <p className="text-xs text-gray-500 mt-2 max-w-xl">
+                      <p className="text-xs text-stone-500 mt-2 max-w-xl">
                         {storyArcChoices.find((c) => c.id === chosenStoryArcId)?.tagline}
                       </p>
                     ) : null}
@@ -1066,7 +1339,7 @@ const SharedStoryPage: React.FC = () => {
               </Button>
               
               {!isPremium && heroId && (
-                <div className="mt-4 p-3 bg-amber-900/20 border border-amber-800/50 rounded-lg">
+                <div className="mt-4 p-3 bg-amber-900/20 border border-amber-800/50 rounded-sm">
                   <p className="text-amber-400 text-sm">
                     Only premium heroes can create and participate in shared stories.
                     <Link to={`/checkout/${heroId}`} className="ml-2 underline font-medium">
@@ -1079,17 +1352,20 @@ const SharedStoryPage: React.FC = () => {
           </div>
           
           {/* Active Shared Story Rooms */}
-          <div className="mt-8 bg-mystic-900/60 rounded-xl p-6 border border-mystic-700">
-            <h2 className="text-2xl font-semibold mb-4">Join Active Adventures</h2>
+          <div className={`mt-8 p-6 md:p-8 ${panelSurfaceClass}`}>
+            <h2 className="font-display text-2xl font-semibold text-stone-100 mb-6">Join active adventures</h2>
             
             {activeRooms.length > 0 ? (
               <div className="space-y-4">
                 {activeRooms.map(room => (
-                  <div key={room.id} className="bg-mystic-800/60 p-4 rounded-lg border border-mystic-700 hover:border-cosmic-500 transition-colors">
+                  <div
+                    key={room.id}
+                    className="bg-stone-900/45 p-4 rounded-sm border border-stone-700/80 hover:border-amber-700/35 transition-colors"
+                  >
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="text-xl font-medium">{room.title}</h3>
-                        <p className="text-cosmic-400 text-sm">
+                        <h3 className="text-xl font-medium text-stone-100">{room.title}</h3>
+                        <p className="text-stone-500 text-sm mt-1">
                           Created {new Date(room.created).toLocaleDateString()} • 
                           Last activity {new Date(room.updated).toLocaleTimeString()}
                         </p>
@@ -1097,11 +1373,11 @@ const SharedStoryPage: React.FC = () => {
                       
                       <div className="flex items-center gap-3">
                         <div className="text-right">
-                          <div className="flex items-center gap-1 text-green-400">
+                          <div className="flex items-center gap-1 text-emerald-400/95">
                             <Users size={14} />
                             <span>{room.participantCount} Heroes</span>
                           </div>
-                          <div className="flex items-center gap-1 text-blue-400">
+                          <div className="flex items-center gap-1 text-sky-400/90">
                             <User size={14} />
                             <span>{room.spectatorCount} Spectators</span>
                           </div>
@@ -1121,16 +1397,17 @@ const SharedStoryPage: React.FC = () => {
               </div>
             ) : isLoading ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cosmic-500 mx-auto mb-4"></div>
-                <p className="text-gray-400">Loading active adventures...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-600/85 mx-auto mb-4"></div>
+                <p className="text-stone-400">Loading active adventures...</p>
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-400">No active shared stories found. Create a new one!</p>
+                <p className="text-stone-400">No active shared stories found. Create a new one!</p>
               </div>
             )}
           </div>
         </div>
+        </SharedStoryChrome>
       </motion.div>
     );
   }
@@ -1142,19 +1419,20 @@ const SharedStoryPage: React.FC = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      className="container mx-auto px-4 pt-24 pb-16"
+      className={sharedStoryPageMotionClass}
     >
+      <SharedStoryChrome>
       {/* Meta tags for shared story page */}
       {room ? (
         <MetaTags
-          title={`${room.title} | Cosmic Heroes Shared Story`}
+          title={`${room.title} | Mythical Hero · Shared story`}
           description={`Collaborative cosmic RPG: play together, guided arcs — and Agent Drive lets the room owner connect their hero to their own AI agent (Cursor, MCP, automation) with in-app approval before each post.`}
           image="/logo.jpg"
           type="article"
         />
       ) : (
         <MetaTags
-          title="Shared Stories | Cosmic Heroes"
+          title="Shared story | Mythical Hero"
           description="Shared Story RPG adventures with guided arcs — plus Agent Drive: drive your premium hero from your own AI agent, with human approval before every in-world post."
           image="/logo.jpg"
           type="website"
@@ -1166,7 +1444,7 @@ const SharedStoryPage: React.FC = () => {
         <AnimatePresence>
           {isNarratorTyping && (
             <motion.div 
-              className="fixed inset-0 bg-gradient-radial from-transparent via-transparent to-cosmic-900/40 pointer-events-none z-0"
+              className="fixed inset-0 bg-gradient-radial from-transparent via-transparent to-mystic-950/45 pointer-events-none z-0"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -1175,15 +1453,21 @@ const SharedStoryPage: React.FC = () => {
           )}
         </AnimatePresence>
         
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <div>
-            <Link to="/shared-story" className="inline-flex items-center gap-2 text-cosmic-400 hover:text-cosmic-300 transition-colors">
+            <p className="text-amber-500/95 font-display text-xs uppercase tracking-[0.2em] mb-2">
+              Mythical Hero
+            </p>
+            <Link
+              to="/shared-story"
+              className="inline-flex items-center gap-2 text-amber-400/90 hover:text-amber-300 transition-colors text-sm font-medium"
+            >
               <ArrowLeft size={16} />
-              Back to Stories
+              Back to stories
             </Link>
             
-            <h1 className="text-2xl md:text-3xl font-display font-semibold mt-2">
-              {room?.title || 'Shared Cosmic Adventure'}
+            <h1 className="text-2xl md:text-3xl font-display font-bold text-stone-100 mt-3 leading-tight">
+              {room?.title || 'Shared adventure'}
             </h1>
           </div>
           
@@ -1213,12 +1497,12 @@ const SharedStoryPage: React.FC = () => {
           aria-labelledby="agent-drive-room-heading"
         >
           <div className="flex flex-col md:flex-row md:items-start gap-5">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cosmic-500/25 border border-cosmic-300/35">
-              <Bot className="h-8 w-8 text-cosmic-100" aria-hidden />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-sm bg-amber-900/35 border border-amber-600/45">
+              <Bot className="h-8 w-8 text-amber-100" aria-hidden />
             </div>
             <div className="min-w-0 flex-1 space-y-4">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cosmic-300">
+                <p className="text-amber-500/95 font-display text-[11px] font-bold uppercase tracking-[0.22em]">
                   Featured capability
                 </p>
                 {room?.agentDriveEnabled ? (
@@ -1226,27 +1510,28 @@ const SharedStoryPage: React.FC = () => {
                     Agent Drive on
                   </span>
                 ) : (
-                  <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-400 border border-gray-600/40">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-stone-800/80 text-stone-400 border border-stone-600/50">
                     Agent Drive off
                   </span>
                 )}
               </div>
               <h2
                 id="agent-drive-room-heading"
-                className="font-display text-2xl md:text-4xl font-bold text-white tracking-tight"
+                className="font-display text-2xl md:text-4xl font-bold text-stone-100 tracking-tight"
               >
                 Agent Drive
               </h2>
-              <p className="text-gray-100 text-base md:text-lg leading-relaxed max-w-3xl">
-                <strong className="text-white text-lg md:text-xl">Drive your hero with your own agent.</strong>{' '}
+              <p className="text-stone-200 text-base md:text-lg leading-relaxed max-w-3xl">
+                <strong className="text-stone-100 text-lg md:text-xl">Drive your hero with your own agent.</strong>{' '}
                 Connect Claude, Cursor, or any MCP client using a scoped token. Your tooling proposes dialogue
-                and actions for <em className="text-cosmic-200 font-semibold not-italic">{heroName || 'your hero'}</em>
+                and actions for{' '}
+                <em className="text-amber-200/95 font-semibold not-italic">{heroName || 'your hero'}</em>
                 — you keep the reins: proposals appear here for your approval before they post to the shared
                 chronicle.
               </p>
 
               {!isPremium ? (
-                <div className="rounded-lg bg-black/25 border border-amber-800/40 p-4 text-sm text-amber-200/95">
+                <div className="rounded-sm bg-stone-950/50 border border-amber-800/45 p-4 text-sm text-amber-200/95">
                   <strong className="text-amber-100">Premium required.</strong> Upgrade your hero to host rooms,
                   enable Agent Drive, and mint automation tokens.
                   {heroId ? (
@@ -1257,8 +1542,8 @@ const SharedStoryPage: React.FC = () => {
                 </div>
               ) : userId && room?.ownerUserId === userId ? (
                 <div className="space-y-4 pt-1">
-                  <p className="text-sm text-cosmic-200/95 font-medium flex items-start gap-2">
-                    <Shield className="w-4 h-4 shrink-0 mt-0.5 text-cosmic-400" aria-hidden />
+                  <p className="text-sm text-stone-300 font-medium flex items-start gap-2">
+                    <Shield className="w-4 h-4 shrink-0 mt-0.5 text-amber-500/85" aria-hidden />
                     You are session host — only you can toggle Agent Drive and create tokens for this room.
                   </p>
                   <div className="flex flex-wrap gap-2 items-center">
@@ -1266,7 +1551,11 @@ const SharedStoryPage: React.FC = () => {
                       variant={room?.agentDriveEnabled ? 'secondary' : 'primary'}
                       type="button"
                       onClick={handleToggleAgentDrive}
-                      className={!room?.agentDriveEnabled ? 'ring-2 ring-cosmic-400/50 ring-offset-2 ring-offset-mystic-950' : ''}
+                      className={
+                        !room?.agentDriveEnabled
+                          ? 'ring-2 ring-amber-600/50 ring-offset-2 ring-offset-stone-950'
+                          : ''
+                      }
                     >
                       {room?.agentDriveEnabled ? 'Turn off Agent Drive' : 'Turn on Agent Drive'}
                     </Button>
@@ -1281,8 +1570,8 @@ const SharedStoryPage: React.FC = () => {
                   )}
                   {agentTokens.length > 0 ? (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Active tokens</p>
-                      <ul className="text-xs text-gray-400 space-y-1.5">
+                      <p className="text-xs text-stone-500 uppercase tracking-wide mb-2">Active tokens</p>
+                      <ul className="text-xs text-stone-400 space-y-1.5">
                         {agentTokens.map((t) => (
                           <li key={t.id}>
                             {t.id.slice(0, 8)}… {t.revokedAt ? 'revoked' : 'active'}
@@ -1292,19 +1581,21 @@ const SharedStoryPage: React.FC = () => {
                       </ul>
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-stone-500">
                       No tokens yet. Turn Agent Drive on, then mint a token and configure your MCP client (see{' '}
-                      <code className="text-gray-400 bg-black/40 px-1 rounded">agentDriveServer.mjs</code> in this
-                      project).
+                      <code className="text-stone-400 bg-stone-950/80 px-1 rounded-sm border border-stone-700/80">
+                        agentDriveServer.mjs
+                      </code>{' '}
+                      in this project).
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="rounded-lg bg-black/25 border border-cosmic-800/60 p-4 text-sm text-gray-300 leading-relaxed">
-                  <strong className="text-white">Watching or playing as guest?</strong>{' '}
+                <div className="rounded-sm bg-stone-950/45 border border-stone-700/70 p-4 text-sm text-stone-300 leading-relaxed">
+                  <strong className="text-stone-100">Watching or playing as guest?</strong>{' '}
                   Only this session&apos;s host can enable Agent Drive and issue tokens from their dashboard
                   section here. Invite them to toggle it on so their hero automation can propose turns —{' '}
-                  <strong className="text-cosmic-200">nothing posts without host approval.</strong>
+                  <strong className="text-amber-200/95">nothing posts without host approval.</strong>
                 </div>
               )}
             </div>
@@ -1312,11 +1603,11 @@ const SharedStoryPage: React.FC = () => {
         </section>
 
         {pendingProposal && userId && room?.ownerUserId === userId && (
-          <div className="bg-amber-900/30 border border-amber-700 rounded-lg p-4 mb-6">
+          <div className="bg-amber-950/35 border border-amber-700/55 rounded-sm p-4 mb-6">
             <p className="text-sm font-medium text-amber-200 mb-2">
               Agent Drive — proposed hero action (needs your approval)
             </p>
-            <p className="text-white mb-4 whitespace-pre-wrap">{pendingProposal.proposal.actionText}</p>
+            <p className="text-stone-100 mb-4 whitespace-pre-wrap">{pendingProposal.proposal.actionText}</p>
             <div className="flex gap-2">
               <Button size="sm" type="button" onClick={() => handleProposalDecision('approve')}>
                 Approve
@@ -1334,37 +1625,37 @@ const SharedStoryPage: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-mystic-900/40 border border-mystic-700 rounded-lg p-4 md:col-span-2">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Legend progress</p>
-            <p className="text-cosmic-300">
+          <div className={`${panelSurfaceMutedClass} p-4 md:col-span-2`}>
+            <p className="text-xs text-stone-500 uppercase tracking-wide mb-1">Legend progress</p>
+            <p className="text-amber-200/95 font-medium">
               Level {level} — {xp} / {xpToNextLevel} XP
             </p>
-            <p className="text-gray-500 text-sm mt-1">
+            <p className="text-stone-500 text-sm mt-1">
               Epic Legendary Book chapters unlock with level-ups (linked progression).
             </p>
           </div>
-          <div className="bg-mystic-900/40 border border-mystic-700 rounded-lg p-4">
-            <p className="text-xs text-gray-500 uppercase mb-2">Session mode</p>
-            <p className="text-sm capitalize">
+          <div className={`${panelSurfaceMutedClass} p-4`}>
+            <p className="text-xs text-stone-500 uppercase mb-2">Session mode</p>
+            <p className="text-sm capitalize text-stone-200">
               {(room?.mode || 'shared_story').replace(/_/g, ' ')}
             </p>
           </div>
         </div>
 
         {room?.storyArc ? (
-          <div className="bg-cosmic-950/40 border border-cosmic-800/60 rounded-lg p-4 mb-6">
-            <p className="text-xs text-cosmic-300 uppercase tracking-wide mb-1">
+          <div className="bg-stone-950/50 border border-amber-900/30 rounded-sm p-4 mb-6 shadow-md shadow-black/15">
+            <p className="text-xs text-amber-500/90 uppercase tracking-wide mb-1 font-display">
               Guided arc — beat {room.storyArc.stepIndex + 1} / {room.storyArc.totalSteps}
             </p>
-            <p className="text-lg font-medium text-white">{room.storyArc.arcName}</p>
-            <p className="text-gray-400 text-sm mt-1">{room.storyArc.tagline}</p>
-            <p className="text-cosmic-200 text-sm mt-3">
-              <span className="text-gray-500">Now playing: </span>
+            <p className="text-lg font-medium text-stone-100 font-display">{room.storyArc.arcName}</p>
+            <p className="text-stone-400 text-sm mt-1">{room.storyArc.tagline}</p>
+            <p className="text-amber-200/90 text-sm mt-3">
+              <span className="text-stone-500">Now playing: </span>
               <span className="font-medium">{room.storyArc.currentBeatTitle}</span>
-              <span className="text-gray-600 text-xs ml-2">({room.storyArc.currentBeatKey})</span>
+              <span className="text-stone-600 text-xs ml-2">({room.storyArc.currentBeatKey})</span>
             </p>
             {room.mode === 'shared_story' ? (
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-stone-500 mt-2">
                 The arc advances automatically when the Cosmic Narrator speaks (every third hero post).
               </p>
             ) : null}
@@ -1402,9 +1693,9 @@ const SharedStoryPage: React.FC = () => {
         
         {/* Share dialog */}
         {showShareDialog && (
-          <div className="bg-mystic-800 border border-mystic-700 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-medium mb-2">Invite Other Heroes</h3>
-            <p className="text-sm text-gray-400 mb-4">
+          <div className={`p-4 md:p-5 mb-6 ${panelSurfaceClass}`}>
+            <h3 className="text-lg font-display font-semibold text-stone-100 mb-2">Invite other heroes</h3>
+            <p className="text-sm text-stone-400 mb-4">
               Share this link with other users to let them join this adventure:
             </p>
             
@@ -1413,7 +1704,7 @@ const SharedStoryPage: React.FC = () => {
                 type="text"
                 readOnly
                 value={`${window.location.origin}/shared-story/${roomId}`}
-                className="flex-grow bg-mystic-900 border border-mystic-700 rounded-md px-3 py-2 text-sm"
+                className="flex-grow bg-stone-900 border border-stone-700 rounded-sm px-3 py-2 text-sm text-stone-200"
               />
               
               <Button
@@ -1431,8 +1722,8 @@ const SharedStoryPage: React.FC = () => {
         {userRole && (
           <div className={`inline-block mb-4 px-3 py-1 rounded-full text-xs ${
             userRole === 'participant' 
-              ? 'bg-cosmic-900/60 text-cosmic-400 border border-cosmic-800' 
-              : 'bg-mystic-800/60 text-gray-400 border border-mystic-700'
+              ? 'bg-amber-950/50 text-amber-200/95 border border-amber-700/45' 
+              : 'bg-stone-900/65 text-stone-400 border border-stone-600/55'
           }`}>
             {userRole === 'participant' ? 'Participating Hero' : 'Spectating Hero'}
           </div>
@@ -1441,13 +1732,13 @@ const SharedStoryPage: React.FC = () => {
         {/* Main chat area */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Messages */}
-          <div className="lg:col-span-3 bg-mystic-900/30 rounded-xl border border-mystic-800 flex flex-col h-[600px] md:h-[600px] h-[calc(100vh-220px)]">
+          <div className="lg:col-span-3 bg-stone-950/40 rounded-sm border border-stone-700/85 flex flex-col h-[600px] md:h-[600px] h-[calc(100vh-220px)] shadow-lg shadow-black/25">
             {/* Messages container */}
             <div className="flex-grow overflow-y-auto p-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  <p className="text-gray-400">
-                    No messages yet. Be the first to start this cosmic adventure!
+                  <p className="text-stone-400">
+                    No messages yet. Be the first to start this adventure!
                   </p>
                 </div>
               ) : (
@@ -1457,7 +1748,7 @@ const SharedStoryPage: React.FC = () => {
                       key={msg.id}
                       className={`flex gap-3 ${
                         msg.sender.id === 'system' 
-                          ? 'bg-cosmic-900/30 border border-cosmic-800/60 p-4 rounded-lg relative overflow-hidden' 
+                          ? 'bg-stone-900/70 border border-amber-900/35 p-4 rounded-sm relative overflow-hidden' 
                           : ''
                       }`}
                       variants={messageVariants}
@@ -1466,10 +1757,10 @@ const SharedStoryPage: React.FC = () => {
                     >
                       {/* Cosmic background for narrator messages */}
                       {msg.sender.id === 'system' && (
-                        <div className="absolute inset-0 opacity-20 pointer-events-none">
-                          <div className="absolute inset-0 bg-gradient-to-r from-cosmic-900/0 via-cosmic-600/30 to-cosmic-900/0"></div>
-                          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-cosmic-900/0 via-cosmic-500/50 to-cosmic-900/0"></div>
-                          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-cosmic-900/0 via-cosmic-500/30 to-cosmic-900/0"></div>
+                        <div className="absolute inset-0 opacity-25 pointer-events-none">
+                          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/0 via-amber-900/20 to-stone-950/0"></div>
+                          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-stone-950/0 via-amber-600/40 to-stone-950/0"></div>
+                          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-stone-950/0 via-amber-700/25 to-stone-950/0"></div>
                         </div>
                       )}
                       
@@ -1477,8 +1768,8 @@ const SharedStoryPage: React.FC = () => {
                       <div className="flex-shrink-0">
                         <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center ${
                           msg.sender.id === 'system' 
-                            ? 'bg-cosmic-900 border border-cosmic-600 relative' 
-                            : 'bg-mystic-800'
+                            ? 'bg-stone-950 border border-amber-700/50 relative' 
+                            : 'bg-stone-900 border border-stone-700/70'
                         }`}>
                           {msg.sender.avatar ? (
                             <img 
@@ -1490,11 +1781,11 @@ const SharedStoryPage: React.FC = () => {
                             <>
                               {msg.sender.id === 'system' ? (
                                 <>
-                                  <div className="absolute inset-0 bg-cosmic-800 opacity-50"></div>
-                                  <Sparkles size={18} className="text-cosmic-300 z-10" />
+                                  <div className="absolute inset-0 bg-stone-900 opacity-50"></div>
+                                  <Sparkles size={18} className="text-amber-400/95 z-10" />
                                 </>
                               ) : (
-                                <User size={18} className="text-gray-400" />
+                                <User size={18} className="text-stone-500" />
                               )}
                             </>
                           )}
@@ -1502,28 +1793,46 @@ const SharedStoryPage: React.FC = () => {
                       </div>
                       
                       {/* Message content */}
-                      <div className="flex-grow">
-                        <div className="flex items-center gap-2 mb-1">
+                      <div className="flex-grow min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className={`font-medium ${
-                            msg.sender.id === 'system' ? 'text-cosmic-300' : 'text-white'
+                            msg.sender.id === 'system' ? 'text-amber-200/95' : 'text-stone-100'
                           }`}>
                             {msg.sender.name}
                           </span>
-                          <span className="text-gray-500 text-xs">
+                          <span className="text-stone-500 text-xs">
                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
+                          {msg.sender.id === 'system' &&
+                            msg.sender.name === 'Cosmic Narrator' &&
+                            room?.voiceNarrationAvailable && (
+                              <NarratorPlayButton
+                                messageId={msg.id}
+                                narration={narration}
+                                onToggle={handleNarrationToggle}
+                              />
+                            )}
                         </div>
-                        
-                        <div 
+
+                        <div
                           className={`prose prose-sm prose-invert max-w-none ${
                             msg.sender.id === 'system' ? 'prose-cosmic shared-story-content' : ''
                           }`}
-                          dangerouslySetInnerHTML={{ 
-                            __html: msg.sender.id === 'system' 
-                              ? formatLiterarySharedStory(msg.content) 
+                          dangerouslySetInnerHTML={{
+                            __html: msg.sender.id === 'system'
+                              ? formatLiterarySharedStory(msg.content)
                               : formatMarkdown(msg.content)
                           }}
                         />
+                        {msg.sender.id === 'system' &&
+                          msg.sender.name === 'Cosmic Narrator' &&
+                          narration.messageId === msg.id &&
+                          narration.status === 'error' &&
+                          narration.error && (
+                            <p className="mt-2 text-xs text-red-300/95" role="alert">
+                              {narration.error}
+                            </p>
+                          )}
                       </div>
                     </motion.div>
                   ))}
@@ -1536,7 +1845,7 @@ const SharedStoryPage: React.FC = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.5 }}
-                        className="py-2 relative z-10 bg-cosmic-900/10 rounded-xl overflow-hidden"
+                        className="py-2 relative z-10 bg-stone-950/30 rounded-sm overflow-hidden border border-stone-800/60"
                       >
                         <CosmicNarratorLoading />
                       </motion.div>
@@ -1549,7 +1858,7 @@ const SharedStoryPage: React.FC = () => {
             </div>
             
             {/* Message input */}
-            <div className="p-3 border-t border-mystic-800">
+            <div className="p-3 border-t border-stone-800/90">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1561,7 +1870,7 @@ const SharedStoryPage: React.FC = () => {
                       ? "Only premium heroes can send messages" 
                       : "Type your message..."
                   }
-                  className="flex-grow bg-mystic-800 border border-mystic-700 rounded-lg px-4 py-2"
+                  className="flex-grow bg-stone-900 border border-stone-700 rounded-sm px-4 py-2 text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-amber-600/40"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 />
                 
@@ -1588,7 +1897,7 @@ const SharedStoryPage: React.FC = () => {
           {/* Right sidebar */}
           <div className="space-y-6">
             {/* Hero Trait Card */}
-            <div className="bg-mystic-900/30 rounded-xl border border-mystic-800 overflow-hidden">
+            <div className="bg-stone-950/45 rounded-sm border border-stone-700/85 overflow-hidden shadow-lg shadow-black/25">
               {/* Hero image background with gradient overlay */}
               <div className="relative h-48">
                 {images && images.length >= 3 ? (
@@ -1600,10 +1909,10 @@ const SharedStoryPage: React.FC = () => {
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-mystic-900 via-mystic-900/70 to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/70 to-transparent"></div>
                   </>
                 ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-mystic-800 to-cosmic-900/50"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-stone-900 via-mystic-950/90 to-stone-950"></div>
                 )}
                 
                 {/* Hero name */}
@@ -1614,7 +1923,7 @@ const SharedStoryPage: React.FC = () => {
                     transition={{ delay: 0.2 }}
                     className="flex items-center gap-3"
                   >
-                    <div className="w-14 h-14 rounded-full border-2 border-cosmic-500 overflow-hidden bg-mystic-800">
+                    <div className="w-14 h-14 rounded-full border-2 border-amber-600/60 overflow-hidden bg-stone-900">
                       {images && images.length > 0 ? (
                         <img 
                           src={images[0]?.url} 
@@ -1623,17 +1932,17 @@ const SharedStoryPage: React.FC = () => {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <User size={24} className="text-gray-400" />
+                          <User size={24} className="text-stone-500" />
                         </div>
                       )}
                     </div>
                     <div>
-                      <h3 className="text-lg font-medium text-white">{heroName}</h3>
+                      <h3 className="text-lg font-medium text-stone-100 font-display">{heroName}</h3>
                       <div className="flex items-center gap-1">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${
                           isPremium 
-                            ? 'bg-cosmic-900/60 text-cosmic-400 border border-cosmic-800' 
-                            : 'bg-mystic-800/60 text-gray-400 border border-mystic-700'
+                            ? 'bg-amber-950/50 text-amber-200/95 border border-amber-700/45' 
+                            : 'bg-stone-800/70 text-stone-400 border border-stone-600/55'
                         }`}>
                           {isPremium ? 'Premium' : 'Spectator'}
                         </span>
@@ -1645,25 +1954,25 @@ const SharedStoryPage: React.FC = () => {
               
               {/* Traits section */}
               <div className="p-4">
-                <h4 className="text-sm uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
-                  <Sparkles size={14} />
-                  <span>Cosmic Traits</span>
+                <h4 className="text-sm uppercase tracking-wider text-stone-500 mb-3 flex items-center gap-2">
+                  <Sparkles size={14} className="text-amber-500/85 shrink-0" />
+                  <span>Legend traits</span>
                 </h4>
                 
                 <div className="grid grid-cols-2 gap-3">
                   <motion.div 
-                    className="p-3 rounded-lg bg-mystic-800/50 border border-cosmic-800/30"
-                    whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(24, 24, 43, 0.3)' }}
+                    className="p-3 rounded-sm bg-stone-900/55 border border-stone-700/75"
+                    whileHover={{ y: -2, boxShadow: '0 4px 14px rgba(0, 0, 0, 0.35)' }}
                     transition={{ duration: 0.2 }}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <Sun size={16} className="text-amber-400" />
-                      <span className="text-xs uppercase tracking-wider text-gray-400">Western Sign</span>
+                      <span className="text-xs uppercase tracking-wider text-stone-500">Western sign</span>
                     </div>
                     {fetchingZodiac ? (
                       <div className="flex items-center gap-2">
-                        <Loader2 size={14} className="animate-spin text-cosmic-400" />
-                        <span className="text-gray-400 text-sm">Loading...</span>
+                        <Loader2 size={14} className="animate-spin text-amber-500/80" />
+                        <span className="text-stone-400 text-sm">Loading...</span>
                       </div>
                     ) : (
                       <p className={`font-medium ${getZodiacColor(westernZodiac?.sign || heroDetails.westernZodiac?.sign)} text-lg`}>
@@ -1673,21 +1982,21 @@ const SharedStoryPage: React.FC = () => {
                   </motion.div>
                   
                   <motion.div 
-                    className="p-3 rounded-lg bg-mystic-800/50 border border-cosmic-800/30"
-                    whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(24, 24, 43, 0.3)' }}
+                    className="p-3 rounded-sm bg-stone-900/55 border border-stone-700/75"
+                    whileHover={{ y: -2, boxShadow: '0 4px 14px rgba(0, 0, 0, 0.35)' }}
                     transition={{ duration: 0.2 }}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <Moon size={16} className="text-cosmic-400" />
-                      <span className="text-xs uppercase tracking-wider text-gray-400">Chinese Sign</span>
+                      <Moon size={16} className="text-amber-400/75" />
+                      <span className="text-xs uppercase tracking-wider text-stone-500">Chinese sign</span>
                     </div>
                     {fetchingZodiac ? (
                       <div className="flex items-center gap-2">
-                        <Loader2 size={14} className="animate-spin text-cosmic-400" />
-                        <span className="text-gray-400 text-sm">Loading...</span>
+                        <Loader2 size={14} className="animate-spin text-amber-500/80" />
+                        <span className="text-stone-400 text-sm">Loading...</span>
                       </div>
                     ) : (
-                      <p className="font-medium text-cosmic-400 text-lg">
+                      <p className="font-medium text-amber-300/95 text-lg">
                         {chineseZodiac?.sign || heroDetails.chineseZodiac?.sign || 'Unknown'}
                       </p>
                     )}
@@ -1695,21 +2004,23 @@ const SharedStoryPage: React.FC = () => {
                 </div>
                 
                 {userRole === 'participant' && (
-                  <div className="mt-3 p-2 rounded-lg bg-cosmic-900/20 border border-cosmic-800/30">
+                  <div className="mt-3 p-2 rounded-sm bg-amber-950/25 border border-amber-800/35">
                     <div className="flex items-center gap-2">
                       <Star size={16} className="text-yellow-400" />
-                      <p className="text-sm text-cosmic-300">Your hero can actively shape this cosmic journey.</p>
+                      <p className="text-sm text-amber-200/90">
+                        Your hero can actively shape this journey.
+                      </p>
                     </div>
                   </div>
                 )}
                 
                 {userRole === 'spectator' && (
-                  <div className="mt-3 p-2 rounded-lg bg-mystic-800/50 border border-mystic-700/30">
+                  <div className="mt-3 p-2 rounded-sm bg-stone-900/50 border border-stone-700/50">
                     <div className="flex items-center gap-2">
-                      <div className="text-gray-500">
+                      <div className="text-stone-500">
                         <User size={16} />
                       </div>
-                      <p className="text-sm text-gray-400">Your hero is watching the adventure unfold.</p>
+                      <p className="text-sm text-stone-400">Your hero is watching the adventure unfold.</p>
                     </div>
                   </div>
                 )}
@@ -1717,12 +2028,12 @@ const SharedStoryPage: React.FC = () => {
             </div>
             
             {/* Participants list */}
-            <div className="bg-mystic-900/30 rounded-xl border border-mystic-800 p-4 overflow-y-auto max-h-[300px] lg:max-h-[400px]">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 sticky top-0 bg-mystic-900/95 py-1">
-                <Users size={18} />
+            <div className={`p-4 overflow-y-auto max-h-[300px] lg:max-h-[400px] ${panelSurfaceClass}`}>
+              <h2 className="text-lg font-display font-semibold text-stone-100 mb-3 flex items-center gap-2 sticky top-0 bg-stone-950/90 backdrop-blur-sm py-1 z-[1] -mx-1 px-1">
+                <Users size={18} className="text-amber-500/85 shrink-0" />
                 <span>Heroes</span>
                 {room?.participants?.length > 0 && (
-                  <span className="ml-auto text-sm text-gray-400">
+                  <span className="ml-auto text-sm text-stone-500">
                     {room.participants.length} {room.participants.length === 1 ? 'Hero' : 'Heroes'}
                   </span>
                 )}
@@ -1731,7 +2042,7 @@ const SharedStoryPage: React.FC = () => {
               <div className="space-y-4">
                 {room?.participants.map((participant) => (
                   <div key={participant.id} className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-mystic-800 rounded-full overflow-hidden">
+                    <div className="w-10 h-10 bg-stone-900 rounded-full overflow-hidden border border-stone-700/75">
                       {participant.avatar ? (
                         <img 
                           src={participant.avatar} 
@@ -1740,14 +2051,14 @@ const SharedStoryPage: React.FC = () => {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <User size={18} className="text-gray-400" />
+                          <User size={18} className="text-stone-500" />
                         </div>
                       )}
                     </div>
                     
                     <div>
-                      <div className="font-medium">{participant.name}</div>
-                      <div className="text-cosmic-400 text-xs">
+                      <div className="font-medium text-stone-100">{participant.name}</div>
+                      <div className="text-amber-200/85 text-xs">
                         {participant.isPremium ? 'Participating' : 'Spectating'}
                       </div>
                     </div>
@@ -1755,7 +2066,7 @@ const SharedStoryPage: React.FC = () => {
                 ))}
                 
                 {(!room?.participants || room.participants.length === 0) && (
-                  <p className="text-gray-500 text-sm">No heroes have joined yet</p>
+                  <p className="text-stone-500 text-sm">No heroes have joined yet</p>
                 )}
               </div>
             </div>
@@ -1763,6 +2074,7 @@ const SharedStoryPage: React.FC = () => {
           
         </div>
       </div>
+      </SharedStoryChrome>
     </motion.div>
   );
 };
