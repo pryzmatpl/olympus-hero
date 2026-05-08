@@ -8,7 +8,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { narratorHtmlToSpokenText, getOrSynthesizeNarration, isElevenLabsConfigured } from './elevenlabs.js';
+import {
+  NarrationError,
+  narratorHtmlToSpokenText,
+  getOrSynthesizeNarration,
+  isElevenLabsConfigured,
+} from './elevenlabs.js';
 
 test('narratorHtmlToSpokenText handles non-string inputs as empty', () => {
   assert.equal(narratorHtmlToSpokenText(null), '');
@@ -86,11 +91,21 @@ test('isElevenLabsConfigured accepts ELEVENLABS_API_KEY and XI_API_KEY', () => {
     delete process.env.XI_API_KEY;
     assert.equal(isElevenLabsConfigured(), false);
 
+    process.env.ELEVENLABS_API_KEY = '   ';
+    assert.equal(isElevenLabsConfigured(), false);
+
     process.env.XI_API_KEY = 'xi-key';
     assert.equal(isElevenLabsConfigured(), true);
 
     delete process.env.XI_API_KEY;
-    process.env.ELEVENLABS_API_KEY = 'eleven-key';
+    assert.equal(isElevenLabsConfigured(), false);
+    delete process.env.ELEVENLABS_API_KEY;
+
+    process.env.XI_API_KEY = 'xi-key';
+    assert.equal(isElevenLabsConfigured(), true);
+
+    delete process.env.XI_API_KEY;
+    process.env.ELEVENLABS_API_KEY = '  eleven-key  ';
     assert.equal(isElevenLabsConfigured(), true);
   } finally {
     if (prevEleven === undefined) {
@@ -142,6 +157,49 @@ test('getOrSynthesizeNarration caches synthesized mp3 by room and message', asyn
     assert.equal(calls, 1, 'expected one network synthesis call with cache hit');
     assert.deepEqual(first, second);
     assert.ok(first.length > 0);
+  } finally {
+    process.chdir(prevCwd);
+    if (prevEleven === undefined) {
+      delete process.env.ELEVENLABS_API_KEY;
+    } else {
+      process.env.ELEVENLABS_API_KEY = prevEleven;
+    }
+    globalThis.fetch = prevFetch;
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('getOrSynthesizeNarration maps ElevenLabs HTTP 402 to quota error', async () => {
+  const prevCwd = process.cwd();
+  const prevEleven = process.env.ELEVENLABS_API_KEY;
+  const prevFetch = globalThis.fetch;
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'olympus-elevenlabs-402-'));
+
+  try {
+    process.chdir(tmpDir);
+    process.env.ELEVENLABS_API_KEY = 'test-key';
+    const unique = Date.now().toString(36);
+    const roomId = `room-402-${unique}`;
+    const messageId = `msg-402-${unique}`;
+
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 402,
+      text: async () => '{"detail":{"status":"quota_exceeded"}}',
+    });
+
+    await assert.rejects(
+      () =>
+        getOrSynthesizeNarration({
+          roomId,
+          messageId,
+          text: 'Short line for TTS.',
+        }),
+      (err) =>
+        err instanceof NarrationError &&
+        err.code === 'ELEVENLABS_QUOTA_EXHAUSTED' &&
+        err.status === 402
+    );
   } finally {
     process.chdir(prevCwd);
     if (prevEleven === undefined) {

@@ -18,6 +18,8 @@ services:
       context: .
       dockerfile: Dockerfile.server
     env_file:
+      # Variables such as ELEVENLABS_API_KEY / XI_API_KEY load from this file once at container create time.
+      # After editing .env, recreate the running server (`docker compose up -d --force-recreate server`) or the process keeps old env.
       - .env
     environment:
       - NODE_ENV=production

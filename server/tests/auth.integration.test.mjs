@@ -116,7 +116,7 @@ test('getUserById omits the password field', async () => {
 // --- authMiddleware boundary tests --------------------------------------------------
 
 function makeReq(headers = {}) {
-  return { headers };
+  return { headers, method: 'GET', path: '/api/heroes/example' };
 }
 function makeRes() {
   const res = {
@@ -206,4 +206,20 @@ test('authMiddleware accepts a valid JWT and attaches the decoded user', () => {
   assert.equal(req.user.userId, 'user-123');
   assert.equal(req.user.email, 'ok@example.test');
   assert.equal(res.statusCode, 200, 'no error response should be sent');
+});
+
+test('authMiddleware bypasses shared-story narration endpoint without JWT', () => {
+  const req = makeReq();
+  req.path = '/api/shared-story/room-1/messages/msg-1/narration';
+  req.method = 'GET';
+  const res = makeRes();
+  let nextCalled = false;
+
+  authMiddleware(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, true, 'narration endpoint should bypass auth');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body, undefined);
 });

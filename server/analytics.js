@@ -21,6 +21,11 @@ export const ALLOWED_ANALYTICS_EVENTS = new Set([
   'experiment_assign',
   'quest_pulse_view',
   'quest_pulse_complete',
+  'lore_journal_view',
+  'lore_pulse_save',
+  'lore_note_add',
+  'lore_edit',
+  'lore_delete',
 ]);
 
 function safeProperties(raw) {

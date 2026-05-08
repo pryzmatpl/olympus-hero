@@ -160,10 +160,15 @@ api.interceptors.response.use(
 
     // Handle authentication errors
     if (error.response?.status === 401) {
-      // Don't redirect to login for login/auth endpoints (avoid loops)
+      const requestUrl = String(error.config?.url || '');
+      // Public/shared reading endpoints may return transient 401s in edge cases
+      // (proxy/session drift). Do not force logout for narration/shared-story reads.
+      const isSharedStoryReadEndpoint =
+        requestUrl.includes('/api/shared-story/') &&
+        (requestUrl.includes('/narration') || error.config?.method?.toLowerCase() === 'get');
       const isAuthEndpoint = error.config?.url?.includes('/api/auth/');
       
-      if (!isAuthEndpoint) {
+      if (!isAuthEndpoint && !isSharedStoryReadEndpoint) {
         console.log('Unauthorized request - redirecting to login');
         // Unauthorized - clear localStorage and redirect to login
         localStorage.removeItem('authToken');

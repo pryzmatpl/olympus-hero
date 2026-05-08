@@ -1000,20 +1000,31 @@ const SharedStoryPage: React.FC = () => {
           return;
         }
         let message = 'Could not voice this passage. Please try again.';
+        let errorKey: string | undefined;
         const data = ax.response?.data;
         if (data instanceof Blob) {
           try {
-            const parsed = JSON.parse(await data.text());
-            if (parsed?.message || parsed?.error) {
-              message = String(parsed.message || parsed.error);
+            const parsed = JSON.parse(await data.text()) as {
+              message?: string;
+              error?: string;
+            };
+            errorKey = parsed?.error;
+            if (parsed?.message) {
+              message = String(parsed.message);
+            } else if (parsed?.error && parsed.error !== 'narration_failed') {
+              message = String(parsed.error);
             }
           } catch {
             /* opaque error payload — keep default copy */
           }
         } else if (data && typeof data === 'object') {
-          message = data.message || data.error || message;
+          const obj = data as { message?: string; error?: string };
+          errorKey = obj.error;
+          message = obj.message || obj.error || message;
         }
-        if (ax.response?.status === 503) {
+        if (ax.response?.status === 404) {
+          message = 'This narration passage is no longer available in the current room.';
+        } else if (ax.response?.status === 503 && errorKey === 'narration_unavailable') {
           message = 'Voice narration is not configured on this server.';
         }
         console.error('Narration request failed:', e);

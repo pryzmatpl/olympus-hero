@@ -19,6 +19,7 @@ services:
       context: .
       dockerfile: Dockerfile.server.dev
     env_file:
+      # Reload only after container recreate — editing .env does not mutate an already-running process env.
       - .env
     environment:
       - NODE_ENV=development

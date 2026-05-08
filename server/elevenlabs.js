@@ -3,15 +3,36 @@
 // per-message MP3s under storage/narration/{roomId}/{messageId}.mp3 so the
 // same passage replays instantly without re-billing the API.
 //
-// Required env: ELEVENLABS_API_KEY
-// Optional env: ELEVENLABS_VOICE_ID (default: George — JBFqnCBsd6RMkjVDRZzb)
+// Required env: ELEVENLABS_API_KEY (or XI_API_KEY)
+// Optional env: ELEVENLABS_VOICE_ID (default: MKlLqCItoCkvdhrxgtLv)
 //               ELEVENLABS_MODEL_ID (default: eleven_multilingual_v2)
+//               ELEVENLABS_API_BASE_URL — API root ending in /v1, e.g.:
+//               https://api.elevenlabs.io/v1 (default)
+//               https://api.eu.residency.elevenlabs.io/v1 (EU isolated / enterprise)
+//               https://api.us.elevenlabs.io/v1 — see ElevenLabs "Create speech" / data residency docs
+//               ELEVENLABS_OUTPUT_FORMAT — query default mp3_44100_128 (see text-to-speech convert API)
 
 import path from 'node:path';
 import fs from 'node:fs/promises';
 
-const ELEVEN_BASE = 'https://api.elevenlabs.io/v1';
-const DEFAULT_VOICE_ID = 'JBFqnCBsd6RMkjVDRZzb'; // George — warm narrator voice
+const DEFAULT_ELEVEN_API_BASE = 'https://api.elevenlabs.io/v1';
+
+function elevenApiBaseUrl() {
+  const raw =
+    typeof process.env.ELEVENLABS_API_BASE_URL === 'string'
+      ? process.env.ELEVENLABS_API_BASE_URL.trim()
+      : '';
+  return (raw || DEFAULT_ELEVEN_API_BASE).replace(/\/+$/, '');
+}
+
+function elevenOutputFormat() {
+  const raw =
+    typeof process.env.ELEVENLABS_OUTPUT_FORMAT === 'string'
+      ? process.env.ELEVENLABS_OUTPUT_FORMAT.trim()
+      : '';
+  return raw || 'mp3_44100_128';
+}
+const DEFAULT_VOICE_ID = 'MKlLqCItoCkvdhrxgtLv';
 const DEFAULT_MODEL_ID = 'eleven_multilingual_v2';
 /** Multilingual v2 hard caps single requests; 4500 leaves headroom for whitespace. */
 const MAX_SPOKEN_CHARS = 4500;
@@ -41,7 +62,14 @@ export function isElevenLabsConfigured() {
 }
 
 function getElevenLabsApiKey() {
-  return process.env.ELEVENLABS_API_KEY || process.env.XI_API_KEY || '';
+  const eleven =
+    typeof process.env.ELEVENLABS_API_KEY === 'string'
+      ? process.env.ELEVENLABS_API_KEY.trim()
+      : '';
+  if (eleven) return eleven;
+  const xi =
+    typeof process.env.XI_API_KEY === 'string' ? process.env.XI_API_KEY.trim() : '';
+  return xi || '';
 }
 
 /**
@@ -118,19 +146,22 @@ async function synthesizeFromElevenLabs(text) {
       status: 503,
     });
   }
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
-  const modelId = process.env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL_ID;
+  const voiceId = (process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID).trim();
+  const modelId = (process.env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL_ID).trim();
+  const elevenBase = elevenApiBaseUrl();
+  const ttsUrl = new URL(`${elevenBase}/text-to-speech/${encodeURIComponent(voiceId)}`);
+  ttsUrl.searchParams.set('output_format', elevenOutputFormat());
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ELEVENLABS_TIMEOUT_MS);
   let response;
   try {
-    response = await fetch(`${ELEVEN_BASE}/text-to-speech/${voiceId}`, {
+    response = await fetch(ttsUrl, {
       method: 'POST',
       headers: {
         'xi-api-key': apiKey,
         'Content-Type': 'application/json',
-        Accept: 'audio/mpeg',
+        Accept: 'application/octet-stream, audio/mpeg;q=0.9, */*;q=0.8',
       },
       body: JSON.stringify({
         text,
@@ -158,6 +189,13 @@ async function synthesizeFromElevenLabs(text) {
 
   if (!response.ok) {
     const body = await response.text().catch(() => '');
+    /** ElevenLabs returns 402 when account credits/quota do not cover the request */
+    if (response.status === 402) {
+      throw new NarrationError(
+        `ElevenLabs quota or credits (${response.status}): ${body.slice(0, 240)}`,
+        { code: 'ELEVENLABS_QUOTA_EXHAUSTED', status: response.status }
+      );
+    }
     throw new NarrationError(
       `ElevenLabs request failed (${response.status}): ${body.slice(0, 240)}`,
       { code: 'ELEVENLABS_REQUEST_FAILED', status: response.status }

@@ -169,6 +169,22 @@ export const loginUser = async (email, password) => {
  */
 export const authMiddleware = (req, res, next) => {
   try {
+    const requestPath =
+      typeof req.path === 'string'
+        ? req.path
+        : typeof req.originalUrl === 'string'
+          ? req.originalUrl.split('?')[0]
+          : '';
+    // Narration read endpoint is intentionally public (shared-story viewers).
+    // Keep this bypass in middleware as a safety net even if a protected route
+    // variant is accidentally deployed.
+    if (
+      req.method === 'GET' &&
+      /^\/api\/shared-story\/[^/]+\/messages\/[^/]+\/narration$/.test(requestPath)
+    ) {
+      return next();
+    }
+
     // Get the token from the authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

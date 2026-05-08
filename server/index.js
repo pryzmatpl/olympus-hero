@@ -1413,16 +1413,66 @@ async function startServer() {
           return res.end(audio);
         } catch (error) {
           console.error('shared-story narration error:', error?.message || error);
-          const status =
+          const upstreamStatus =
             typeof error?.status === 'number' && error.status >= 400 && error.status < 600
-              ? error.status >= 500
-                ? 502
-                : error.status
-              : 500;
+              ? error.status
+              : null;
+          // Never surface upstream provider auth statuses as app auth statuses.
+          // ElevenLabs 401/403 means server-side provider auth/config issue.
+          // 402 means provider credits/quota — avoid HTTP 402 (reads like app billing / Stripe).
+          const code = typeof error?.code === 'string' ? error.code : '';
+          const isQuota =
+            code === 'ELEVENLABS_QUOTA_EXHAUSTED' || upstreamStatus === 402;
+          let status;
+          if (
+            code === 'ELEVENLABS_NOT_CONFIGURED' ||
+            code === 'INVALID_CACHE_KEY' ||
+            code === 'EMPTY_NARRATION_TEXT'
+          ) {
+            status =
+              typeof error?.status === 'number' &&
+              error.status >= 400 &&
+              error.status < 600
+                ? error.status
+                : 503;
+          } else if (code === 'ELEVENLABS_TIMEOUT') {
+            status = 504;
+          } else if (upstreamStatus == null) {
+            status = 500;
+          } else if (isQuota) {
+            status = 503;
+          } else if (
+            upstreamStatus >= 500 ||
+            upstreamStatus === 401 ||
+            upstreamStatus === 403
+          ) {
+            status = 502;
+          } else {
+            status = upstreamStatus;
+          }
+          let message = 'The Cosmic Narrator could not voice this passage right now.';
+          if (code === 'ELEVENLABS_NOT_CONFIGURED') {
+            message = 'Voice provider is not configured on this server.';
+          } else if (
+            code === 'ELEVENLABS_REQUEST_FAILED' &&
+            (upstreamStatus === 401 || upstreamStatus === 403)
+          ) {
+            message = 'Voice provider authentication failed on the server.';
+          } else if (isQuota) {
+            message =
+              'Voice narration is paused: the ElevenLabs account has no credits or quota left for text-to-speech. Add credits or upgrade the plan in the ElevenLabs dashboard, then try again.';
+          } else if (code === 'ELEVENLABS_TIMEOUT') {
+            message = 'Voice provider timed out while generating narration.';
+          }
+          const errorKey = isQuota
+            ? 'narration_quota_exhausted'
+            : code === 'ELEVENLABS_NOT_CONFIGURED'
+              ? 'narration_unavailable'
+              : 'narration_failed';
           if (!res.headersSent) {
             return res.status(status).json({
-              error: 'narration_failed',
-              message: 'The Cosmic Narrator could not voice this passage right now.',
+              error: errorKey,
+              message,
             });
           }
           return res.end();
