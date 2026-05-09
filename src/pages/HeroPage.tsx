@@ -11,6 +11,10 @@ import {
   Users,
   RefreshCw,
   Bot,
+  Loader2,
+  Pause,
+  Play,
+  Volume2,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { useHeroStore } from '../store/heroStore';
@@ -22,6 +26,8 @@ import { useNotification } from '../context/NotificationContext';
 import { track } from '../utils/analytics';
 import { getPaywallCopyVariant } from '../utils/growthExperiments';
 import HeroLoreJournal from '../components/hero/HeroLoreJournal';
+import HeroNarrationPlayerBar from '../components/hero/HeroNarrationPlayerBar';
+import { useHeroNarration } from '../hooks/useHeroNarration';
 
 const HERO_POLL_INTERVAL_MS = 2500;
 const HERO_MAX_POLLS = 52;
@@ -68,7 +74,14 @@ const HeroPage: React.FC = () => {
     setIsLoadingChapters,
     isLoadingChapters,
     chapters,
+    voiceNarrationAvailable,
   } = useHeroStore();
+
+  const [readerChapter, setReaderChapter] = useState(1);
+
+  useEffect(() => {
+    setReaderChapter(1);
+  }, [heroId]);
   
   // Check for payment success and chapter purchase
   useEffect(() => {
@@ -310,6 +323,19 @@ const HeroPage: React.FC = () => {
   
   // Ensure backstory is a string
   const safeBackstory = typeof backstory === 'string' ? backstory : '';
+
+  const narration = useHeroNarration(isPreview || !heroId ? null : heroId, {
+    backstory: safeBackstory,
+    chapters,
+    voiceAvailable: voiceNarrationAvailable,
+  });
+
+  useEffect(() => {
+    const id = narration.activeAssetId;
+    if (!id || id === 'backstory') return;
+    const m = /^chapter-(\d+)$/.exec(id);
+    if (m) setReaderChapter(parseInt(m[1], 10));
+  }, [narration.activeAssetId]);
 
   const missingStoryChapters =
     !isPreview &&
@@ -576,7 +602,11 @@ const HeroPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-12 pb-24 max-w-6xl">
+      <div
+        className={`container mx-auto px-4 py-12 max-w-6xl ${
+          narration.showPlayerChrome && voiceNarrationAvailable ? 'pb-32' : 'pb-24'
+        }`}
+      >
 
         {/* Main content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
@@ -685,7 +715,13 @@ const HeroPage: React.FC = () => {
             <div className="hidden lg:block pt-2">
               {!isPreview && heroId && (
                 <div className="rounded-sm border border-stone-700/85 bg-stone-950/35 p-5 shadow-lg shadow-black/30">
-                  <HeroChapters heroId={heroId} onUnlockBundle={handleChaptersUnlocked} />
+                  <HeroChapters
+                    heroId={heroId}
+                    onUnlockBundle={handleChaptersUnlocked}
+                    activeChapter={readerChapter}
+                    onActiveChapterChange={setReaderChapter}
+                    narration={voiceNarrationAvailable ? narration : null}
+                  />
                 </div>
               )}
             </div>
@@ -770,7 +806,48 @@ const HeroPage: React.FC = () => {
             </div>
 
             <div className="border border-stone-700/90 bg-stone-950/60 backdrop-blur-sm rounded-sm p-6 shadow-xl shadow-black/35">
-              <h2 className="font-display text-lg text-stone-100 mb-4">Backstory</h2>
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <h2 className="font-display text-lg text-stone-100 mb-0">Backstory</h2>
+                {!isPreview &&
+                  voiceNarrationAvailable &&
+                  safeBackstory.trim() &&
+                  narration.assetOptions.some((o) => o.id === 'backstory') && (
+                    <button
+                      type="button"
+                      onClick={() => narration.toggleAsset('backstory')}
+                      disabled={
+                        narration.activeAssetId === 'backstory' && narration.status === 'loading'
+                      }
+                      aria-label={
+                        narration.activeAssetId === 'backstory' && narration.status === 'playing'
+                          ? 'Pause backstory narration'
+                          : 'Listen to backstory'
+                      }
+                      className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        narration.activeAssetId === 'backstory' && narration.status === 'playing'
+                          ? 'border-amber-500/65 bg-amber-900/45 text-amber-100 hover:bg-amber-900/60'
+                          : 'border-amber-700/50 bg-stone-950/70 text-amber-200/95 hover:border-amber-500/70 hover:text-amber-100'
+                      } disabled:cursor-wait disabled:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60`}
+                    >
+                      {narration.activeAssetId === 'backstory' && narration.status === 'loading' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                      ) : narration.activeAssetId === 'backstory' &&
+                        narration.status === 'playing' ? (
+                        <Pause className="h-3.5 w-3.5" aria-hidden />
+                      ) : (
+                        <Play className="h-3.5 w-3.5" aria-hidden />
+                      )}
+                      <Volume2 className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                      <span>
+                        {narration.activeAssetId === 'backstory' && narration.status === 'playing'
+                          ? 'Pause'
+                          : narration.activeAssetId === 'backstory' && narration.status === 'loading'
+                            ? 'Summoning'
+                            : 'Listen'}
+                      </span>
+                    </button>
+                  )}
+              </div>
 
               {showRegenerateHeroContent && (
                 <div className="mb-4 p-4 rounded-sm bg-amber-950/35 border border-amber-900/35">
@@ -838,13 +915,23 @@ const HeroPage: React.FC = () => {
         <div className="lg:hidden mt-10">
           {!isPreview && heroId && (
             <div className="rounded-sm border border-stone-700/85 bg-stone-950/35 p-5 shadow-lg shadow-black/30">
-              <HeroChapters heroId={heroId} onUnlockBundle={handleChaptersUnlocked} />
+              <HeroChapters
+                heroId={heroId}
+                onUnlockBundle={handleChaptersUnlocked}
+                activeChapter={readerChapter}
+                onActiveChapterChange={setReaderChapter}
+                narration={voiceNarrationAvailable ? narration : null}
+              />
             </div>
           )}
         </div>
 
         {!isPreview && heroId && <HeroLoreJournal heroId={heroId} />}
       </div>
+
+      {!isPreview && narration.showPlayerChrome && voiceNarrationAvailable && (
+        <HeroNarrationPlayerBar heroDisplayName={heroName} narration={narration} />
+      )}
     </motion.div>
   );
 };

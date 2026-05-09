@@ -14,6 +14,8 @@
 
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
+import { marked } from 'marked';
 
 const DEFAULT_ELEVEN_API_BASE = 'https://api.elevenlabs.io/v1';
 
@@ -46,6 +48,7 @@ const DEFAULT_MODEL_ID = 'eleven_multilingual_v2';
 const MAX_SPOKEN_CHARS = 4500;
 
 const NARRATION_DIR = path.join(process.cwd(), 'storage', 'narration');
+const HERO_NARRATION_ROOT = path.join(NARRATION_DIR, 'heroes');
 
 const HTML_ENTITIES = {
   '&nbsp;': ' ',
@@ -125,6 +128,120 @@ export function narratorHtmlToSpokenText(html) {
   }
 
   return text;
+}
+
+/**
+ * Short stable hash for cache filenames when prose may change (regeneration).
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function hashForNarrationCache(text) {
+  if (typeof text !== 'string' || !text) return 'empty';
+  return crypto.createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 16);
+}
+
+/**
+ * Hero backstory is stored as markdown; mirror client "Origin Story" heading, render to HTML, then strip tags for TTS.
+ *
+ * @param {string} raw
+ * @returns {string}
+ */
+export function heroBackstoryMarkdownToSpokenText(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return '';
+  let processed = raw.trim();
+  if (!processed.startsWith('#')) {
+    processed = `## Origin Story\n\n${processed}`;
+  }
+  const html = marked.parse(processed);
+  return narratorHtmlToSpokenText(html);
+}
+
+/**
+ * Chapter body markdown → spoken prose.
+ *
+ * @param {string} raw
+ * @returns {string}
+ */
+export function heroChapterMarkdownToSpokenText(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return '';
+  const html = marked.parse(raw.trim());
+  return narratorHtmlToSpokenText(html);
+}
+
+/**
+ * Map ElevenLabs / cache errors to HTTP JSON for narration endpoints.
+ *
+ * @param {unknown} error
+ * @param {{ forHero?: boolean }} [opts]
+ * @returns {{ status: number, body: { error: string, message: string } }}
+ */
+export function narrationFailureHttpPayload(error, opts = {}) {
+  const forHero = Boolean(opts.forHero);
+  const upstreamStatus =
+    typeof error?.status === 'number' && error.status >= 400 && error.status < 600
+      ? error.status
+      : null;
+  const code = typeof error?.code === 'string' ? error.code : '';
+  const isQuota = code === 'ELEVENLABS_QUOTA_EXHAUSTED' || upstreamStatus === 402;
+  let status;
+  if (
+    code === 'ELEVENLABS_NOT_CONFIGURED' ||
+    code === 'INVALID_CACHE_KEY' ||
+    code === 'EMPTY_NARRATION_TEXT'
+  ) {
+    status =
+      typeof error?.status === 'number' && error.status >= 400 && error.status < 600
+        ? error.status
+        : 503;
+  } else if (code === 'ELEVENLABS_TIMEOUT') {
+    status = 504;
+  } else if (upstreamStatus == null) {
+    status = 500;
+  } else if (isQuota) {
+    status = 503;
+  } else if (
+    upstreamStatus >= 500 ||
+    upstreamStatus === 401 ||
+    upstreamStatus === 403
+  ) {
+    status = 502;
+  } else {
+    status = upstreamStatus;
+  }
+
+  let message = forHero
+    ? 'Could not generate voice audio right now. Please try again.'
+    : 'The Cosmic Narrator could not voice this passage right now.';
+  if (code === 'ELEVENLABS_NOT_CONFIGURED') {
+    message = 'Voice provider is not configured on this server.';
+  } else if (code === 'ELEVENLABS_INVALID_API_KEY') {
+    message =
+      'Voice provider rejected the server API key. Update ELEVENLABS_API_KEY (or XI_API_KEY) and recreate the server container.';
+  } else if (code === 'ELEVENLABS_VOICE_ACCESS_DENIED') {
+    message =
+      'Configured ElevenLabs voice is unavailable for this account. Set ELEVENLABS_VOICE_ID to a voice from your ElevenLabs workspace.';
+  } else if (
+    (code === 'ELEVENLABS_REQUEST_FAILED' ||
+      code === 'ELEVENLABS_REQUEST_UNAUTHORIZED' ||
+      code === 'ELEVENLABS_REQUEST_FORBIDDEN') &&
+    (upstreamStatus === 401 || upstreamStatus === 403)
+  ) {
+    message = 'Voice provider authentication failed on the server.';
+  } else if (isQuota) {
+    message =
+      'Voice narration is paused: the ElevenLabs account has no credits or quota left for text-to-speech. Add credits or upgrade the plan in the ElevenLabs dashboard, then try again.';
+  } else if (code === 'ELEVENLABS_TIMEOUT') {
+    message = 'Voice provider timed out while generating narration.';
+  }
+
+  const errorKey = isQuota
+    ? 'narration_quota_exhausted'
+    : code === 'ELEVENLABS_NOT_CONFIGURED'
+      ? 'narration_unavailable'
+      : 'narration_failed';
+
+  return { status, body: { error: errorKey, message } };
 }
 
 /**
@@ -286,6 +403,49 @@ export async function getOrSynthesizeNarration({ roomId, messageId, text }) {
     await fs.writeFile(file, audio);
   } catch (err) {
     console.warn('narration cache write failed:', err?.message || err);
+  }
+  return audio;
+}
+
+/**
+ * Cached hero prose narration under storage/narration/heroes/{heroId}/{cacheKey}.mp3
+ *
+ * @param {{ heroId: string, cacheKey: string, text: string }} args
+ * @returns {Promise<Buffer>}
+ */
+export async function getOrSynthesizeHeroNarration({ heroId, cacheKey, text }) {
+  const safeHeroId = sanitizeId(heroId);
+  const safeKey = sanitizeId(cacheKey);
+  if (!safeHeroId || !safeKey) {
+    throw new NarrationError('Invalid heroId or cache key for narration cache', {
+      code: 'INVALID_CACHE_KEY',
+      status: 400,
+    });
+  }
+  if (!text) {
+    throw new NarrationError('No narratable text provided', {
+      code: 'EMPTY_NARRATION_TEXT',
+      status: 400,
+    });
+  }
+
+  const dir = path.join(HERO_NARRATION_ROOT, safeHeroId);
+  const file = path.join(dir, `${safeKey}.mp3`);
+
+  try {
+    return await fs.readFile(file);
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') {
+      console.warn('hero narration cache read failed:', err.message || err);
+    }
+  }
+
+  const audio = await synthesizeFromElevenLabs(text);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(file, audio);
+  } catch (err) {
+    console.warn('hero narration cache write failed:', err?.message || err);
   }
   return audio;
 }

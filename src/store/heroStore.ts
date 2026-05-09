@@ -152,7 +152,9 @@ interface HeroState {
   chapters: Chapter[];
   isLoadingChapters: boolean;
   loreJournal: HeroLoreEntry[];
-  
+  /** From GET /api/heroes/:id — ElevenLabs configured on server */
+  voiceNarrationAvailable: boolean;
+
   // Actions
   setHeroId: (id: string | null) => void;
   setHeroName: (name: string) => void;
@@ -171,6 +173,7 @@ interface HeroState {
   setChapters: (chapters: Chapter[]) => void;
   setIsLoadingChapters: (isLoading: boolean) => void;
   setLoreJournal: (entries: HeroLoreEntry[]) => void;
+  setVoiceNarrationAvailable: (available: boolean) => void;
   resetHero: () => void;
   loadHeroFromAPI: (heroData: Record<string, unknown>) => void;
 }
@@ -193,7 +196,8 @@ export const useHeroStore = create<HeroState>((set) => ({
   chapters: [],
   isLoadingChapters: false,
   loreJournal: [],
-  
+  voiceNarrationAvailable: false,
+
   // Actions
   setHeroId: (id) => set({ heroId: id }),
   setHeroName: (name) => set({ heroName: name }),
@@ -212,6 +216,7 @@ export const useHeroStore = create<HeroState>((set) => ({
   setChapters: (chapters) => set({ chapters }),
   setIsLoadingChapters: (isLoading) => set({ isLoadingChapters: isLoading }),
   setLoreJournal: (loreJournal) => set({ loreJournal }),
+  setVoiceNarrationAvailable: (voiceNarrationAvailable) => set({ voiceNarrationAvailable }),
   resetHero: () => set({
     heroId: null,
     heroName: '',
@@ -230,6 +235,7 @@ export const useHeroStore = create<HeroState>((set) => ({
     chapters: [],
     isLoadingChapters: false,
     loreJournal: [],
+    voiceNarrationAvailable: false,
   }),
   loadHeroFromAPI: (heroData: Record<string, unknown>) => {
     const rawStatus = heroData.status as string | undefined;
@@ -294,6 +300,10 @@ export const useHeroStore = create<HeroState>((set) => ({
       xpToNextLevel: typeof heroData.xpToNextLevel === 'number' ? heroData.xpToNextLevel : 100,
       avatarVersion: typeof heroData.avatarVersion === 'number' ? heroData.avatarVersion : 1,
       loreJournal,
+      voiceNarrationAvailable:
+        typeof heroData.voiceNarrationAvailable === 'boolean'
+          ? heroData.voiceNarrationAvailable
+          : false,
     });
   }
 }));

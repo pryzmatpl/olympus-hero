@@ -1,20 +1,30 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Book, Lock, Clock, CreditCard } from 'lucide-react';
+import { Book, Lock, Clock, CreditCard, Loader2, Pause, Play, Volume2 } from 'lucide-react';
 import Button from '../ui/Button';
 import { useHeroStore } from '../../store/heroStore';
 import { formatLiteraryChapter } from '../../utils/literaryFormatter';
 import api from '../../utils/api';
+import type { UseHeroNarrationResult, HeroNarrationAssetId } from '../../hooks/useHeroNarration';
 
 const CHAPTER_BUNDLE_PRICE_LABEL = '$1.99';
 
 interface HeroChaptersProps {
   heroId: string;
   onUnlockBundle: () => void;
+  activeChapter: number;
+  onActiveChapterChange: (chapterNumber: number) => void;
+  narration: UseHeroNarrationResult | null;
 }
 
-const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) => {
+const HeroChapters: React.FC<HeroChaptersProps> = ({
+  heroId,
+  onUnlockBundle,
+  activeChapter,
+  onActiveChapterChange,
+  narration,
+}) => {
   const { 
     storyBook, 
     chapters, 
@@ -25,13 +35,22 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
   } = useHeroStore();
 
   const navigate = useNavigate();
-  const [activeChapter, setActiveChapter] = useState<number>(1);
   const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
   
   const isPaid = paymentStatus === 'paid';
   const isPremium = storyBook?.is_premium || false;
   
-  const currentChapter = chapters.find(c => c.chapter_number === activeChapter);
+  const currentChapter = chapters.find((c) => c.chapter_number === activeChapter);
+  const chapterAssetId = `chapter-${activeChapter}` as HeroNarrationAssetId;
+  const canVoiceCurrentChapter =
+    Boolean(narration) &&
+    narration.assetOptions.some((o) => o.id === chapterAssetId);
+  const voiceChapterUi = useMemo(() => {
+    if (!narration || !canVoiceCurrentChapter) return null;
+    const isActive = narration.activeAssetId === chapterAssetId;
+    const st = isActive ? narration.status : 'idle';
+    return { playing: st === 'playing', loading: st === 'loading' };
+  }, [narration, canVoiceCurrentChapter, chapterAssetId]);
   
   const calculateTimeUntilNextUnlock = () => {
     if (!storyBook?.initial_chapter_generated_at) return null;
@@ -137,7 +156,7 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
             <button
               key={`chapter-${chapterNum}`}
               type="button"
-              onClick={() => isUnlocked && setActiveChapter(chapterNum)}
+              onClick={() => isUnlocked && onActiveChapterChange(chapterNum)}
               className={`
                 relative rounded-sm px-3 py-1.5 text-sm transition-all font-medium
                 ${activeChapter === chapterNum 
@@ -175,10 +194,42 @@ const HeroChapters: React.FC<HeroChaptersProps> = ({ heroId, onUnlockBundle }) =
               <div className="chapter-title-ornament">
                 <span>❧</span>
               </div>
-              <h2 className="chapter-title">
-                Chapter {currentChapter.chapter_number}
-              </h2>
-              
+              <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
+                <h2 className="chapter-title mb-0 flex-1 min-w-[12rem] text-center">
+                  Chapter {currentChapter.chapter_number}
+                </h2>
+                {narration && canVoiceCurrentChapter && (
+                  <button
+                    type="button"
+                    onClick={() => narration.toggleAsset(chapterAssetId)}
+                    disabled={voiceChapterUi?.loading}
+                    aria-label={
+                      voiceChapterUi?.playing ? 'Pause chapter narration' : 'Listen to this chapter'
+                    }
+                    title={
+                      voiceChapterUi?.playing ? 'Pause narration' : 'Listen to this chapter'
+                    }
+                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      voiceChapterUi?.playing
+                        ? 'border-amber-500/65 bg-amber-900/45 text-amber-100 hover:bg-amber-900/60'
+                        : 'border-amber-700/50 bg-stone-950/70 text-amber-200/95 hover:border-amber-500/70 hover:text-amber-100'
+                    } disabled:cursor-wait disabled:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60`}
+                  >
+                    {voiceChapterUi?.loading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    ) : voiceChapterUi?.playing ? (
+                      <Pause className="h-3.5 w-3.5" aria-hidden />
+                    ) : (
+                      <Play className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    <Volume2 className="h-3.5 w-3.5 opacity-80" aria-hidden />
+                    <span>
+                      {voiceChapterUi?.playing ? 'Pause' : voiceChapterUi?.loading ? 'Summoning' : 'Listen'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
               {/* Chapter Prose */}
               <div 
                 className="chapter-prose"

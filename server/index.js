@@ -28,6 +28,11 @@ import {
   isElevenLabsConfigured,
   narratorHtmlToSpokenText,
   getOrSynthesizeNarration,
+  heroBackstoryMarkdownToSpokenText,
+  heroChapterMarkdownToSpokenText,
+  getOrSynthesizeHeroNarration,
+  hashForNarrationCache,
+  narrationFailureHttpPayload,
 } from './elevenlabs.js';
 import { insertAnalyticsEvent, parseAnalyticsBody } from './analytics.js';
 import { ensureStorageDirectories, createHeroZip } from './utils.js';
@@ -838,6 +843,7 @@ async function startServer() {
       return res.json({
         ...hero,
         loreJournal: normalizeLoreJournal(hero),
+        voiceNarrationAvailable: isElevenLabsConfigured(),
       });
     });
 
@@ -1413,75 +1419,136 @@ async function startServer() {
           return res.end(audio);
         } catch (error) {
           console.error('shared-story narration error:', error?.message || error);
-          const upstreamStatus =
-            typeof error?.status === 'number' && error.status >= 400 && error.status < 600
-              ? error.status
-              : null;
-          // Never surface upstream provider auth statuses as app auth statuses.
-          // ElevenLabs 401/403 means server-side provider auth/config issue.
-          // 402 means provider credits/quota — avoid HTTP 402 (reads like app billing / Stripe).
-          const code = typeof error?.code === 'string' ? error.code : '';
-          const isQuota =
-            code === 'ELEVENLABS_QUOTA_EXHAUSTED' || upstreamStatus === 402;
-          let status;
-          if (
-            code === 'ELEVENLABS_NOT_CONFIGURED' ||
-            code === 'INVALID_CACHE_KEY' ||
-            code === 'EMPTY_NARRATION_TEXT'
-          ) {
-            status =
-              typeof error?.status === 'number' &&
-              error.status >= 400 &&
-              error.status < 600
-                ? error.status
-                : 503;
-          } else if (code === 'ELEVENLABS_TIMEOUT') {
-            status = 504;
-          } else if (upstreamStatus == null) {
-            status = 500;
-          } else if (isQuota) {
-            status = 503;
-          } else if (
-            upstreamStatus >= 500 ||
-            upstreamStatus === 401 ||
-            upstreamStatus === 403
-          ) {
-            status = 502;
-          } else {
-            status = upstreamStatus;
-          }
-          let message = 'The Cosmic Narrator could not voice this passage right now.';
-          if (code === 'ELEVENLABS_NOT_CONFIGURED') {
-            message = 'Voice provider is not configured on this server.';
-          } else if (code === 'ELEVENLABS_INVALID_API_KEY') {
-            message =
-              'Voice provider rejected the server API key. Update ELEVENLABS_API_KEY (or XI_API_KEY) and recreate the server container.';
-          } else if (code === 'ELEVENLABS_VOICE_ACCESS_DENIED') {
-            message =
-              'Configured ElevenLabs voice is unavailable for this account. Set ELEVENLABS_VOICE_ID to a voice from your ElevenLabs workspace.';
-          } else if (
-            (code === 'ELEVENLABS_REQUEST_FAILED' ||
-              code === 'ELEVENLABS_REQUEST_UNAUTHORIZED' ||
-              code === 'ELEVENLABS_REQUEST_FORBIDDEN') &&
-            (upstreamStatus === 401 || upstreamStatus === 403)
-          ) {
-            message = 'Voice provider authentication failed on the server.';
-          } else if (isQuota) {
-            message =
-              'Voice narration is paused: the ElevenLabs account has no credits or quota left for text-to-speech. Add credits or upgrade the plan in the ElevenLabs dashboard, then try again.';
-          } else if (code === 'ELEVENLABS_TIMEOUT') {
-            message = 'Voice provider timed out while generating narration.';
-          }
-          const errorKey = isQuota
-            ? 'narration_quota_exhausted'
-            : code === 'ELEVENLABS_NOT_CONFIGURED'
-              ? 'narration_unavailable'
-              : 'narration_failed';
+          const { status, body } = narrationFailureHttpPayload(error, { forHero: false });
           if (!res.headersSent) {
-            return res.status(status).json({
-              error: errorKey,
-              message,
+            return res.status(status).json(body);
+          }
+          return res.end();
+        }
+      }
+    );
+
+    app.get('/api/heroes/:heroId/narration/backstory', authMiddleware, async (req, res) => {
+      try {
+        const { heroId } = req.params;
+        const userId = req.user.userId;
+        if (!isElevenLabsConfigured()) {
+          return res.status(503).json({
+            error: 'narration_unavailable',
+            message: 'Voice narration is not configured on this server.',
+          });
+        }
+        if (typeof userId !== 'string') {
+          return res.status(400).json({ error: 'invalid_session' });
+        }
+        const hero = await heroDb.findHeroById(heroId);
+        if (!hero) {
+          return res.status(404).json({ error: 'Hero not found' });
+        }
+        if (hero.userid !== userId) {
+          return res.status(403).json({ error: 'You do not have permission to access this hero' });
+        }
+        const raw = typeof hero.backstory === 'string' ? hero.backstory : '';
+        const isPaid = hero.paymentStatus === 'paid';
+        const sourceForAudio =
+          !isPaid && raw.length > 300 ? `${raw.slice(0, 300)}...` : raw;
+        const spoken = heroBackstoryMarkdownToSpokenText(sourceForAudio);
+        if (!spoken) {
+          return res.status(400).json({
+            error: 'empty_narration',
+            message: 'No narratable backstory yet.',
+          });
+        }
+        const cacheKey = `backstory-${hashForNarrationCache(sourceForAudio)}`;
+        const audio = await getOrSynthesizeHeroNarration({
+          heroId,
+          cacheKey,
+          text: spoken,
+        });
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Length', String(audio.length));
+        res.setHeader('Cache-Control', 'private, max-age=86400');
+        res.setHeader('Accept-Ranges', 'none');
+        return res.end(audio);
+      } catch (error) {
+        console.error('hero backstory narration error:', error?.message || error);
+        const { status, body } = narrationFailureHttpPayload(error, { forHero: true });
+        if (!res.headersSent) {
+          return res.status(status).json(body);
+        }
+        return res.end();
+      }
+    });
+
+    app.get(
+      '/api/heroes/:heroId/narration/chapter/:chapterNumber',
+      authMiddleware,
+      async (req, res) => {
+        try {
+          const { heroId, chapterNumber: chapterNumberRaw } = req.params;
+          const chapterNumber = parseInt(chapterNumberRaw, 10);
+          const userId = req.user.userId;
+          if (!isElevenLabsConfigured()) {
+            return res.status(503).json({
+              error: 'narration_unavailable',
+              message: 'Voice narration is not configured on this server.',
             });
+          }
+          if (typeof userId !== 'string') {
+            return res.status(400).json({ error: 'invalid_session' });
+          }
+          if (!Number.isFinite(chapterNumber) || chapterNumber < 1) {
+            return res.status(400).json({ error: 'Invalid chapter number' });
+          }
+          const hero = await heroDb.findHeroById(heroId);
+          if (!hero) {
+            return res.status(404).json({ error: 'Hero not found' });
+          }
+          if (hero.userid !== userId) {
+            return res.status(403).json({ error: 'You do not have permission to access this hero' });
+          }
+          const storyBook = await storyBookDb.findStoryBookByHeroId(heroId);
+          if (!storyBook) {
+            return res.status(404).json({ error: 'Storybook not found for this hero' });
+          }
+          if (chapterNumber > storyBook.chapters_unlocked_count) {
+            return res.status(403).json({
+              error: 'chapter_locked',
+              message: 'This chapter is not unlocked yet.',
+            });
+          }
+          const chapters = await getStoryBookChapters(storyBook.id);
+          const chapter = chapters.find((c) => c.chapter_number === chapterNumber);
+          if (!chapter || !chapter.is_unlocked) {
+            return res.status(403).json({
+              error: 'chapter_locked',
+              message: 'This chapter is not available.',
+            });
+          }
+          const rawContent = typeof chapter.content === 'string' ? chapter.content : '';
+          const spoken = heroChapterMarkdownToSpokenText(rawContent);
+          if (!spoken) {
+            return res.status(400).json({
+              error: 'empty_narration',
+              message: 'No narratable text in this chapter yet.',
+            });
+          }
+          const cacheKey = `chapter-${hashForNarrationCache(`${chapter.id}\n${rawContent}`)}`;
+          const audio = await getOrSynthesizeHeroNarration({
+            heroId,
+            cacheKey,
+            text: spoken,
+          });
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Length', String(audio.length));
+          res.setHeader('Cache-Control', 'private, max-age=86400');
+          res.setHeader('Accept-Ranges', 'none');
+          return res.end(audio);
+        } catch (error) {
+          console.error('hero chapter narration error:', error?.message || error);
+          const { status, body } = narrationFailureHttpPayload(error, { forHero: true });
+          if (!res.headersSent) {
+            return res.status(status).json(body);
           }
           return res.end();
         }

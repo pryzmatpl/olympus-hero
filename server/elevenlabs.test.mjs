@@ -13,6 +13,9 @@ import {
   narratorHtmlToSpokenText,
   getOrSynthesizeNarration,
   isElevenLabsConfigured,
+  heroBackstoryMarkdownToSpokenText,
+  heroChapterMarkdownToSpokenText,
+  hashForNarrationCache,
 } from './elevenlabs.js';
 
 test('narratorHtmlToSpokenText handles non-string inputs as empty', () => {
@@ -64,6 +67,24 @@ test('narratorHtmlToSpokenText caps very long text near a sentence boundary', ()
   assert.ok(text.length <= 4500, `expected <=4500 chars, got ${text.length}`);
   assert.ok(text.length > 4000, 'expected close-to-cap output, not a tiny stub');
   assert.match(text, /[.!?…]$/);
+});
+
+test('heroBackstoryMarkdownToSpokenText adds Origin Story heading and yields plain prose', () => {
+  const text = heroBackstoryMarkdownToSpokenText('The river called her name.');
+  assert.match(text, /Origin Story/i);
+  assert.match(text, /river/i);
+  assert.ok(!text.includes('<'), 'expected no HTML in spoken text');
+});
+
+test('heroChapterMarkdownToSpokenText converts markdown to spoken prose', () => {
+  const text = heroChapterMarkdownToSpokenText('# Chapter One\n\nThe wind rose.');
+  assert.match(text, /Chapter One/i);
+  assert.match(text, /wind/i);
+});
+
+test('hashForNarrationCache is stable for identical input', () => {
+  assert.equal(hashForNarrationCache('alpha'), hashForNarrationCache('alpha'));
+  assert.notEqual(hashForNarrationCache('alpha'), hashForNarrationCache('beta'));
 });
 
 test('narratorHtmlToSpokenText collapses excessive whitespace from welcome cards', () => {
