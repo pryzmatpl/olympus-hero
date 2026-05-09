@@ -8,6 +8,13 @@ export interface NarrationAssetOption {
   label: string;
 }
 
+/** Full saga order for playlist UI (includes unlocked chapters without text yet) */
+export interface AudiobookPlaylistRow {
+  id: HeroNarrationAssetId;
+  label: string;
+  playable: boolean;
+}
+
 function isChapterId(id: HeroNarrationAssetId): id is `chapter-${number}` {
   return id !== 'backstory' && /^chapter-\d+$/.test(id);
 }
@@ -35,7 +42,17 @@ export interface UseHeroNarrationResult {
   currentTime: number;
   duration: number;
   audiobookMode: boolean;
+  /** Full player bar (playback UI or expanded idle shell) */
   showPlayerChrome: boolean;
+  /** Compact control after user dismissed the bar — tap to expand again */
+  showReopenFab: boolean;
+  expandAudioPanel: () => void;
+  /** Ordered ids that audiobook will play (narratable assets only); null when not in an audiobook run */
+  audiobookPlaybackQueueIds: HeroNarrationAssetId[] | null;
+  /** Index in audiobookPlaybackQueueIds for activeAssetId, or -1 */
+  audiobookPlaybackIndex: number;
+  /** Backstory + every unlocked chapter in reading order; playable=false if no body text yet */
+  audiobookPlaylistRows: AudiobookPlaylistRow[];
   toggleAsset: (id: HeroNarrationAssetId) => void;
   playAsset: (id: HeroNarrationAssetId) => void;
   stop: () => void;
@@ -69,6 +86,14 @@ export function useHeroNarration(
   const [duration, setDuration] = useState(0);
   const [audiobookMode, setAudiobookMode] = useState(false);
   const [hasPausedBlob, setHasPausedBlob] = useState(false);
+  /** Keeps the bottom bar mounted while idle so the user can pick a track after stopping */
+  const [audioPanelExpanded, setAudioPanelExpanded] = useState(false);
+  /** After explicit dismiss (stop), offer a small control to reopen */
+  const [showReopenFab, setShowReopenFab] = useState(false);
+  /** Mirrors audiobookQueueRef for React playlist UI */
+  const [audiobookPlaybackQueueIds, setAudiobookPlaybackQueueIds] = useState<
+    HeroNarrationAssetId[] | null
+  >(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const blobUrlRef = useRef<string | null>(null);
@@ -96,6 +121,29 @@ export function useHeroNarration(
     return out;
   }, [backstory, chapters]);
 
+  const audiobookPlaylistRows = useMemo((): AudiobookPlaylistRow[] => {
+    const rows: AudiobookPlaylistRow[] = [];
+    if (typeof backstory === 'string' && backstory.trim()) {
+      rows.push({ id: 'backstory', label: 'Backstory', playable: true });
+    }
+    const unlocked = [...chapters]
+      .filter((c) => c.is_unlocked)
+      .sort((a, b) => a.chapter_number - b.chapter_number);
+    for (const c of unlocked) {
+      rows.push({
+        id: `chapter-${c.chapter_number}` as HeroNarrationAssetId,
+        label: `Chapter ${c.chapter_number}`,
+        playable: Boolean(String(c.content || '').trim()),
+      });
+    }
+    return rows;
+  }, [backstory, chapters]);
+
+  const audiobookPlaybackIndex = useMemo(() => {
+    if (!audiobookMode || !activeAssetId || !audiobookPlaybackQueueIds?.length) return -1;
+    return audiobookPlaybackQueueIds.indexOf(activeAssetId);
+  }, [audiobookMode, activeAssetId, audiobookPlaybackQueueIds]);
+
   const releaseBlob = useCallback(() => {
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current);
@@ -121,6 +169,8 @@ export function useHeroNarration(
     setError(null);
     setCurrentTime(0);
     setDuration(0);
+    setAudioPanelExpanded(false);
+    setAudiobookPlaybackQueueIds(null);
   }, [releaseBlob]);
 
   const ensureAudio = useCallback((): HTMLAudioElement => {
@@ -141,6 +191,8 @@ export function useHeroNarration(
       const controller = new AbortController();
       abortRef.current = controller;
       setActiveAssetId(id);
+      setAudioPanelExpanded(true);
+      setShowReopenFab(false);
       setStatus('loading');
       setError(null);
       releaseBlob();
@@ -191,6 +243,7 @@ export function useHeroNarration(
         setError(message);
         setAudiobookMode(false);
         audiobookQueueRef.current = [];
+        setAudiobookPlaybackQueueIds(null);
       }
     },
     [heroId, voiceAvailable, ensureAudio, releaseBlob]
@@ -213,6 +266,7 @@ export function useHeroNarration(
         audiobookQueueRef.current = [];
         audiobookIdxRef.current = 0;
         setAudiobookMode(false);
+        setAudiobookPlaybackQueueIds(null);
         setActiveAssetId(null);
         setStatus('idle');
         setCurrentTime(0);
@@ -245,6 +299,7 @@ export function useHeroNarration(
     (id: HeroNarrationAssetId) => {
       setAudiobookMode(false);
       audiobookQueueRef.current = [];
+      setAudiobookPlaybackQueueIds(null);
       void loadAndPlay(id, false);
     },
     [loadAndPlay]
@@ -283,13 +338,20 @@ export function useHeroNarration(
 
       setAudiobookMode(false);
       audiobookQueueRef.current = [];
+      setAudiobookPlaybackQueueIds(null);
       void loadAndPlay(id, false);
     },
     [heroId, voiceAvailable, activeAssetId, status, ensureAudio, loadAndPlay]
   );
 
+  const expandAudioPanel = useCallback(() => {
+    setAudioPanelExpanded(true);
+    setShowReopenFab(false);
+  }, []);
+
   const stop = useCallback(() => {
     stopInternal();
+    setShowReopenFab(true);
   }, [stopInternal]);
 
   const toggleAudiobook = useCallback(() => {
@@ -305,13 +367,17 @@ export function useHeroNarration(
       audio.pause();
       setAudiobookMode(false);
       audiobookQueueRef.current = [];
+      setAudiobookPlaybackQueueIds(null);
       setStatus('idle');
       setHasPausedBlob(Boolean(audio.src));
       return;
     }
     setAudiobookMode(true);
+    setAudioPanelExpanded(true);
+    setShowReopenFab(false);
     audiobookQueueRef.current = [...ids];
     audiobookIdxRef.current = 0;
+    setAudiobookPlaybackQueueIds([...ids]);
     void loadAndPlay(ids[0], false);
   }, [heroId, voiceAvailable, assetOptions, audiobookMode, status, ensureAudio, loadAndPlay]);
 
@@ -322,6 +388,12 @@ export function useHeroNarration(
     audio.currentTime = t;
     setCurrentTime(t);
   }, [duration]);
+
+  useEffect(() => {
+    setAudioPanelExpanded(false);
+    setShowReopenFab(false);
+    setAudiobookPlaybackQueueIds(null);
+  }, [heroId]);
 
   useEffect(() => {
     return () => {
@@ -339,12 +411,14 @@ export function useHeroNarration(
     };
   }, []);
 
-  const showPlayerChrome =
+  const hasPlaybackChrome =
     Boolean(activeAssetId) &&
     (status === 'loading' ||
       status === 'playing' ||
       status === 'error' ||
       (status === 'idle' && hasPausedBlob));
+
+  const showPlayerChrome = audioPanelExpanded || hasPlaybackChrome;
 
   return {
     assetOptions,
@@ -355,6 +429,11 @@ export function useHeroNarration(
     duration,
     audiobookMode,
     showPlayerChrome,
+    showReopenFab,
+    expandAudioPanel,
+    audiobookPlaybackQueueIds,
+    audiobookPlaybackIndex,
+    audiobookPlaylistRows,
     toggleAsset,
     playAsset,
     stop,

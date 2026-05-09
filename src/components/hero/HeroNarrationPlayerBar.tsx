@@ -1,6 +1,10 @@
 import React from 'react';
-import { BookOpen, Loader2, Pause, Play, Square, Volume2, X } from 'lucide-react';
-import type { UseHeroNarrationResult, HeroNarrationAssetId } from '../../hooks/useHeroNarration';
+import { BookOpen, Check, Loader2, ListMusic, Pause, Play, Square, Volume2, X } from 'lucide-react';
+import type {
+  UseHeroNarrationResult,
+  HeroNarrationAssetId,
+  AudiobookPlaylistRow,
+} from '../../hooks/useHeroNarration';
 
 interface HeroNarrationPlayerBarProps {
   heroDisplayName: string;
@@ -16,6 +20,21 @@ function labelForAsset(
   return hit?.label ?? '';
 }
 
+function playlistRowKind(
+  row: AudiobookPlaylistRow,
+  playbackQueue: HeroNarrationAssetId[] | null,
+  playbackIndex: number
+): 'no-audio' | 'queued-done' | 'current' | 'upcoming' | 'not-in-run' {
+  if (!row.playable) return 'no-audio';
+  if (!playbackQueue?.length) return 'not-in-run';
+  const q = playbackQueue.indexOf(row.id);
+  if (q === -1) return 'not-in-run';
+  if (playbackIndex < 0) return 'upcoming';
+  if (q < playbackIndex) return 'queued-done';
+  if (q === playbackIndex) return 'current';
+  return 'upcoming';
+}
+
 const HeroNarrationPlayerBar: React.FC<HeroNarrationPlayerBarProps> = ({
   heroDisplayName,
   narration,
@@ -28,6 +47,9 @@ const HeroNarrationPlayerBar: React.FC<HeroNarrationPlayerBarProps> = ({
     currentTime,
     duration,
     audiobookMode,
+    audiobookPlaybackQueueIds,
+    audiobookPlaybackIndex,
+    audiobookPlaylistRows,
     toggleAsset,
     stop,
     toggleAudiobook,
@@ -144,6 +166,59 @@ const HeroNarrationPlayerBar: React.FC<HeroNarrationPlayerBarProps> = ({
             {formatClock(duration)}
           </span>
         </div>
+
+        {audiobookMode && audiobookPlaylistRows.length > 0 && (
+          <div className="mt-3 border-t border-stone-800/90 pt-3">
+            <div className="flex items-center gap-2 mb-2 text-[11px] font-medium uppercase tracking-wider text-stone-500">
+              <ListMusic className="h-3.5 w-3.5" aria-hidden />
+              Playlist
+              {audiobookPlaybackQueueIds && audiobookPlaybackQueueIds.length > 0 ? (
+                <span className="normal-case font-normal text-stone-600">
+                  (
+                  {audiobookPlaybackIndex >= 0 ? audiobookPlaybackIndex + 1 : '—'} /{' '}
+                  {audiobookPlaybackQueueIds.length} narrated)
+                </span>
+              ) : null}
+            </div>
+            <ol className="max-h-[min(12rem,40vh)] space-y-1 overflow-y-auto overscroll-contain pr-1 text-sm">
+              {audiobookPlaylistRows.map((row, i) => {
+                const kind = playlistRowKind(row, audiobookPlaybackQueueIds, audiobookPlaybackIndex);
+                return (
+                  <li
+                    key={row.id}
+                    className={`flex items-center gap-2 rounded-sm px-2 py-1.5 ${
+                      kind === 'current'
+                        ? 'bg-amber-950/55 ring-1 ring-amber-600/45 text-amber-50'
+                        : kind === 'queued-done'
+                          ? 'text-stone-500'
+                          : kind === 'no-audio'
+                            ? 'text-stone-600'
+                            : kind === 'not-in-run'
+                              ? 'text-stone-600'
+                              : 'text-stone-300'
+                    }`}
+                  >
+                    <span className="w-6 shrink-0 tabular-nums text-[11px] text-stone-500">
+                      {i + 1}.
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                    {kind === 'queued-done' && (
+                      <Check className="h-3.5 w-3.5 shrink-0 text-amber-600/90" aria-hidden />
+                    )}
+                    {kind === 'current' && (
+                      <span className="shrink-0 text-[10px] uppercase tracking-wide text-amber-400/95">
+                        Now
+                      </span>
+                    )}
+                    {kind === 'no-audio' && (
+                      <span className="shrink-0 text-[10px] text-stone-600">No text yet</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
 
         {error && (
           <p className="mt-2 text-xs text-red-300/95 flex items-start gap-1.5">

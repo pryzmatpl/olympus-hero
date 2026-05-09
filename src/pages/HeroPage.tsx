@@ -604,7 +604,9 @@ const HeroPage: React.FC = () => {
 
       <div
         className={`container mx-auto px-4 py-12 max-w-6xl ${
-          narration.showPlayerChrome && voiceNarrationAvailable ? 'pb-32' : 'pb-24'
+          (narration.showPlayerChrome || narration.showReopenFab) && voiceNarrationAvailable
+            ? 'pb-32'
+            : 'pb-24'
         }`}
       >
 
@@ -932,6 +934,22 @@ const HeroPage: React.FC = () => {
       {!isPreview && narration.showPlayerChrome && voiceNarrationAvailable && (
         <HeroNarrationPlayerBar heroDisplayName={heroName} narration={narration} />
       )}
+
+      {!isPreview &&
+        voiceNarrationAvailable &&
+        narration.showReopenFab &&
+        !narration.showPlayerChrome &&
+        narration.assetOptions.length > 0 && (
+          <button
+            type="button"
+            onClick={() => narration.expandAudioPanel()}
+            className="fixed bottom-5 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-amber-700/55 bg-stone-950/95 px-4 py-2.5 text-sm font-medium text-amber-100 shadow-lg shadow-black/40 backdrop-blur-md transition-colors hover:border-amber-500/60 hover:bg-stone-900/95 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+            aria-label="Open narration controls"
+          >
+            <Volume2 className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+            Narration
+          </button>
+        )}
     </motion.div>
   );
 };
