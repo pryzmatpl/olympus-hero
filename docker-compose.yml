@@ -5,9 +5,7 @@ services:
       dockerfile: Dockerfile.ui
     ports:
       - "9001:80"
-      - "9443:443"
     volumes:
-      - pryzmat_certbot_certs:/etc/letsencrypt:ro
       - ./public:/app/public
       - ./src:/app/src
     depends_on:
@@ -17,10 +15,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.server
-    env_file:
-      # Variables such as ELEVENLABS_API_KEY / XI_API_KEY load from this file once at container create time.
-      # After editing .env, recreate the running server (`docker compose up -d --force-recreate server`) or the process keeps old env.
-      - .env
     environment:
       - NODE_ENV=production
       - PORT=9002
@@ -51,5 +45,3 @@ services:
 volumes:
   hero-data: 
   mongodb-data: 
-  pryzmat_certbot_certs:
-    external: true
